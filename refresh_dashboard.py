@@ -1,0 +1,173 @@
+"""
+refresh_dashboard.py - regenerates docs/dashboard_data.json from what's on
+disk, so the dashboard stays current as the live loop keeps learning.
+
+Run nightly after verify_and_learn.py. No network calls: it works entirely
+from the two local logs.
+
+Data sources:
+  - logs/backtest_dataset.jsonl   historical training samples (from backtest.py)
+  - logs/predictions.jsonl        live predictions; the verified ones carry
+                                  real observed outcomes
+  - weights.json                  the CURRENT weights (which keep evolving)
+
+What it computes:
+  - Rolling live accuracy: how the deployed model has actually performed on
+    live, deduplicated, verified predictions - the number that matters most,
+    since it reflects real forecast conditions (1-3 day lead), not backtest
+    conditions (0-hour archive data).
+  - The original backtest holdout metrics, carried over unchanged for
+    reference (they describe a fixed past experiment; recomputing them with
+    newer weights would quietly turn the holdout into training data).
+  - A merged timeline: historical samples + live verified hours, all
+    re-scored with current weights so the probability trace reflects the
+    model you have today.
+"""
+
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+from model import load_weights, score
+
+BASE_DIR = os.path.dirname(__file__)
+DATASET_PATH = os.path.join(BASE_DIR, "logs", "backtest_dataset.jsonl")
+PREDICTIONS_PATH = os.path.join(BASE_DIR, "logs", "predictions.jsonl")
+DASHBOARD_DATA_PATH = os.path.join(BASE_DIR, "docs", "dashboard_data.json")
+
+
+def read_jsonl(path):
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def dedupe_latest_per_hour(records):
+    """Keep only the most recent prediction per target hour."""
+    latest = {}
+    for r in records:
+        k = r["target_time"]
+        if k not in latest or r.get("logged_at", "") > latest[k].get("logged_at", ""):
+            latest[k] = r
+    return list(latest.values())
+
+
+def live_metrics(verified):
+    if not verified:
+        return {"n": 0}
+    tp = fp = tn = fn = 0
+    for r in verified:
+        predicted = r["tier"] in ("GOOD", "MARGINAL")
+        actual = r.get("outcome") == 1.0
+        if predicted and actual:
+            tp += 1
+        elif predicted and not actual:
+            fp += 1
+        elif not predicted and not actual:
+            tn += 1
+        else:
+            fn += 1
+    n = len(verified)
+    positive_rate = (tp + fn) / n
+    return {
+        "n": n,
+        "accuracy": round((tp + tn) / n, 3),
+        "precision": round(tp / (tp + fp), 3) if (tp + fp) else None,
+        "recall": round(tp / (tp + fn), 3) if (tp + fn) else None,
+        "positive_rate": round(positive_rate, 3),
+        "trivial_baseline_accuracy": round(max(positive_rate, 1 - positive_rate), 3),
+        "true_positive": tp, "false_positive": fp,
+        "true_negative": tn, "false_negative": fn,
+    }
+
+
+def monthly_breakdown(entries):
+    """entries: list of {date, actual_kt, outcome}"""
+    by_month = {}
+    for e in entries:
+        month = e["date"][:7]
+        m = by_month.setdefault(month, {"n": 0, "sessions": 0, "sum_kt": 0.0})
+        m["n"] += 1
+        m["sessions"] += int(e["outcome"])
+        m["sum_kt"] += e["actual_kt"]
+    return {
+        month: {
+            "n": v["n"], "sessions": v["sessions"],
+            "session_rate": round(v["sessions"] / v["n"], 3),
+            "avg_wind_kt": round(v["sum_kt"] / v["n"], 1),
+        }
+        for month, v in sorted(by_month.items())
+    }
+
+
+def main():
+    weights = load_weights()
+    backtest_samples = read_jsonl(DATASET_PATH)
+    predictions = read_jsonl(PREDICTIONS_PATH)
+
+    verified = dedupe_latest_per_hour([p for p in predictions if p.get("verified")])
+    verified.sort(key=lambda r: r["target_time"])
+
+    # Carry over the frozen backtest holdout metrics if a previous dashboard
+    # data file has them (they describe a fixed experiment; do not recompute).
+    holdout_metrics = None
+    if os.path.exists(DASHBOARD_DATA_PATH):
+        try:
+            with open(DASHBOARD_DATA_PATH) as f:
+                prev = json.load(f)
+            if not prev.get("is_sample_data"):
+                holdout_metrics = prev.get("holdout_metrics_2026")
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Unified entries for timeline + monthly stats, re-scored with current weights
+    entries = []
+    for s in backtest_samples:
+        entries.append({
+            "date": s["date"], "actual_kt": s["actual_wind_kt"],
+            "outcome": s["outcome"],
+            "probability": round(score(s["features"], weights), 3),
+            "source": "backtest", "year": s.get("year"),
+        })
+    for r in verified:
+        entries.append({
+            "date": r["target_time"], "actual_kt": r["actual_wind_kt"],
+            "outcome": r["outcome"],
+            "probability": round(score(r["features"], weights), 3),
+            "source": "live", "year": int(r["target_time"][:4]),
+        })
+    entries.sort(key=lambda e: e["date"])
+
+    per_year = {}
+    for e in entries:
+        per_year[str(e["year"])] = per_year.get(str(e["year"]), 0) + 1
+
+    dashboard_data = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_samples": len(entries),
+        "samples_per_year": per_year,
+        "holdout_metrics_2026": holdout_metrics or {"n": 0},
+        "live_metrics": live_metrics(verified),
+        "final_weights": weights,
+        "monthly_breakdown": monthly_breakdown(entries),
+        "timeline": [
+            {"date": e["date"], "actual_kt": e["actual_kt"],
+             "probability": e["probability"], "year": e["year"], "source": e["source"]}
+            for e in entries
+        ],
+    }
+
+    os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)
+    with open(DASHBOARD_DATA_PATH, "w") as f:
+        json.dump(dashboard_data, f, indent=2)
+
+    lm = dashboard_data["live_metrics"]
+    print(f"Dashboard refreshed: {len(entries)} entries "
+          f"({len(backtest_samples)} backtest + {len(verified)} live verified). "
+          f"Live accuracy so far: {lm.get('accuracy', '—')} on n={lm['n']}.")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

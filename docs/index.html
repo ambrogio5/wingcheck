@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Malojawind · Silvaplana</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ice:#F6F9FC; --card:#FFFFFF; --line:#E4EBF2; --line-soft:#EEF3F8;
+    --ink:#15242F; --ink-2:#5A6B7A; --ink-3:#93A3B1;
+    --blue:#2273C3; --blue-soft:#E3EFFA;
+    --good:#0E9F6E; --good-soft:#E3F5EE;
+    --warn:#D98E04; --warn-soft:#FBF1DD;
+    --display:'Outfit',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+    --radius:18px; --shadow:0 1px 2px rgba(21,36,47,.04), 0 8px 24px rgba(21,36,47,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ice);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px 72px;}
+
+  /* ---------- Hero ---------- */
+  .hero{position:relative;padding:64px 0 44px;overflow:hidden;}
+  .hero-wind{position:absolute;inset:0;pointer-events:none;}
+  .hero-wind path{fill:none;stroke:var(--blue);stroke-width:1.5;opacity:.12;
+    stroke-dasharray:6 14;animation:flow 9s linear infinite;}
+  .hero-wind path:nth-child(2){opacity:.08;animation-duration:13s;}
+  .hero-wind path:nth-child(3){opacity:.06;animation-duration:17s;}
+  @keyframes flow{to{stroke-dashoffset:-400;}}
+  @media (prefers-reduced-motion:reduce){.hero-wind path{animation:none;}}
+
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
+    font-size:12px;color:var(--blue);background:var(--blue-soft);
+    padding:6px 14px;border-radius:100px;margin-bottom:20px;}
+  .kicker b{font-weight:500;}
+  h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,5.5vw,52px);
+    letter-spacing:-0.02em;line-height:1.06;}
+  h1 em{font-style:normal;color:var(--blue);}
+  .hero p{color:var(--ink-2);font-size:16px;line-height:1.65;max-width:540px;margin-top:16px;}
+  .status-line{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px;}
+  .chip{font-family:var(--mono);font-size:12px;padding:7px 14px;border-radius:100px;
+    background:var(--card);border:1px solid var(--line);color:var(--ink-2);}
+  .chip.sample{background:var(--warn-soft);border-color:transparent;color:#8a5c05;font-weight:500;}
+
+  /* ---------- KPI cards ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:8px 0 46px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 22px 20px;box-shadow:var(--shadow);}
+  .kpi .k-label{font-size:13px;color:var(--ink-2);font-weight:500;}
+  .kpi .k-value{font-family:var(--display);font-size:38px;font-weight:600;margin-top:6px;letter-spacing:-0.02em;}
+  .kpi .k-sub{font-size:12.5px;color:var(--ink-3);margin-top:6px;line-height:1.45;}
+  .kpi.hero-kpi{background:linear-gradient(135deg,#1D5FA4,#2E86D8);border:none;color:#fff;}
+  .kpi.hero-kpi .k-label{color:rgba(255,255,255,.85);}
+  .kpi.hero-kpi .k-sub{color:rgba(255,255,255,.7);}
+  .kpi.hero-kpi .k-value{color:#fff;}
+
+  /* ---------- Cards / sections ---------- */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px;box-shadow:var(--shadow);}
+  .card + .card, section{margin-top:18px;}
+  .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .card-head h2{font-family:var(--display);font-size:19px;font-weight:600;letter-spacing:-0.01em;}
+  .card-head .hint{font-size:13px;color:var(--ink-3);}
+  .card .explain{font-size:13.5px;color:var(--ink-2);line-height:1.6;margin-bottom:18px;max-width:640px;}
+
+  .chart-box{height:300px;position:relative;}
+  .chart-box.tall{height:320px;}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);}
+  .swatch{width:20px;height:4px;border-radius:2px;display:inline-block;}
+  .swatch.dot{width:9px;height:9px;border-radius:50%;}
+
+  .two-col{display:grid;grid-template-columns:1.15fr 1fr;gap:18px;margin-top:18px;}
+  @media (max-width:840px){.two-col{grid-template-columns:1fr;}}
+
+  /* ---------- Weights ---------- */
+  .w-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft);}
+  .w-row:last-child{border-bottom:none;}
+  .w-name{font-size:13.5px;color:var(--ink);font-weight:500;}
+  .w-desc{font-size:12px;color:var(--ink-3);margin-top:2px;}
+  .w-bar-wrap{display:flex;align-items:center;gap:10px;min-width:150px;}
+  .w-bar{flex:1;height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden;min-width:80px;}
+  .w-fill{height:100%;border-radius:3px;background:var(--blue);}
+  .w-val{font-family:var(--mono);font-size:12px;color:var(--ink-2);width:44px;text-align:right;}
+
+  footer{margin-top:56px;text-align:center;font-size:12.5px;color:var(--ink-3);line-height:1.8;}
+  footer .mono{font-family:var(--mono);font-size:11.5px;}
+  ::selection{background:var(--blue-soft);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <svg class="hero-wind" viewBox="0 0 1080 260" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M -40 70 C 200 30, 420 110, 640 70 S 1000 30, 1140 80"/>
+      <path d="M -40 140 C 240 100, 460 180, 700 140 S 1020 100, 1140 150"/>
+      <path d="M -40 210 C 220 170, 480 240, 720 200 S 1040 170, 1140 215"/>
+    </svg>
+    <div class="kicker">◍ <b>SILVAPLANA · LIVE MODEL</b></div>
+    <h1>Will the <em>Malojawind</em> blow&nbsp;today?</h1>
+    <p>A small forecasting model that reads the physical drivers of the Maloja wind — Bregaglia heating, pressure gradients, winds aloft — and checks its own answers against real MeteoSwiss measurements, learning as it goes.</p>
+    <div class="status-line" id="statusLine"></div>
+  </header>
+
+  <!-- ================= KPIs ================= -->
+  <div class="kpis" id="kpiRow"></div>
+
+  <!-- ================= Timeline ================= -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Wind history &amp; model confidence</h2>
+      <div class="hint" id="timelineHint">Afternoon window, 12:00–18:00</div>
+    </div>
+    <p class="explain">The grey area is the wind that actually blew. The blue line is how confident the model was (or would have been, for past seasons) that it would be a rideable day. When blue rises before grey does, the model is doing its job.</p>
+    <div class="chart-box tall"><canvas id="timelineChart"></canvas></div>
+    <div class="legend">
+      <span><i class="swatch" style="background:#B9C6D2"></i>Actual wind (knots)</span>
+      <span><i class="swatch" style="background:#2273C3"></i>Model confidence</span>
+      <span><i class="swatch dot" style="background:#0E9F6E"></i>Verified live forecasts</span>
+      <span><i class="swatch" style="background:#D98E04;height:2px"></i>10 kt rideable line</span>
+    </div>
+  </section>
+
+  <!-- ================= Monthly + Weights ================= -->
+  <div class="two-col">
+    <section class="card">
+      <div class="card-head"><h2>Rideable days by month</h2></div>
+      <p class="explain">Share of afternoon hours that reached rideable wind — your season at a glance.</p>
+      <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>What the model listens to</h2></div>
+      <p class="explain">The signals it weighs, strongest first. These shift automatically as the model learns.</p>
+      <div id="weightsList"></div>
+    </section>
+  </div>
+
+  <footer>
+    <div id="genAt">—</div>
+    <div class="mono" id="sampleCount">—</div>
+    <div class="mono">Data: Open-Meteo · Source: MeteoSwiss</div>
+  </footer>
+</div>
+
+<script>
+const FEATURES = {
+  thermal_excess:        {name:"Bregaglia heating",       desc:"How much warmer the source valley runs"},
+  pressure_signal:       {name:"North–south pressure",    desc:"Lugano–Zürich gradient near its sweet spot"},
+  upper_wind_alignment:  {name:"Wind aloft, direction",   desc:"SW flow at 3000 m reinforces the Maloja"},
+  upper_wind_speed_score:{name:"Wind aloft, strength",    desc:"Enough to help, not enough to overwhelm"},
+  cloud_score:           {name:"Sun over Bregaglia",      desc:"Clear slopes heat faster"},
+  dewpoint_score:        {name:"Dry air",                 desc:"Dry valleys warm more quickly"},
+  cape_penalty:          {name:"Storm risk",              desc:"Instability that breaks the thermal cycle"},
+  freezing_level_score:  {name:"Airmass warmth",          desc:"Freezing-level height as airmass character"},
+  precip_penalty:        {name:"Wet ground",              desc:"Recent rain slows valley heating"},
+};
+
+const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
+
+function renderStatus(d){
+  const el = document.getElementById('statusLine');
+  const chips = [];
+  if (d.is_sample_data) chips.push('<span class="chip sample">Sample data — run backtest.py for real numbers</span>');
+  const spy = d.samples_per_year || {};
+  for (const y of Object.keys(spy).sort()) chips.push(`<span class="chip">${y} · ${spy[y]} hrs</span>`);
+  el.innerHTML = chips.join('');
+}
+
+function renderKpis(d){
+  const bt = d.holdout_metrics_2026 || {};
+  const lv = d.live_metrics || {n:0};
+  const hasLive = lv.n > 0;
+  const cards = [];
+
+  if (hasLive){
+    cards.push({cls:'hero-kpi', label:'Right in the real world', value:fmtPct(lv.accuracy),
+      sub:`Across ${lv.n} live forecasts, verified against the Samedan station`});
+  } else {
+    cards.push({cls:'hero-kpi', label:'Right in the real world', value:'—',
+      sub:'Appears once the first live forecasts are verified'});
+  }
+  cards.push({label:'Right on past seasons', value:fmtPct(bt.accuracy),
+    sub: bt.trivial_baseline_accuracy
+      ? `vs ${fmtPct(bt.trivial_baseline_accuracy)} if it always guessed “no wind”`
+      : 'Tested on a season it never trained on'});
+  cards.push({label:'When it says “go”, it’s right', value:fmtPct(hasLive ? lv.precision : bt.precision),
+    sub:'Precision — how trustworthy a green light is'});
+  cards.push({label:'Rideable days it catches', value:fmtPct(hasLive ? lv.recall : bt.recall),
+    sub:'Recall — how few good sessions it misses'});
+
+  document.getElementById('kpiRow').innerHTML = cards.map(k=>`
+    <div class="kpi ${k.cls||''}">
+      <div class="k-label">${k.label}</div>
+      <div class="k-value">${k.value}</div>
+      <div class="k-sub">${k.sub||''}</div>
+    </div>`).join('');
+}
+
+function renderTimeline(d){
+  const pts = d.timeline || [];
+  const step = Math.max(1, Math.floor(pts.length/420));
+  const s = pts.filter((_,i)=> i%step===0 || pts[i].source==='live');
+  new Chart(document.getElementById('timelineChart'), {
+    type:'line',
+    data:{
+      labels: s.map(p=>p.date.slice(0,10)),
+      datasets:[
+        { label:'Actual wind (kt)', data:s.map(p=>p.actual_kt),
+          borderColor:'#B9C6D2', backgroundColor:'rgba(185,198,210,0.22)',
+          pointRadius:s.map(p=>p.source==='live'?3.5:0),
+          pointBackgroundColor:'#0E9F6E', pointBorderColor:'#fff', pointBorderWidth:1,
+          borderWidth:1.4, tension:.3, fill:true, yAxisID:'y' },
+        { label:'Model confidence', data:s.map(p=>p.probability),
+          borderColor:'#2273C3', pointRadius:0, borderWidth:2, tension:.3, yAxisID:'y2' },
+        { label:'10 kt line', data:s.map(()=>10),
+          borderColor:'rgba(217,142,4,.55)', borderDash:[5,6], pointRadius:0, borderWidth:1.2, yAxisID:'y' },
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index', intersect:false},
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#15242F', padding:10, cornerRadius:10,
+          titleFont:{family:'Inter',size:12}, bodyFont:{family:'JetBrains Mono',size:12},
+          callbacks:{label:c=> c.dataset.yAxisID==='y2'
+            ? ` confidence ${Math.round(c.parsed.y*100)}%`
+            : ` ${c.dataset.label}: ${c.parsed.y}`}}},
+      scales:{
+        x:{ticks:{color:'#93A3B1',maxTicksLimit:7,font:{size:11}},grid:{display:false},border:{display:false}},
+        y:{position:'left',ticks:{color:'#93A3B1',font:{size:11}},grid:{color:'#EEF3F8'},border:{display:false},
+           title:{display:true,text:'knots',color:'#93A3B1',font:{size:11}}},
+        y2:{position:'right',min:0,max:1,ticks:{color:'#8FB6DD',font:{size:11},callback:v=>Math.round(v*100)+'%'},
+            grid:{drawOnChartArea:false},border:{display:false},
+            title:{display:true,text:'confidence',color:'#8FB6DD',font:{size:11}}},
+      }
+    }
+  });
+}
+
+function renderMonthly(d){
+  const mb = d.monthly_breakdown || {};
+  const months = Object.keys(mb);
+  const pretty = m => new Date(m+'-01').toLocaleDateString('en',{month:'short',year:'2-digit'});
+  new Chart(document.getElementById('monthlyChart'), {
+    type:'bar',
+    data:{ labels: months.map(pretty),
+      datasets:[{ data: months.map(m=>Math.round(mb[m].session_rate*100)),
+        backgroundColor:'#BFDBF3', hoverBackgroundColor:'#2273C3',
+        borderRadius:6, maxBarThickness:26 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#15242F',padding:10,cornerRadius:10,
+          callbacks:{label:c=>` ${c.parsed.y}% of afternoon hours rideable`}}},
+      scales:{
+        x:{ticks:{color:'#93A3B1',font:{size:10.5},maxRotation:45,minRotation:45},grid:{display:false},border:{display:false}},
+        y:{ticks:{color:'#93A3B1',callback:v=>v+'%'},grid:{color:'#EEF3F8'},border:{display:false},max:100},
+      }
+    }
+  });
+}
+
+function renderWeights(d){
+  const w = (d.final_weights && d.final_weights.weights) || {};
+  const entries = Object.entries(w).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
+  const max = Math.max(...entries.map(e=>Math.abs(e[1])), .01);
+  document.getElementById('weightsList').innerHTML = entries.map(([k,v])=>{
+    const f = FEATURES[k] || {name:k, desc:''};
+    return `
+      <div class="w-row">
+        <div>
+          <div class="w-name">${f.name}</div>
+          <div class="w-desc">${f.desc}</div>
+        </div>
+        <div class="w-bar-wrap">
+          <div class="w-bar"><div class="w-fill" style="width:${Math.abs(v)/max*100}%"></div></div>
+          <div class="w-val">${v.toFixed(2)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function init(){
+  let d;
+  try{
+    const r = await fetch('./dashboard_data.json');
+    if(!r.ok) throw 0;
+    d = await r.json();
+  }catch(e){
+    d = window.__FALLBACK__; d.is_sample_data = true;
+  }
+  renderStatus(d); renderKpis(d); renderTimeline(d); renderMonthly(d); renderWeights(d);
+  document.getElementById('genAt').textContent =
+    'Updated ' + (d.generated_at||'').slice(0,16).replace('T',' ') + ' UTC';
+  document.getElementById('sampleCount').textContent =
+    (d.total_samples||0).toLocaleString() + ' labeled hours · Silvaplana / Val Bregaglia / Maloja Pass';
+}
+init();
+</script>
+
+<script>
+// Minimal fallback so the page renders even opened as a plain file
+window.__FALLBACK__ = {
+  generated_at:new Date().toISOString(), total_samples:0,
+  samples_per_year:{}, holdout_metrics_2026:{}, live_metrics:{n:0},
+  final_weights:{weights:{thermal_excess:.9,pressure_signal:.8,upper_wind_alignment:.8,
+    upper_wind_speed_score:.5,cloud_score:.5,dewpoint_score:.3,cape_penalty:.4,
+    freezing_level_score:.2,precip_penalty:.3}},
+  monthly_breakdown:{}, timeline:[],
+};
+</script>
+</body>
+</html>

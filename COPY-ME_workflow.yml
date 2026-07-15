@@ -1,0 +1,98 @@
+# Save as .github/workflows/wingcheck.yml
+#
+# Three jobs:
+#  - forecast: runs the model, sends Telegram alert, logs predictions
+#  - learn: runs later each day, checks yesterday's predictions against real
+#    Samedan station data, updates weights.json
+#  - backtest: MANUAL ONLY (workflow_dispatch). Retrains from 2024-2026
+#    history and regenerates the dashboard. Run this once to start, and
+#    again any time you want a from-scratch retrain.
+#
+# Required repo secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+# Required repo setting: Settings -> Actions -> General -> Workflow permissions
+#   -> "Read and write permissions" (so jobs can commit log/weight updates)
+#
+# To view the dashboard: Settings -> Pages -> Source: "Deploy from branch",
+# Branch: main, Folder: /docs. Your dashboard will be at
+# https://<username>.github.io/<repo>/
+
+name: wingfoil-check
+
+on:
+  schedule:
+    - cron: "0 5,8 * * *"    # forecast: 07:00 / 10:00 CEST
+    - cron: "0 18 * * *"     # learn: 20:00 CEST, checks that day's window
+  workflow_dispatch:
+    inputs:
+      run_backtest:
+        description: "Run the full historical backtest/retrain instead of a normal forecast"
+        type: boolean
+        default: false
+
+jobs:
+  backtest:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_backtest == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python backtest.py
+      - name: Commit dataset, weights, and dashboard data
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/backtest_dataset.jsonl weights.json docs/dashboard_data.json
+          git diff --staged --quiet || git commit -m "backtest retrain $(date -u +%F)"
+          git pull --rebase origin main
+          git push
+
+  forecast:
+    if: github.event_name == 'schedule' && github.event.schedule == '0 5,8 * * *' || (github.event_name == 'workflow_dispatch' && inputs.run_backtest != true)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python forecast_and_log.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Commit prediction log
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/predictions.jsonl
+          git diff --staged --quiet || git commit -m "log predictions $(date -u +%F)"
+          git pull --rebase origin main
+          git push
+
+  learn:
+    if: github.event_name == 'schedule' && github.event.schedule == '0 18 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python verify_and_learn.py
+      - run: python refresh_dashboard.py
+      - name: Commit weight + log + dashboard updates
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/predictions.jsonl weights.json docs/dashboard_data.json
+          git diff --staged --quiet || git commit -m "learn from outcomes $(date -u +%F)"
+          git pull --rebase origin main
+          git push
