@@ -31,12 +31,15 @@ def kt(kmh: float) -> float:
     return kmh / 1.852
 
 
-def tier_from_prob(p):
-    # Probability thresholds are themselves rough right now - the whole
-    # point of logging is to eventually calibrate these against reality too.
-    if p >= 0.65:
+def tier_from_prob(p, weights):
+    # Thresholds are calibrated by backtest.py on real historical outcomes
+    # and stored in weights.json; the values below are only fallbacks.
+    th = weights.get("tier_thresholds", {})
+    good = th.get("good", 0.65)
+    marginal = th.get("marginal", 0.40)
+    if p >= good:
         return "GOOD"
-    if p >= 0.40:
+    if p >= marginal:
         return "MARGINAL"
     return "UNLIKELY"
 
@@ -57,7 +60,7 @@ def build_and_log():
 
             feats = engineer_features(raw, idx)
             p = score(feats, weights)
-            tier = tier_from_prob(p)
+            tier = tier_from_prob(p, weights)
             model_kt = kt(raw["silvaplana"]["wind_speed_10m"][idx])
             gust_kt = kt(raw["silvaplana"]["wind_gusts_10m"][idx])
 
