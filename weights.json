@@ -1,17 +1,17 @@
 {
   "_comment": "Logistic-regression-style weights for the Malojawind model. bias + one weight per engineered feature. Updated automatically by verify_and_learn.py and backtest.py as real outcomes come in. Edit by hand only if you want to force a reset - back up first.",
   "version": 1,
-  "trained_samples": 0,
-  "bias": -0.5,
+  "trained_samples": 3108,
+  "bias": -2.221196050281768,
   "weights": {
-    "thermal_excess": 0.9,
-    "pressure_signal": 0.8,
-    "upper_wind_alignment": 0.8,
-    "upper_wind_speed_score": 0.5,
-    "cloud_score": 0.5,
-    "dewpoint_score": 0.3,
-    "cape_penalty": 0.4,
-    "freezing_level_score": 0.2,
-    "precip_penalty": 0.3
+    "thermal_excess": -1.1417501094508962,
+    "pressure_signal": -0.32312482514244006,
+    "upper_wind_alignment": 0.41101565246082633,
+    "upper_wind_speed_score": 1.6064413697058844,
+    "cloud_score": -0.3757947336366758,
+    "dewpoint_score": 1.980976927640248,
+    "cape_penalty": -2.445027630581991,
+    "freezing_level_score": -0.3259448439719557,
+    "precip_penalty": -0.42396453363588044
   }
 }
