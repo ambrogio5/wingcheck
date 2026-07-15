@@ -61,10 +61,16 @@ def update(features: dict, actual_outcome: float, weights: dict = None):
     predicted = score(features, weights)
     error = actual_outcome - predicted
 
-    weights["bias"] += LEARNING_RATE * error
+    # Decaying learning rate: early samples move the model a lot, but after
+    # thousands of training samples each new one should only nudge it -
+    # otherwise the model keeps jumping around forever instead of converging.
+    n = weights.get("trained_samples", 0)
+    lr = LEARNING_RATE / (1.0 + n / 500.0) ** 0.5
+
+    weights["bias"] += lr * error
     for name, value in features.items():
         if name in weights["weights"]:
-            weights["weights"][name] += LEARNING_RATE * error * value
+            weights["weights"][name] += lr * error * value
 
     weights["trained_samples"] = weights.get("trained_samples", 0) + 1
     save_weights(weights)
