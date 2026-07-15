@@ -38,6 +38,7 @@ another model run):
 """
 
 import time
+from datetime import datetime
 
 import requests
 
@@ -181,6 +182,28 @@ def engineer_features(raw, idx):
     precip = bre["precipitation"][idx]
     precip_penalty = -min(1.0, precip / 3.0)
 
+    # 10-12. The model's own surface forecast at the spot. Diagnostics on the
+    # first backtest showed the driver-only approach left most of the signal
+    # on the table: the point forecast itself is the strongest single input,
+    # and the drivers act as corrections on top of it.
+    model_wind = sil["wind_speed_10m"][idx] / 20.0          # ~[0, 2]
+    model_gust = sil["wind_gusts_10m"][idx] / 30.0          # ~[0, 2]
+    dir10 = sil["wind_direction_10m"][idx]
+    surface_dir_alignment = _angle_diff_score(dir10, 230, 90) * 2 - 1  # SW = Maloja
+
+    # 13-16. Time-of-day and seasonality. The Maloja wind is a thermal with a
+    # strong diurnal cycle (Samedan data: 5.5kt at noon -> 9.7kt at 16-17h)
+    # and a seasonal one; sin/cos encoding lets the linear model learn both.
+    import math as _math
+    t = raw["silvaplana"]["time"][idx]
+    hour = int(t[11:13])
+    date = datetime.fromisoformat(t[:10])
+    doy = date.timetuple().tm_yday
+    hour_sin = _math.sin(2 * _math.pi * hour / 24)
+    hour_cos = _math.cos(2 * _math.pi * hour / 24)
+    doy_sin = _math.sin(2 * _math.pi * doy / 365)
+    doy_cos = _math.cos(2 * _math.pi * doy / 365)
+
     return {
         "thermal_excess": thermal_excess,
         "pressure_signal": pressure_signal,
@@ -191,4 +214,11 @@ def engineer_features(raw, idx):
         "cape_penalty": cape_penalty,
         "freezing_level_score": freezing_level_score,
         "precip_penalty": precip_penalty,
+        "model_wind": model_wind,
+        "model_gust": model_gust,
+        "surface_dir_alignment": surface_dir_alignment,
+        "hour_sin": hour_sin,
+        "hour_cos": hour_cos,
+        "doy_sin": doy_sin,
+        "doy_cos": doy_cos,
     }
