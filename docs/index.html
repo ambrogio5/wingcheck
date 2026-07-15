@@ -158,6 +158,13 @@ const FEATURES = {
   cape_penalty:          {name:"Storm risk",              desc:"Instability that breaks the thermal cycle"},
   freezing_level_score:  {name:"Airmass warmth",          desc:"Freezing-level height as airmass character"},
   precip_penalty:        {name:"Wet ground",              desc:"Recent rain slows valley heating"},
+  model_wind:            {name:"Forecast wind at the lake", desc:"The weather model's own surface forecast"},
+  model_gust:            {name:"Forecast gusts",           desc:"Gustiness in the surface forecast"},
+  surface_dir_alignment: {name:"Surface wind from SW",     desc:"Blowing from the Maloja direction"},
+  hour_sin:              {name:"Time of day (i)",          desc:"The wind's daily rhythm — builds after noon"},
+  hour_cos:              {name:"Time of day (ii)",         desc:"Second half of the daily-cycle encoding"},
+  doy_sin:               {name:"Season (i)",               desc:"The wind's yearly rhythm"},
+  doy_cos:               {name:"Season (ii)",              desc:"Second half of the seasonal encoding"},
 };
 
 const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
