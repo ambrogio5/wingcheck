@@ -37,6 +37,8 @@ another model run):
     Lugano (LUG) / Chur (CHU) - pp0qffs0 (sea-level pressure, real obs)
 """
 
+import time
+
 import requests
 
 TIMEZONE = "Europe/Zurich"
@@ -63,9 +65,20 @@ def _get(lat, lon, hourly_vars, forecast_days=None, start_date=None, end_date=No
     else:
         params += f"&forecast_days={forecast_days or 3}"
         url = f"https://api.open-meteo.com/v1/forecast?{params}"
-    r = requests.get(url, timeout=60)
-    r.raise_for_status()
-    return r.json()["hourly"]
+    # Historical pulls are large and Open-Meteo rate-limits bursts, so:
+    # generous timeout + up to 4 attempts with growing pauses between them.
+    last_err = None
+    for attempt in range(4):
+        try:
+            r = requests.get(url, timeout=120)
+            r.raise_for_status()
+            return r.json()["hourly"]
+        except (requests.RequestException, KeyError, ValueError) as e:
+            last_err = e
+            wait = 15 * (attempt + 1)
+            print(f"[warn] Open-Meteo request failed (attempt {attempt+1}/4): {e} — retrying in {wait}s")
+            time.sleep(wait)
+    raise RuntimeError(f"Open-Meteo request failed after 4 attempts: {last_err}")
 
 
 _SILVAPLANA_VARS = [
@@ -97,14 +110,20 @@ def fetch_raw(forecast_days=3):
 
 def fetch_raw_historical(start_date: str, end_date: str):
     """Same shape as fetch_raw, but for a past date range (YYYY-MM-DD),
-    used by backtest.py. Pulled from the Historical Forecast API archive."""
-    return {
-        "silvaplana": _get(*SILVAPLANA, _SILVAPLANA_VARS, start_date=start_date, end_date=end_date),
-        "bregaglia": _get(*BREGAGLIA, _BREGAGLIA_VARS, start_date=start_date, end_date=end_date),
-        "upper": _get(*MALOJA_PASS, _UPPER_VARS, start_date=start_date, end_date=end_date),
-        "lugano": _get(46.0037, 8.9511, ["pressure_msl"], start_date=start_date, end_date=end_date),
-        "zurich": _get(47.3769, 8.5417, ["pressure_msl"], start_date=start_date, end_date=end_date),
-    }
+    used by backtest.py. Pulled from the Historical Forecast API archive.
+    A short pause between the five requests keeps us under burst limits."""
+    out = {}
+    specs = [
+        ("silvaplana", SILVAPLANA, _SILVAPLANA_VARS),
+        ("bregaglia", BREGAGLIA, _BREGAGLIA_VARS),
+        ("upper", MALOJA_PASS, _UPPER_VARS),
+        ("lugano", (46.0037, 8.9511), ["pressure_msl"]),
+        ("zurich", (47.3769, 8.5417), ["pressure_msl"]),
+    ]
+    for key, (lat, lon), hourly_vars in specs:
+        out[key] = _get(lat, lon, hourly_vars, start_date=start_date, end_date=end_date)
+        time.sleep(3)
+    return out
 
 
 def _angle_diff_score(angle, ideal, half_width):
