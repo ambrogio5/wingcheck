@@ -83,6 +83,7 @@ def build_samples_for_season(start_date, end_date, year, sam_obs):
             "date": t,
             "year": year,
             "features": feats,
+            "model_wind_kt": round(kt(raw["silvaplana"]["wind_speed_10m"][idx]), 1),
             "actual_wind_kt": round(actual_kt, 1),
             "actual_gust_kt": round(actual_gust_kt, 1),
             "outcome": outcome,
@@ -199,6 +200,35 @@ def main():
     if holdout_set:
         print(f"Folding {len(holdout_set)} 2026 samples into training for the deployed model...")
         weights = train(weights, list(holdout_set), epochs=EPOCHS)
+
+    # Calibrate the alert thresholds on the full training data. First run
+    # shipped with guessed cutoffs (0.65/0.40) and a heavily conservative
+    # model: precision was fine but recall was 25% - it missed 3 of 4 real
+    # sessions. MARGINAL cutoff maximizes balanced accuracy (catch sessions
+    # without flooding false alarms); GOOD is the lowest cutoff that keeps
+    # precision >= 0.75 (a green light you can trust 3 times out of 4).
+    all_train = train_set + holdout_set
+    probs = [(score(s["features"], weights), s["outcome"]) for s in all_train]
+    best_marginal, best_bal = 0.4, -1.0
+    best_good = None
+    for i in range(20, 81):
+        th = i / 100.0
+        tp = sum(1 for p, o in probs if p >= th and o == 1.0)
+        fp = sum(1 for p, o in probs if p >= th and o == 0.0)
+        fn = sum(1 for p, o in probs if p < th and o == 1.0)
+        tn = sum(1 for p, o in probs if p < th and o == 0.0)
+        rec = tp / (tp + fn) if (tp + fn) else 0.0
+        spec = tn / (tn + fp) if (tn + fp) else 0.0
+        prec = tp / (tp + fp) if (tp + fp) else 0.0
+        bal = (rec + spec) / 2
+        if bal > best_bal:
+            best_bal, best_marginal = bal, th
+        if best_good is None and prec >= 0.75 and (tp + fp) >= 20:
+            best_good = th
+    if best_good is None or best_good <= best_marginal:
+        best_good = min(0.9, best_marginal + 0.15)
+    weights["tier_thresholds"] = {"good": round(best_good, 2), "marginal": round(best_marginal, 2)}
+    print(f"Calibrated thresholds -> MARGINAL >= {best_marginal:.2f}, GOOD >= {best_good:.2f}")
 
     save_weights(weights)
 
