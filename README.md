@@ -47,6 +47,46 @@ From here it runs itself:
   reading (Samedan as fallback), updates the model weights, refreshes the
   dashboard
 
+## Dashboard
+
+`docs/index.html` (GitHub Pages) shows, top to bottom:
+- **Today's forecast** — one card per hour from 14:00 to 18:00, each with
+  the model's estimated likelihood as a prominent percentage (labeled
+  "est. likelihood", never implied to be a guaranteed frequency), the
+  alert tier, and forecast wind/gust/direction. The best hour is visually
+  highlighted.
+- **Daily summary** — best hour, max estimated likelihood, expected peak
+  wind, and a one-line recommendation.
+- **Live performance** — rolling accuracy/balanced-accuracy/precision/
+  recall on verified real forecasts, with a provisional-sample warning
+  below n=30.
+- **Frozen holdout evaluation** — the honest 2024+2025-trained,
+  2026-holdout numbers (see "Evaluation vs. deployment" below), full
+  window and the 14:00–18:00 diagnostic prime window side by side, with
+  the evaluation's own generation timestamp and a staleness flag once it's
+  more than 30 days old. A **"Run fresh evaluation"** button links out to
+  this repo's GitHub Actions page (`workflow_dispatch`) where you tick
+  `run_backtest` and run it manually — a static GitHub Pages site can't
+  trigger a workflow itself without embedding a credential in frontend
+  code, which this deliberately never does.
+- **Feature ablation** and a collapsed **Technical details** section
+  (operational threshold confusion matrices, reproducibility seed, the
+  weights list, and the historical charts).
+
+The page is a single dependency-free `index.html` (inline CSS/JS, Chart.js
+from a CDN for the two historical charts only) — no build step, no
+framework, works fully offline/degraded if the CDN is blocked.
+
+## Continuous integration
+
+Every pull request runs a `validate` job (`.github/workflows/wingcheck.yml`)
+that syntax-checks every module and runs `python -m unittest discover -s tests`
+— nothing else. It never runs forecasts, scraping, learning, backtests,
+Telegram calls, or commits, and never sees the Telegram secrets, so it's
+safe to run on any PR. The scheduled/manual jobs (`forecast`, `learn`,
+`backtest`) also run the same test suite before doing anything real, so a
+regression fails the job instead of silently committing bad output.
+
 ## Tuning
 
 - **`verify_and_learn.py → SILVAPLANA_MARGINAL_KT`** (default 10): the real
@@ -96,9 +136,9 @@ majority-class baseline, Brier score, ROC AUC, and PR AUC (average
 precision), each for:
 - **Hourly, full window (12:00–18:00)** — every scored hour, matching the
   live forecast window exactly.
-- **Hourly, prime window (15:00–18:00)** — a same-model diagnostic slice
+- **Hourly, prime window (14:00–18:00)** — a same-model diagnostic slice
   (NOT a different training window — `WINDOW_START_HOUR`/`WINDOW_END_HOUR`
-  never change) kept because hours 12–14 are easier, more separable
+  never change) kept because hours 12–13 are easier, more separable
   negatives that measurably help discrimination; see `backtest.py`'s
   docstring for the concrete AUC evidence.
 - **Session-level, both windows** — one row per calendar day: the day

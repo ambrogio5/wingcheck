@@ -174,7 +174,11 @@ for exactly this reason. Don't hoist it back to module level.
    `features.py` + `model.py` over the live forecast, tiers each hour in the
    12:00-18:00 window into GOOD/MARGINAL/UNLIKELY via thresholds in
    `weights.json`, sends a Telegram message, appends every scored hour to
-   `logs/predictions.jsonl` with `verified: false`. `WINDOW_START_HOUR` /
+   `logs/predictions.jsonl` with `verified: false`, including the raw
+   `model_wind_dir_deg` (0-360 compass degrees, unconverted) alongside
+   `model_wind_kt`/`model_gust_kt` - `refresh_dashboard.py`'s
+   `compass_direction()` turns it into a display label (e.g. "SW") for the
+   dashboard, since nothing else needs the raw degrees. `WINDOW_START_HOUR` /
    `WINDOW_END_HOUR` here must match `backtest.py`'s — the model is trained
    on exactly the hours it's later scored on in production.
 6. **`sample_kitesailing`** job (scheduled every 15 min, 05:00-21:45 CEST -
@@ -208,12 +212,17 @@ for exactly this reason. Don't hoist it back to module level.
    sections from the original backtest run are carried over unchanged, not
    recomputed (recomputing `evaluation` would let 2026 holdout data leak
    into "training" through the continuously-learning deployed weights) —
-   only `backtest.py` may write those three top-level keys. Also builds
+   only `backtest.py` may write those three top-level keys (including
+   `evaluation.generated_at`, which is what lets the dashboard show a
+   staleness flag on the frozen evaluation independent of the top-level
+   `generated_at`, which changes on every refresh). Also builds
    `upcoming_forecast` — the latest logged prediction per *future* target
-   hour (`upcoming_forecast()`, deduped the same way as training) — this is
-   what `docs/index.html` renders as "Next sessions"; it's the only part of
-   the dashboard that answers the page's own headline question rather than
-   reporting on past performance.
+   hour (`upcoming_forecast()`, deduped the same way as training, each row
+   including the raw `probability`, `tier`, wind/gust, and
+   `model_wind_dir` compass label) — this is what `docs/index.html` renders
+   as "Today's forecast"; it's the only part of the dashboard that answers
+   the page's own headline question rather than reporting on past
+   performance.
 9. **`backtest.py`** (manual only, `workflow_dispatch`) — the only way to
    retrain from scratch. Builds a labeled dataset for May–Oct 2024/2025/2026
    from Open-Meteo's historical archive + real SAM obs (still the only
@@ -227,8 +236,10 @@ for exactly this reason. Don't hoist it back to module level.
    all three years, which is the only one saved to `weights.json`. Reports,
    via `metrics.py`, hourly and session-level (`metrics.build_session_samples`)
    accuracy/balanced-accuracy/precision/recall/ROC-AUC/PR-AUC/Brier for both
-   the full window (12:00–18:00) and a 15:00–18:00 "prime window" diagnostic
-   slice (same model, same training window — NOT a second training run),
+   the full window (12:00–18:00) and a 14:00–18:00 "prime window" diagnostic
+   slice (same model, same training window — NOT a second training run;
+   changed from 15:00–18:00 to 14:00–18:00 on 2026-07-16, a separate,
+   later change from the WINDOW_START_HOUR revert described above),
    plus operational MARGINAL/GOOD threshold performance and a feature
    ablation (`ablation.py`, diagnostic only, see its docstring). Training is
    reproducible: `model.train_epochs()` shuffles with a locally-scoped
@@ -252,22 +263,51 @@ for exactly this reason. Don't hoist it back to module level.
     station; later calls just merge in the cheap "recent" file
     (`get_samedan_archive()` / `get_pressure_archive(station)`).
 
-**Orchestration**: `.github/workflows/wingcheck.yml` defines four jobs
-(`forecast`, `sample_kitesailing`, `learn`, `backtest`) gated by cron
-schedule or `workflow_dispatch` input — see the comment header in that file
-for exact triggers. Each job commits its own output (`weights.json`,
-`logs/*.jsonl`, `docs/dashboard_data.json`) straight back to `main` with a
-bot identity; there's no PR review step for these automated commits.
+**Orchestration**: `.github/workflows/wingcheck.yml` defines five jobs
+(`validate`, `forecast`, `sample_kitesailing`, `learn`, `backtest`) gated by
+cron schedule, `pull_request`, or `workflow_dispatch` input — see the
+comment header in that file for exact triggers. `validate` runs on every
+`pull_request`: syntax-checks every module (`python -m py_compile`) and
+runs the offline test suite - nothing else. It never runs forecasts,
+scraping, learning, backtests, Telegram calls, or commits, and is never
+exposed to the Telegram secrets, so it's safe on any PR. Each of the other
+four jobs commits its own output (`weights.json`, `logs/*.jsonl`,
+`docs/dashboard_data.json`) straight back to `main` with a bot identity;
+there's no PR review step for these automated commits, but `forecast`,
+`learn`, and `backtest` all run the same offline test suite immediately
+before doing anything real, so a regression fails the job instead of
+silently committing bad output. Every job's `if:` explicitly names the
+`event_name`/`schedule` combination it requires, so a `pull_request` event
+can never accidentally satisfy an operational job's condition.
 `sample_kitesailing` is the one job with a dependency beyond `requests`
 (Playwright + Chromium) and caches the browser binary (`actions/cache`,
 keyed on a pinned Playwright version) since it runs every 15 minutes.
 `COPY-ME_workflow.yml` is a duplicate of the same file, meant to be copied
 into `.github/workflows/` when bootstrapping a new deployment from this
-template — keep the two in sync if you edit the workflow.
+template — keep the two in sync if you edit the workflow (`tests/test_workflow.py`
+asserts they're byte-identical).
 
 **`docs/`** is a static dashboard (GitHub Pages, served from `/docs` on
 `main`) that fetches `dashboard_data.json` client-side; it has no build step,
-just a single `index.html` with inline CSS/JS and Chart.js from a CDN.
+just a single `index.html` with inline CSS/JS and Chart.js from a CDN (used
+only for the two historical charts inside the collapsed "Technical details"
+section - every other section renders from plain template strings and
+degrades gracefully if the CDN is blocked). Sections, top to bottom:
+"Today's forecast" (one card per hour 14:00-18:00, from `upcoming_forecast`,
+showing the model's raw probability as a percentage labeled "est.
+likelihood" - never a tier threshold relabeled as a percentage - plus
+wind/gust/`model_wind_dir`, tier badge, and the best hour highlighted),
+"Daily summary", "Live performance" (from `live_metrics`, with a
+provisional-sample note below n=30), "Frozen holdout evaluation" (from
+`evaluation`, full window and the 14:00-18:00 diagnostic prime window side
+by side, `evaluation.generated_at` shown with a staleness flag past 30
+days, and a "Run fresh evaluation" button linking to
+`https://github.com/<owner>/<repo>/actions/workflows/wingcheck.yml` in a
+new tab - deliberately just a link, since a static page cannot safely call
+the GitHub API without embedding a credential in frontend code), "Feature
+ablation", and a collapsed "Technical details" section (operational
+threshold confusion matrices, reproducibility seed, the weights list, and
+the monthly/timeline charts).
 
 ## Conventions specific to this codebase
 
