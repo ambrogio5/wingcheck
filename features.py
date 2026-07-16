@@ -33,17 +33,24 @@ Open-Meteo forecast model (api.open-meteo.com) - free, no key:
     20. wind_speed_10m (per model) - averaged + spread into two features;
         best-effort, the pipeline runs fine if this fetch fails.
 
-MeteoSwiss official open data (data.geo.admin.ch) - real station observations,
-used ONLY for ground-truth verification (ground truth needs to be real, not
-another model run):
+MeteoSwiss official open data (data.geo.admin.ch) - real station observations:
     Samedan (SAM) - fu3010z0 (wind speed), fu3010z1 (gust), dkl010z0 (dir)
     Lugano (LUG) / Chur (CHU) - pp0qffs0 (sea-level pressure, real obs)
+
+  Samedan now serves two purposes: verify_and_learn.py's ground truth
+  fallback (see kitesailing_weather.py for the primary one), and, here,
+  21. a real-time nowcast feature (samedan_morning_score) - its own
+      measured wind ~10km up-valley around 07:00 local the same day, a
+      genuine upstream precursor signal rather than another model forecast.
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
+
+from meteoswiss import fetch_sam_hourly_observations
 
 TIMEZONE = "Europe/Zurich"
 
@@ -119,6 +126,18 @@ def _fetch_ensemble_wind(lat, lon, forecast_days=None, start_date=None, end_date
         return None
 
 
+def _fetch_samedan_recent():
+    """Best-effort: real-time Samedan conditions as of right now, used as
+    the samedan_morning_score nowcast feature. Not the ground-truth fetch -
+    verify_and_learn.py fetches its own copy for labeling; this one just
+    feeds the model. A failure here must not break the forecast pipeline."""
+    try:
+        return fetch_sam_hourly_observations(include_historical=False)
+    except Exception as e:
+        print(f"[warn] Samedan nowcast fetch failed, continuing without it: {e}")
+        return None
+
+
 def fetch_raw(forecast_days=3):
     """Forward-looking forecast (used by forecast_and_log.py)."""
     return {
@@ -128,13 +147,19 @@ def fetch_raw(forecast_days=3):
         "lugano": _get(46.0037, 8.9511, ["pressure_msl"], forecast_days=forecast_days),
         "zurich": _get(47.3769, 8.5417, ["pressure_msl"], forecast_days=forecast_days),
         "ensemble": _fetch_ensemble_wind(*SILVAPLANA, forecast_days=forecast_days),
+        "samedan_obs": _fetch_samedan_recent(),
     }
 
 
 def fetch_raw_historical(start_date: str, end_date: str):
     """Same shape as fetch_raw, but for a past date range (YYYY-MM-DD),
     used by backtest.py. Pulled from the Historical Forecast API archive.
-    A short pause between requests keeps us under burst limits."""
+    A short pause between requests keeps us under burst limits.
+
+    Does NOT set "samedan_obs" - backtest.py already fetches the full
+    multi-year Samedan archive once for ground-truth labeling and injects
+    it into raw["samedan_obs"] itself, rather than this function fetching
+    the same (large, rate-limited) archive again per season."""
     out = {}
     specs = [
         ("silvaplana", SILVAPLANA, _SILVAPLANA_VARS),
@@ -257,6 +282,27 @@ def engineer_features(raw, idx):
     upper_wind_dewpoint_interaction = upper_wind_speed_score * dewpoint_score
     thermal_seasonal_interaction = thermal_excess * doy_cos
 
+    # 21. Samedan "morning nowcast" - Samedan is no longer the ground truth
+    # (see verify_and_learn.py, which now labels against the real
+    # kitesailing.ch Silvaplana reading), but it's real, measured, current
+    # wind ~10km up-valley, which the model has never gotten to use as a
+    # live precursor signal before. This is its actual observed wind at (or
+    # near) 07:00 local the same day - the first forecast run of the day -
+    # a genuine upstream nowcast, distinct from the NWP-model-based
+    # persistence/ensemble features above. Falls back to a neutral 0.0 if
+    # Samedan data isn't available for that morning (best-effort fetch, or
+    # historical archive gap).
+    samedan_obs = raw.get("samedan_obs")
+    samedan_morning_score = 0.0
+    if samedan_obs:
+        morning_local = date.replace(hour=7, tzinfo=ZoneInfo("Europe/Zurich"))
+        morning_utc = morning_local.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        for offset_min in (0, 60, -60, 90, -90):
+            cand = morning_utc + timedelta(minutes=offset_min)
+            if cand in samedan_obs:
+                samedan_morning_score = samedan_obs[cand]["speed_kmh"] / 20.0
+                break
+
     return {
         "thermal_excess": thermal_excess,
         "pressure_signal": pressure_signal,
@@ -278,4 +324,5 @@ def engineer_features(raw, idx):
         "persistence_wind": persistence_wind,
         "upper_wind_dewpoint_interaction": upper_wind_dewpoint_interaction,
         "thermal_seasonal_interaction": thermal_seasonal_interaction,
+        "samedan_morning_score": samedan_morning_score,
     }

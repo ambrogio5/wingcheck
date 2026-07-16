@@ -1,5 +1,5 @@
 {
-  "_comment": "Logistic-regression-style weights for the Malojawind model. bias + one weight per engineered feature. Updated automatically by verify_and_learn.py and backtest.py as real outcomes come in. Edit by hand only if you want to force a reset - back up first. Reset 2026-07-16: feature schema changed (dropped cloud_score, added ensemble/persistence/interaction features) - must be retrained from scratch via backtest.py before deploying.",
+  "_comment": "Logistic-regression-style weights for the Malojawind model. bias + one weight per engineered feature. Updated automatically by verify_and_learn.py and backtest.py as real outcomes come in. Edit by hand only if you want to force a reset - back up first. Reset 2026-07-16: feature schema changed (dropped cloud_score, added ensemble/persistence/interaction features, then added samedan_morning_score) - must be retrained from scratch via backtest.py before deploying. Same day: verify_and_learn.py's ground truth switched from Samedan to kitesailing.ch's Silvaplana reading (Samedan kept as fallback + this nowcast feature).",
   "version": 2,
   "trained_samples": 0,
   "bias": -0.5,
@@ -23,7 +23,8 @@
     "ensemble_agreement_score": 0.0,
     "persistence_wind": 0.0,
     "upper_wind_dewpoint_interaction": 0.0,
-    "thermal_seasonal_interaction": 0.0
+    "thermal_seasonal_interaction": 0.0,
+    "samedan_morning_score": 0.0
   },
   "tier_thresholds": {
     "good": 0.65,

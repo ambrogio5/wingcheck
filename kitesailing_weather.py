@@ -23,15 +23,20 @@ forecast_and_log.py / backtest.py. To use it:
 Two readings taken ~20 minutes apart during discovery (12:10 -> 20.5°C,
 12:30 -> 20.9°C) suggest the underlying station/cache refreshes roughly
 every 10-20 minutes - poll on a similar interval, not faster.
+
+This is now the model's PRIMARY ground truth (see verify_and_learn.py),
+scraped on a schedule (.github/workflows/wingcheck.yml's sample_kitesailing
+job) into logs/kitesailing_observations.jsonl. Unlike Samedan, there is no
+historical archive for this station - history only exists from whenever
+scraping started, so backtest.py's historical retrain still has to use
+Samedan (the only source with a multi-year archive).
 """
 
 import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
-
-from playwright.sync_api import sync_playwright
+from datetime import datetime, timedelta, timezone
 
 URL = "https://www.kitesailing.ch/en/spot/webcam"
 LOG_PATH = os.path.join(os.path.dirname(__file__), "logs", "kitesailing_observations.jsonl")
@@ -47,7 +52,14 @@ _AVG_WIND_RE = re.compile(r"Mittelwind:\s*(\d+(?:\.\d+)?)\s*km/h\s*\((\d+)\s*Bft
 def fetch_current_reading(headless: bool = True) -> dict:
     """Scrapes the live-weather widget and returns one reading. Raises
     ValueError if the page's markup doesn't match the expected labels
-    (fail loudly - a silently wrong scrape is worse than a crash)."""
+    (fail loudly - a silently wrong scrape is worse than a crash).
+
+    Imports playwright lazily: load_observations()/closest_observation()
+    below are pure log-file readers used by verify_and_learn.py, which
+    must stay importable in the (playwright-free) `learn` job - only the
+    actual scraping job needs the browser dependency."""
+    from playwright.sync_api import sync_playwright
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         page = browser.new_page()
@@ -90,6 +102,31 @@ def fetch_current_reading(headless: bool = True) -> dict:
         "humidity_pct": float(humidity_m.group(1)),
         "pressure_hpa": float(pressure_m.group(1)),
     }
+
+
+def load_observations() -> list:
+    """All accumulated readings, oldest first. No network - reads the local
+    log that the scheduled scrape job appends to."""
+    if not os.path.exists(LOG_PATH):
+        return []
+    with open(LOG_PATH) as f:
+        obs = [json.loads(line) for line in f if line.strip()]
+    obs.sort(key=lambda o: o["observed_at"])
+    return obs
+
+
+def closest_observation(observations: list, target_utc: datetime, tolerance_minutes: float = 30) -> dict:
+    """The reading nearest target_utc, or None if nothing falls within
+    tolerance_minutes - readings only exist for whenever the scrape job
+    happened to run, not every hour, so callers must handle a miss."""
+    best, best_diff = None, None
+    tolerance = timedelta(minutes=tolerance_minutes)
+    for obs in observations:
+        obs_dt = datetime.fromisoformat(obs["observed_at"])
+        diff = abs(obs_dt - target_utc)
+        if diff <= tolerance and (best_diff is None or diff < best_diff):
+            best, best_diff = obs, diff
+    return best
 
 
 def main():
