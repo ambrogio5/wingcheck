@@ -161,14 +161,21 @@ def train_epochs(weights: dict, samples: list, epochs: int, learning_rate: float
     `random` module's state, which a caller might seed differently or not
     at all elsewhere in the same process.
 
-    Does NOT mutate the caller's `samples` list (shuffles a local copy) and
-    does NOT mutate the caller's `weights` dict in place beyond what it
-    returns - callers should treat the return value as the updated model.
-    Sets weights["trained_samples"] to len(samples) (what THIS training
-    call saw), not an accumulated total across previous calls - a model
-    fully retrained from new_weights() should report exactly how many
-    samples it was actually trained on, not a cumulative counter inherited
-    from a previous run's weights.json."""
+    Does NOT mutate the caller's `samples` list (shuffles a local copy).
+    DOES mutate the `weights` dict passed in, in place - `bias`,
+    `weights["weights"][...]`, and `trained_samples` are all updated
+    directly on that same object, and the return value is that same
+    object, not a copy. This is deliberate (no unnecessary deep-copying of
+    a model that can hold hundreds of samples' worth of gradient updates)
+    but means callers must pass in a dict they're happy to see mutated -
+    always start from a fresh `model.new_weights()` (or a dict you
+    otherwise own exclusively) rather than, say, a dict some other caller
+    is still holding a reference to and expects untouched. Sets
+    weights["trained_samples"] to len(samples) (what THIS training call
+    saw), not an accumulated total across previous calls - a model fully
+    retrained from new_weights() should report exactly how many samples it
+    was actually trained on, not a cumulative counter inherited from a
+    previous run's weights.json."""
     rng = random.Random(seed)
     local_samples = list(samples)
     for _ in range(epochs):

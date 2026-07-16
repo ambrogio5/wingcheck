@@ -100,6 +100,19 @@ class TrainEpochsTests(unittest.TestCase):
         model.train_epochs(model.new_weights(), samples, epochs=3, seed=7)
         self.assertEqual(samples, original_order)
 
+    def test_mutates_the_supplied_weights_dict_in_place(self):
+        """train_epochs() DOES mutate the weights dict passed in - the
+        returned dict is the SAME object, not a copy. Callers must pass in
+        a dict from model.new_weights() (or one they otherwise own
+        exclusively), never one another caller still holds a reference to."""
+        samples = _toy_samples(30, seed=4)
+        w = model.new_weights()
+        original_bias = w["bias"]
+        result = model.train_epochs(w, samples, epochs=3, seed=5)
+        self.assertIs(result, w)  # same object returned, not a copy
+        self.assertNotEqual(w["bias"], original_bias)  # mutated in place
+        self.assertTrue(any(v != 0.0 for v in w["weights"].values()))
+
     def test_trained_samples_reflects_this_call_not_cumulative(self):
         samples = _toy_samples(15)
         w = model.new_weights()
