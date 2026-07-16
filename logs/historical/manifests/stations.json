@@ -1,0 +1,624 @@
+{
+  "generated_at": "2026-07-16T16:51:27.414021+00:00",
+  "stations": {
+    "sam": {
+      "name": "Samedan",
+      "provider": "meteoswiss",
+      "latitude": 46.5335,
+      "longitude": 9.8794,
+      "elevation_m": 1705,
+      "variables": [
+        "wind_speed",
+        "wind_gust"
+      ],
+      "roles": [
+        "historical_label_proxy",
+        "morning_nowcast",
+        "wind_feature_family"
+      ],
+      "verification": "confirmed",
+      "confidence": "high",
+      "licence": "MeteoSwiss Open Data (opendata.swiss terms of use - attribution required, commercial use permitted, see https://www.meteoswiss.admin.ch/services-and-publications/service/open-data.html)",
+      "verification_note": "fu3010h0 (wind speed) / fu3010h1 (gust) columns confirmed against the live STAC v1 API on 2026-07-16 (see meteoswiss.py's docstring); 399,181 hourly records cached in logs/raw_cache/samedan_archive.json as of this session. 10km from the Silvaplana target lake - the historical labeling proxy since kitesailing.ch has no archive; correlation with the real lake reading is only ~0.52 (see CLAUDE.md's accuracy-ceiling note), an acknowledged ceiling.",
+      "suitable_for_live_retrieval": true,
+      "suitable_for_backtesting": true,
+      "coverage": {
+        "n_records": 399181,
+        "data_start": "1981-01-01T00:00:00+00:00",
+        "data_end": "2026-07-16T12:00:00+00:00"
+      }
+    },
+    "lug": {
+      "name": "Lugano",
+      "provider": "meteoswiss",
+      "latitude": 46.0037,
+      "longitude": 8.9511,
+      "elevation_m": 273,
+      "variables": [
+        "pressure_sea_level"
+      ],
+      "roles": [
+        "pressure_gradient_south"
+      ],
+      "verification": "confirmed",
+      "confidence": "high",
+      "licence": "MeteoSwiss Open Data (opendata.swiss terms of use)",
+      "verification_note": "pp0qffh0 (QFF sea-level pressure) column confirmed live on 2026-07-16; 196,835 hourly records cached in logs/raw_cache/pressure_lug.json. Feeds pressure_signal (forecast) and pressure_nowcast_score (real observation).",
+      "suitable_for_live_retrieval": true,
+      "suitable_for_backtesting": true,
+      "coverage": {
+        "n_records": 196835,
+        "data_start": "2004-02-01T00:00:00+00:00",
+        "data_end": "2026-07-16T12:00:00+00:00"
+      }
+    },
+    "sma": {
+      "name": "Z\u00fcrich / Fluntern",
+      "provider": "meteoswiss",
+      "latitude": 47.3769,
+      "longitude": 8.5417,
+      "elevation_m": 556,
+      "variables": [
+        "pressure_sea_level"
+      ],
+      "roles": [
+        "pressure_gradient_north"
+      ],
+      "verification": "confirmed",
+      "confidence": "high",
+      "licence": "MeteoSwiss Open Data (opendata.swiss terms of use)",
+      "verification_note": "pp0qffh0 confirmed live on 2026-07-16; 196,770 hourly records cached in logs/raw_cache/pressure_sma.json.",
+      "suitable_for_live_retrieval": true,
+      "suitable_for_backtesting": true,
+      "coverage": {
+        "n_records": 196770,
+        "data_start": "2004-02-01T00:00:00+00:00",
+        "data_end": "2026-07-16T12:00:00+00:00"
+      }
+    },
+    "cor": {
+      "name": "Corvatsch (summit)",
+      "provider": "meteoswiss",
+      "latitude": 46.4145,
+      "longitude": 9.8215,
+      "elevation_m": 3315,
+      "variables": [
+        "wind_speed",
+        "wind_gust",
+        "wind_direction",
+        "air_temperature"
+      ],
+      "roles": [
+        "summit_wind_family",
+        "vertical_shear_family"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "low",
+      "licence": "unknown - presumed MeteoSwiss Open Data if it is a SwissMetNet station",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. Corvatsch has a cable-car-served summit station used for avalanche/ski operations; whether it is a full SwissMetNet member (vs. an SLF/IMIS-only or ski-operator-only sensor) is exactly the open question a real sync must answer.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "piz_nair": {
+      "name": "Piz Nair (near St. Moritz)",
+      "provider": "unknown",
+      "latitude": 46.4917,
+      "longitude": 9.8354,
+      "elevation_m": 3057,
+      "variables": [
+        "wind_speed",
+        "wind_gust",
+        "wind_direction"
+      ],
+      "roles": [
+        "summit_wind_family",
+        "vertical_shear_family"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. No station code could be proposed with even low confidence - Piz Nair is a well-known ski/panorama summit above St. Moritz, but no MeteoSwiss SwissMetNet code is reliably known; it may only be instrumented by SLF/IMIS or the local ski operator, neither of which was reachable to confirm this session.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "diavolezza": {
+      "name": "Diavolezza",
+      "provider": "unknown",
+      "latitude": 46.4227,
+      "longitude": 9.9716,
+      "elevation_m": 2973,
+      "variables": [
+        "wind_speed",
+        "wind_gust",
+        "wind_direction"
+      ],
+      "roles": [
+        "summit_wind_family",
+        "eastern_flow_suppression"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. Diavolezza is a cable-car station near Bernina; likely candidate for an SLF/IMIS avalanche-network sensor rather than MeteoSwiss SwissMetNet, but this is unconfirmed.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "bernina_hospiz": {
+      "name": "Bernina Hospiz / Bernina Pass",
+      "provider": "meteoswiss",
+      "latitude": 46.4103,
+      "longitude": 10.0231,
+      "elevation_m": 2253,
+      "variables": [
+        "wind_speed",
+        "wind_gust",
+        "air_temperature"
+      ],
+      "roles": [
+        "eastern_flow_suppression",
+        "pass_gradient"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "low",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "julier": {
+      "name": "Julier Pass",
+      "provider": "meteoswiss",
+      "latitude": 46.4711,
+      "longitude": 9.7157,
+      "elevation_m": 2284,
+      "variables": [
+        "wind_speed",
+        "wind_gust",
+        "air_temperature"
+      ],
+      "roles": [
+        "pass_gradient"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "low",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "albula": {
+      "name": "Albula Pass",
+      "provider": "unknown",
+      "latitude": 46.5814,
+      "longitude": 9.6828,
+      "elevation_m": 2312,
+      "variables": [
+        "wind_speed",
+        "wind_gust",
+        "air_temperature"
+      ],
+      "roles": [
+        "pass_gradient"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "buffalora": {
+      "name": "Buffalora / Ofen Pass",
+      "provider": "meteoswiss",
+      "latitude": 46.6467,
+      "longitude": 10.2683,
+      "elevation_m": 1970,
+      "variables": [
+        "wind_speed",
+        "wind_gust",
+        "air_temperature"
+      ],
+      "roles": [
+        "far_east_context"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "low",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. Far from Silvaplana (Ofen Pass, near the Italian border past Zernez); included only because the task's candidate list named it - physical relevance to the Maloja wind is doubtful and should be weighed against that before any real investment in fetching it.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "st_moritz": {
+      "name": "St. Moritz",
+      "provider": "unknown",
+      "latitude": 46.4908,
+      "longitude": 9.8355,
+      "elevation_m": 1822,
+      "variables": [
+        "air_temperature"
+      ],
+      "roles": [
+        "valley_context"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. St. Moritz may be served by the Samedan station for SwissMetNet purposes rather than having its own distinct automatic station - unconfirmed.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "sils": {
+      "name": "Sils / Segl",
+      "provider": "unknown",
+      "latitude": 46.4297,
+      "longitude": 9.7514,
+      "elevation_m": 1797,
+      "variables": [
+        "air_temperature",
+        "wind_speed"
+      ],
+      "roles": [
+        "closest_upstream_valley_station"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. Sils/Segl is the lake immediately upstream of Silvaplana and would be an extremely valuable station if it exists with real data - highest-priority target for the next real sync attempt.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "bever": {
+      "name": "Bever",
+      "provider": "unknown",
+      "latitude": 46.5766,
+      "longitude": 9.8964,
+      "elevation_m": 1712,
+      "variables": [],
+      "roles": [
+        "valley_context"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "zuoz": {
+      "name": "Zuoz",
+      "provider": "unknown",
+      "latitude": 46.5989,
+      "longitude": 9.9583,
+      "elevation_m": 1716,
+      "variables": [],
+      "roles": [
+        "valley_context"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "pontresina": {
+      "name": "Pontresina",
+      "provider": "unknown",
+      "latitude": 46.4903,
+      "longitude": 9.9006,
+      "elevation_m": 1805,
+      "variables": [],
+      "roles": [
+        "valley_context"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "vicosoprano": {
+      "name": "Vicosoprano",
+      "provider": "unknown",
+      "latitude": 46.3603,
+      "longitude": 9.6398,
+      "elevation_m": 1067,
+      "variables": [],
+      "roles": [
+        "bregaglia_heating_family"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. IMPORTANT: these coordinates are already used in features.py as an Open-Meteo FORECAST-MODEL grid point (a lat/lon query, not a real station). No evidence was found this session that Vicosoprano hosts an actual MeteoSwiss ground station - do not conflate the two. A real Bregaglia ground station (if one exists) would be a materially different, and potentially very valuable, addition.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "bondo": {
+      "name": "Bondo",
+      "provider": "unknown",
+      "latitude": 46.3389,
+      "longitude": 9.6008,
+      "elevation_m": 823,
+      "variables": [],
+      "roles": [
+        "bregaglia_heating_family"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "soglio": {
+      "name": "Soglio",
+      "provider": "unknown",
+      "latitude": 46.3389,
+      "longitude": 9.5794,
+      "elevation_m": 1097,
+      "variables": [],
+      "roles": [
+        "bregaglia_heating_family"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "castasegna": {
+      "name": "Castasegna",
+      "provider": "unknown",
+      "latitude": 46.3364,
+      "longitude": 9.5508,
+      "elevation_m": 697,
+      "variables": [],
+      "roles": [
+        "bregaglia_heating_family",
+        "lower_valley_entrance"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "maloja": {
+      "name": "Maloja",
+      "provider": "meteoswiss",
+      "latitude": 46.403,
+      "longitude": 9.688,
+      "elevation_m": 1815,
+      "variables": [
+        "air_temperature",
+        "precipitation"
+      ],
+      "roles": [
+        "bregaglia_heating_family",
+        "pass_summit"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "moderate",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. Maloja is one of Switzerland's oldest continuously operated climate stations (long precipitation/temperature record) - moderate confidence a MeteoSwiss station exists here under some code, higher confidence than most other unconfirmed candidates, but the exact station code used by the current Open Data API was not confirmed this session.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "locarno_monti": {
+      "name": "Locarno / Monti",
+      "provider": "meteoswiss",
+      "latitude": 46.1712,
+      "longitude": 8.7873,
+      "elevation_m": 366,
+      "variables": [
+        "pressure_sea_level",
+        "air_temperature"
+      ],
+      "roles": [
+        "pressure_gradient_west",
+        "ticino_context"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "moderate",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "poschiavo": {
+      "name": "Poschiavo",
+      "provider": "meteoswiss",
+      "latitude": 46.3247,
+      "longitude": 10.0389,
+      "elevation_m": 1078,
+      "variables": [
+        "air_temperature",
+        "pressure_sea_level"
+      ],
+      "roles": [
+        "pressure_gradient_east",
+        "eastern_flow_suppression"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "low",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "davos": {
+      "name": "Davos",
+      "provider": "meteoswiss",
+      "latitude": 46.8133,
+      "longitude": 9.8433,
+      "elevation_m": 1594,
+      "variables": [
+        "air_temperature",
+        "pressure_sea_level",
+        "wind_speed"
+      ],
+      "roles": [
+        "pressure_gradient_context",
+        "northeast_context"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "moderate",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. Davos is one of the best-known long-record Swiss climate stations - moderate confidence it exists in the current API under some code.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "chur": {
+      "name": "Chur",
+      "provider": "meteoswiss",
+      "latitude": 46.8499,
+      "longitude": 9.53,
+      "elevation_m": 555,
+      "variables": [
+        "air_temperature",
+        "pressure_sea_level"
+      ],
+      "roles": [
+        "pressure_gradient_context",
+        "north_valley_context"
+      ],
+      "verification": "candidate_unconfirmed",
+      "confidence": "moderate",
+      "licence": "unknown - presumed MeteoSwiss Open Data",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    },
+    "chiavenna": {
+      "name": "Chiavenna (Italy)",
+      "provider": "arpa_lombardia",
+      "latitude": 46.3183,
+      "longitude": 9.3919,
+      "elevation_m": 333,
+      "variables": [],
+      "roles": [
+        "bregaglia_lower_valley_context"
+      ],
+      "verification": "needs_discovery",
+      "confidence": "n/a",
+      "licence": "unknown - ARPA Lombardia open data licence not reviewed this session",
+      "verification_note": "Proposed from general knowledge of the Swiss/SwissMetNet station network, NOT confirmed against a live API this session (network blocked - see stations.py's module docstring and docs/STATION_RESEARCH.md). Station code, exact coordinates, elevation, and variable availability all require confirmation via a real `historical_data.py sync` run before any result concerning this station may be reported as anything other than exploratory/unverified. ARPA Lombardia is a completely different provider/API/licensing regime from MeteoSwiss; no adapter exists in this codebase yet (see historical_data.py's PROVIDER_ADAPTERS). This is the lowest-priority candidate to actually implement, given the extra integration cost for a station this far down-valley from the thermal source region.",
+      "suitable_for_live_retrieval": null,
+      "suitable_for_backtesting": null,
+      "coverage": {
+        "n_records": 0,
+        "data_start": null,
+        "data_end": null
+      }
+    }
+  }
+}
