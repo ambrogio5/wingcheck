@@ -175,5 +175,121 @@ class DataHealthTests(unittest.TestCase):
         self.assertEqual(r["status"], "critical")
 
 
+def _summit_feats(speed, direction_deg, **overrides):
+    """Builds summit_feats with wind_u/wind_v derived from a compass
+    direction, using the same meteorological convention as
+    station_features._wind_vector (direction = where wind blows FROM)."""
+    import math as _math
+    rad = _math.radians(direction_deg)
+    u = -speed * _math.sin(rad)
+    v = -speed * _math.cos(rad)
+    base = {"missing_indicator": 0.0, "latest_wind_speed": speed, "wind_u": u, "wind_v": v,
+            "mean_morning_wind": speed, "max_morning_gust": speed + 2.0,
+            "wind_speed_trend_1h": 0.5, "wind_speed_trend_3h": 1.0,
+            "temperature_latest": 5.0, "coverage": 1.0}
+    base.update(overrides)
+    return base
+
+
+class SummitWindDiagnosisTests(unittest.TestCase):
+    """summit_wind_diagnosis (Part 6) - direction-vector reconstruction,
+    each of the 5 statuses individually reachable, missing-COV behavior,
+    and that every threshold used is echoed back verbatim."""
+
+    def test_missing_when_no_feats(self):
+        r = md.summit_wind_diagnosis({})
+        self.assertEqual(r["status"], "missing")
+        self.assertEqual(r["raw_values"], {})
+        self.assertEqual(r["explanation_key"], "summit_wind_missing_station_data")
+        self.assertEqual(r["source_station"], "cov")
+
+    def test_missing_when_missing_indicator_set(self):
+        feats = _summit_feats(5.0, 225.0, missing_indicator=1.0)
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["status"], "missing")
+
+    def test_missing_when_no_latest_wind_speed(self):
+        r = md.summit_wind_diagnosis({"missing_indicator": 0.0, "latest_wind_speed": None})
+        self.assertEqual(r["status"], "missing")
+
+    def test_direction_recovered_from_vector_matches_input(self):
+        feats = _summit_feats(6.0, 225.0)
+        r = md.summit_wind_diagnosis(feats)
+        self.assertAlmostEqual(r["raw_values"]["wind_direction_deg"], 225.0, delta=0.5)
+
+    def test_weak_wind_is_neutral(self):
+        feats = _summit_feats(1.0, 225.0)  # below weak_max_ms=3.0
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["status"], "neutral")
+        self.assertEqual(r["explanation_key"], "summit_wind_neutral")
+
+    def test_moderate_sw_aligned_is_supportive(self):
+        feats = _summit_feats(8.0, 225.0)  # in [3,12] and SW-aligned
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["status"], "supportive")
+        self.assertEqual(r["explanation_key"], "summit_wind_supportive")
+
+    def test_moderate_northerly_is_opposing(self):
+        feats = _summit_feats(8.0, 0.0)  # moderate speed but northerly
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["status"], "opposing")
+        self.assertEqual(r["explanation_key"], "summit_wind_opposing")
+
+    def test_moderate_easterly_is_opposing(self):
+        feats = _summit_feats(8.0, 90.0)
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["status"], "opposing")
+
+    def test_very_strong_wind_is_excessive_regardless_of_direction(self):
+        feats = _summit_feats(20.0, 225.0)  # >= excessive_min_ms=18, even though SW-aligned
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["status"], "excessive")
+        self.assertEqual(r["explanation_key"], "summit_wind_excessive")
+
+    def test_moderate_but_not_sw_aligned_and_not_opposing_is_neutral(self):
+        feats = _summit_feats(8.0, 160.0)  # SSE - >60deg from SW/N/E alignment centers, all scores <0.5
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["status"], "neutral")
+
+    def test_thresholds_are_echoed_back_verbatim(self):
+        feats = _summit_feats(8.0, 225.0)
+        r = md.summit_wind_diagnosis(feats)
+        self.assertEqual(r["thresholds"], md.DEFAULT_SUMMIT_WIND_THRESHOLDS)
+
+    def test_custom_thresholds_override_defaults(self):
+        feats = _summit_feats(4.0, 225.0)
+        custom = {"supportive_min_ms": 2.0}
+        r = md.summit_wind_diagnosis(feats, thresholds=custom)
+        self.assertEqual(r["thresholds"]["supportive_min_ms"], 2.0)
+        self.assertEqual(r["status"], "supportive")
+
+    def test_source_station_and_observed_at_passed_through(self):
+        feats = _summit_feats(8.0, 225.0)
+        r = md.summit_wind_diagnosis(feats, station_id="cov", observed_at="2026-07-16T10:00:00+00:00",
+                                       age_minutes=12.5)
+        self.assertEqual(r["source_station"], "cov")
+        self.assertEqual(r["observed_at"], "2026-07-16T10:00:00+00:00")
+        self.assertEqual(r["age_minutes"], 12.5)
+
+    def test_samedan_temperature_diff_and_shear_computed_when_provided(self):
+        feats = _summit_feats(8.0, 225.0, temperature_latest=-2.0)
+        samedan = _summit_feats(4.0, 200.0, temperature_latest=15.0)
+        r = md.summit_wind_diagnosis(feats, samedan_feats=samedan)
+        self.assertAlmostEqual(r["raw_values"]["samedan_temperature_diff_c"], -17.0, delta=0.01)
+        self.assertIsNotNone(r["raw_values"]["samedan_wind_vector_shear_ms"])
+
+    def test_all_14_raw_value_keys_present(self):
+        feats = _summit_feats(8.0, 225.0)
+        r = md.summit_wind_diagnosis(feats)
+        expected_keys = {
+            "latest_wind_speed_ms", "morning_mean_wind_ms", "morning_max_gust_ms",
+            "wind_direction_deg", "wind_direction_sin", "wind_direction_cos",
+            "sw_alignment_score", "northerly_opposition_score", "easterly_opposition_score",
+            "wind_speed_trend_1h_ms", "wind_speed_trend_3h_ms", "temperature_c",
+            "samedan_temperature_diff_c", "samedan_wind_vector_shear_ms",
+        }
+        self.assertTrue(expected_keys.issubset(r["raw_values"].keys()))
+
+
 if __name__ == "__main__":
     unittest.main()
