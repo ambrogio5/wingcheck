@@ -41,6 +41,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from metrics import safe_div
 from model import load_weights, score
 
 BASE_DIR = os.path.dirname(__file__)
@@ -48,6 +49,20 @@ DATASET_PATH = os.path.join(BASE_DIR, "logs", "backtest_dataset.jsonl")
 PREDICTIONS_PATH = os.path.join(BASE_DIR, "logs", "predictions.jsonl")
 DASHBOARD_DATA_PATH = os.path.join(BASE_DIR, "docs", "dashboard_data.json")
 ZURICH_TZ = ZoneInfo("Europe/Zurich")
+
+# 8-point compass, meteorological convention (direction the wind blows FROM).
+COMPASS_POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+
+
+def compass_direction(deg):
+    """Converts raw wind-direction degrees (0-360) into an 8-point compass
+    label for display. Returns None if deg is missing (older logged
+    predictions, from before model_wind_dir_deg was added, don't have it) -
+    the raw degrees themselves are never stored in dashboard_data.json,
+    only this display label, since nothing downstream needs the raw value."""
+    if deg is None:
+        return None
+    return COMPASS_POINTS[round(deg / 45) % 8]
 
 
 def read_jsonl(path):
@@ -82,10 +97,14 @@ def upcoming_forecast(predictions):
     return [
         {
             "target_time": r["target_time"],
+            # Raw model probability (0-1), preserved as-is - this is the
+            # actual number the dashboard's percentage display is derived
+            # from (round(probability*100)), never a tier threshold.
             "probability": r["probability"],
             "tier": r["tier"],
             "model_wind_kt": r["model_wind_kt"],
             "model_gust_kt": r["model_gust_kt"],
+            "model_wind_dir": compass_direction(r.get("model_wind_dir_deg")),
         }
         for r in upcoming
     ]
@@ -108,11 +127,15 @@ def live_metrics(verified):
             fn += 1
     n = len(verified)
     positive_rate = (tp + fn) / n
+    recall = safe_div(tp, tp + fn)
+    specificity = safe_div(tn, tn + fp)
+    balanced_accuracy = (recall + specificity) / 2 if (recall is not None and specificity is not None) else None
     return {
         "n": n,
         "accuracy": round((tp + tn) / n, 3),
+        "balanced_accuracy": round(balanced_accuracy, 3) if balanced_accuracy is not None else None,
         "precision": round(tp / (tp + fp), 3) if (tp + fp) else None,
-        "recall": round(tp / (tp + fn), 3) if (tp + fn) else None,
+        "recall": round(recall, 3) if recall is not None else None,
         "positive_rate": round(positive_rate, 3),
         "trivial_baseline_accuracy": round(max(positive_rate, 1 - positive_rate), 3),
         "true_positive": tp, "false_positive": fp,
