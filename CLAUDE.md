@@ -270,8 +270,13 @@ comment header in that file for exact triggers. `validate` runs on every
 `pull_request`: syntax-checks every module (`python -m py_compile`) and
 runs the offline test suite - nothing else. It never runs forecasts,
 scraping, learning, backtests, Telegram calls, or commits, and is never
-exposed to the Telegram secrets, so it's safe on any PR. Each of the other
-four jobs commits its own output (`weights.json`, `logs/*.jsonl`,
+exposed to the Telegram secrets, so it's safe on any PR. `forecast` now
+runs `refresh_dashboard.py` immediately after `forecast_and_log.py` and
+commits `docs/dashboard_data.json` alongside `logs/predictions.jsonl` -
+fixed 2026-07-16, since the dashboard previously only refreshed at the
+20:00 CEST `learn` run, leaving that morning's/midday's forecast invisible
+on the published page for hours after it was actually logged. Each of the
+other four jobs commits its own output (`weights.json`, `logs/*.jsonl`,
 `docs/dashboard_data.json`) straight back to `main` with a bot identity;
 there's no PR review step for these automated commits, but `forecast`,
 `learn`, and `backtest` all run the same offline test suite immediately
@@ -288,20 +293,36 @@ template — keep the two in sync if you edit the workflow (`tests/test_workflow
 asserts they're byte-identical).
 
 **`docs/`** is a static dashboard (GitHub Pages, served from `/docs` on
-`main`) that fetches `dashboard_data.json` client-side; it has no build step,
-just a single `index.html` with inline CSS/JS and Chart.js from a CDN (used
-only for the two historical charts inside the collapsed "Technical details"
+`main`) that fetches `dashboard_data.json` client-side via a cache-busting
+`fetch('./dashboard_data.json?v=' + Date.now(), {cache: 'no-store'})` -
+needed because the forecast job now regenerates that file up to twice a
+day (see "Orchestration" above), so a browser- or CDN-cached copy serving
+a stale forecast is a real, regular risk, not a hypothetical one. It has
+no build step: `index.html` (inline CSS/JS, Chart.js from a CDN used only
+for the two historical charts inside the collapsed "Technical details"
 section - every other section renders from plain template strings and
-degrades gracefully if the CDN is blocked). Sections, top to bottom:
-"Today's forecast" (one card per hour 14:00-18:00, from `upcoming_forecast`,
-showing the model's raw probability as a percentage labeled "est.
-likelihood" - never a tier threshold relabeled as a percentage - plus
-wind/gust/`model_wind_dir`, tier badge, and the best hour highlighted),
-"Daily summary", "Live performance" (from `live_metrics`, with a
-provisional-sample note below n=30), "Frozen holdout evaluation" (from
-`evaluation`, full window and the 14:00-18:00 diagnostic prime window side
-by side, `evaluation.generated_at` shown with a staleness flag past 30
-days, and a "Run fresh evaluation" button linking to
+degrades gracefully if the CDN is blocked) plus one small plain-JS file,
+`dashboard-logic.js` (loaded via a plain `<script src>` tag before the
+main inline script), which holds the Europe/Zurich date-handling helpers
+and `getForecastByDay()` - split out specifically so it's directly
+testable with Node (`tests/test_dashboard_logic.py`) without needing a
+browser or a bundler. Sections, top to bottom: "Today & tomorrow" (two
+independent day-blocks, each with one card per hour 14:00-18:00, from
+`upcoming_forecast`, showing the model's raw probability as a percentage
+labeled "est. likelihood" - never a tier threshold relabeled as a
+percentage - plus wind/gust/`model_wind_dir`, tier badge, and the best
+hour highlighted *per day*; "Today" shows only hours strictly after the
+current Zurich wall-clock time, with a "window is complete" message once
+none remain, while "Tomorrow" always shows its full set independently -
+fixed 2026-07-16, replacing a version that picked "the earliest date with
+any data" as today and could hide tomorrow entirely whenever today still
+had one hour left), "Daily summary" (best hour/max likelihood/peak
+wind/recommendation, shown separately for today and tomorrow), "Live
+performance" (from `live_metrics`, with a provisional-sample note below
+n=30), "Frozen holdout evaluation" (from `evaluation`, full window and the
+14:00-18:00 diagnostic prime window side by side, `evaluation.generated_at`
+shown with a staleness flag past 30 days, and a "Run fresh evaluation"
+button linking to
 `https://github.com/<owner>/<repo>/actions/workflows/wingcheck.yml` in a
 new tab - deliberately just a link, since a static page cannot safely call
 the GitHub API without embedding a credential in frontend code), "Feature

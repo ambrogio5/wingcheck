@@ -38,25 +38,41 @@ judge if the model is genuinely adding signal.
 
 ### 5. Done
 From here it runs itself:
-- **07:00 & 10:00 CEST** — forecast + Telegram alert, predictions logged
+- **07:00 & 10:00 CEST** — forecast + Telegram alert, predictions logged,
+  **dashboard refreshed immediately** so today's/tomorrow's forecast is
+  visible on the published page right after each run (fixed 2026-07-16 -
+  previously the dashboard only refreshed at 20:00, so a forecast logged
+  at 07:00 or 10:00 could sit invisible on the page for hours)
 - **every 15 min, 05:00–21:45 CEST (sunrise to sundown)** — scrapes the
   kitesailing.ch Silvaplana reading into `logs/kitesailing_observations.jsonl`
   - well beyond the scored 12:00-18:00 window, so there's a full-day
   record available for future analysis
 - **20:00 CEST** — verifies past predictions against the real Silvaplana
   reading (Samedan as fallback), updates the model weights, refreshes the
-  dashboard
+  dashboard again (this is when `live_metrics` picks up newly-verified
+  outcomes)
 
 ## Dashboard
 
 `docs/index.html` (GitHub Pages) shows, top to bottom:
-- **Today's forecast** — one card per hour from 14:00 to 18:00, each with
-  the model's estimated likelihood as a prominent percentage (labeled
-  "est. likelihood", never implied to be a guaranteed frequency), the
-  alert tier, and forecast wind/gust/direction. The best hour is visually
-  highlighted.
+- **Today &amp; tomorrow** — two independent day-blocks, each with one card
+  per hour from 14:00 to 18:00 (Europe/Zurich), the model's estimated
+  likelihood as a prominent percentage (labeled "est. likelihood", never
+  implied to be a guaranteed frequency), the alert tier, and forecast
+  wind/gust/direction. Each day's best hour is highlighted independently.
+  "Today" only shows hours that haven't happened yet; once today's window
+  is over, it shows a clear "window is complete" message while "Tomorrow"
+  keeps showing its full set of hours - the two are computed and rendered
+  completely independently (`docs/dashboard-logic.js`'s `getForecastByDay`),
+  so tomorrow is never hidden just because today still has data logged.
+  "Today"/"tomorrow" are determined from Europe/Zurich calendar dates, not
+  the viewer's own device timezone - this replaced an earlier version that
+  picked "the earliest date with any forecast data" as a stand-in for
+  today, which silently hid tomorrow's forecast for as long as even one
+  hour of today was still logged (fixed 2026-07-16).
 - **Daily summary** — best hour, max estimated likelihood, expected peak
-  wind, and a one-line recommendation.
+  wind, and a one-line recommendation, shown separately for today and
+  tomorrow.
 - **Live performance** — rolling accuracy/balanced-accuracy/precision/
   recall on verified real forecasts, with a provisional-sample warning
   below n=30.
@@ -74,8 +90,14 @@ From here it runs itself:
   weights list, and the historical charts).
 
 The page is a single dependency-free `index.html` (inline CSS/JS, Chart.js
-from a CDN for the two historical charts only) — no build step, no
-framework, works fully offline/degraded if the CDN is blocked.
+from a CDN for the two historical charts only) plus one small plain-JS
+helper file, `docs/dashboard-logic.js` (Europe/Zurich date math and the
+today/tomorrow grouping logic - split out so it's directly testable with
+Node, see "Tests" below) — no build step, no framework, works fully
+offline/degraded if the CDN is blocked. The dashboard data fetch bypasses
+HTTP caching (`cache: 'no-store'` plus a `?v=<timestamp>` query string),
+since the forecast job now updates `dashboard_data.json` multiple times a
+day and a cached copy would otherwise show stale forecasts.
 
 ## Continuous integration
 
@@ -181,7 +203,11 @@ below it, which is why the dashboard reports them separately (see
 
 Run `python -m unittest discover -s tests` to exercise the model schema,
 metric, calibration, and ablation logic offline (stdlib-only, no network
-calls) — see `tests/`.
+calls) — see `tests/`. A handful of tests (`tests/test_dashboard_logic.py`)
+exercise `docs/dashboard-logic.js` directly via Node (present by default
+on GitHub Actions `ubuntu-latest` runners) rather than reimplementing its
+date-handling logic in Python; they skip cleanly if `node` isn't on PATH,
+so the core Python suite never depends on it.
 
 ## Files
 
@@ -200,7 +226,7 @@ calls) — see `tests/`.
 | `refresh_dashboard.py` | Nightly dashboard data rebuild (never recomputes the frozen `evaluation`/`deployment` sections) |
 | `tests/` | Offline `unittest` suite (stdlib-only, no network) |
 | `weights.json` | Current DEPLOYMENT model weights (auto-updated live, replaced wholesale by each `backtest.py` run) |
-| `docs/` | Dashboard (GitHub Pages) |
+| `docs/` | Dashboard (GitHub Pages): `index.html` + `dashboard-logic.js` (date-handling helpers) + `dashboard_data.json` |
 | `logs/` | Prediction log, backtest dataset, kitesailing observations, raw data cache (auto-committed) |
 
 ## Known limitations
