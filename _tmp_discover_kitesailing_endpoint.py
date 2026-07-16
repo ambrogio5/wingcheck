@@ -2,11 +2,15 @@
 One-off reconnaissance script: find the live-weather data source behind
 https://www.kitesailing.ch/en/spot/webcam.
 
-Launches headless Chromium, loads the page, and logs every XHR/fetch
-response so we can spot the polling endpoint (likely JSON, likely fired
-repeatedly on an interval). Also dumps any inline <script> JSON blobs and
-elements that look like live weather readouts, in case the data is
-server-rendered rather than fetched client-side.
+v2: the first pass showed the live weather DOM (classes like
+lmw-weather-today-*, bdtw-*, meteo-windstaerke) has no matching top-level
+XHR/fetch - meaning it's very likely rendered inside an <iframe> from a
+third-party widget host, whose own document/XHR requests aren't tagged as
+"xhr"/"fetch" at the top frame. This version:
+  - logs every request regardless of resource_type, across every frame
+  - explicitly walks page.frames() to find the frame whose DOM holds the
+    weather elements, and prints that frame's URL (the widget host)
+  - lists all <iframe src=...> and <script src=...> in every frame
 
 Usage:
     pip install playwright
@@ -22,7 +26,7 @@ from playwright.sync_api import sync_playwright
 
 URL = "https://www.kitesailing.ch/en/spot/webcam"
 WEATHER_HINTS = re.compile(
-    r"(api|weather|wind|station|sensor|ajax|json|live|meteo|data)", re.I
+    r"(api|weather|wind|station|sensor|ajax|json|live|meteo|data|lmw|bdtw)", re.I
 )
 
 
@@ -35,65 +39,80 @@ def main():
 
         def on_response(resp):
             req = resp.request
-            if req.resource_type not in ("xhr", "fetch"):
-                return
             ct = resp.headers.get("content-type", "")
             entry = {
+                "resource_type": req.resource_type,
                 "method": req.method,
                 "url": resp.url,
                 "status": resp.status,
                 "content_type": ct,
+                "frame_url": req.frame.url if req.frame else None,
             }
             if "json" in ct:
                 try:
                     body = resp.json()
-                    entry["body_preview"] = json.dumps(body)[:2000]
+                    entry["body_preview"] = json.dumps(body)[:1500]
                 except Exception as e:
                     entry["body_error"] = str(e)
             seen.append(entry)
-            print(f"[xhr] {req.method} {resp.status} {resp.url}  ct={ct}")
 
         page.on("response", on_response)
 
         print(f"Navigating to {URL} ...")
         page.goto(URL, timeout=30000, wait_until="networkidle")
-
-        # Give any polling interval a chance to fire at least once more.
         page.wait_for_timeout(8000)
 
-        print("\n--- All XHR/fetch responses seen ---")
+        print("\n--- All frames on the page ---")
+        for f in page.frames:
+            print(f"frame: {f.url}")
+
+        print("\n--- Requests that are NOT plain document/script/stylesheet/image/font ---")
         for e in seen:
-            print(json.dumps(e, indent=2)[:1500])
+            if e["resource_type"] not in ("stylesheet", "image", "font", "media"):
+                print(json.dumps(e, indent=2)[:1200])
 
-        candidates = [e for e in seen if WEATHER_HINTS.search(e["url"])]
-        print("\n--- Candidates matching weather-ish keywords in the URL ---")
-        for e in candidates:
-            print(json.dumps(e, indent=2))
+        print("\n--- Requests matching weather-ish keywords (any resource_type) ---")
+        for e in seen:
+            if WEATHER_HINTS.search(e["url"]):
+                print(json.dumps(e, indent=2))
 
-        print("\n--- Looking for inline <script> JSON blobs ---")
-        scripts = page.eval_on_selector_all(
-            "script:not([src])", "els => els.map(e => e.textContent)"
-        )
-        for i, s in enumerate(scripts):
-            if s and WEATHER_HINTS.search(s) and len(s) < 5000:
-                print(f"[inline script {i}] {s[:1000]}")
+        print("\n--- Which frame holds the live-weather elements? ---")
+        for f in page.frames:
+            try:
+                els = f.eval_on_selector_all(
+                    "[class]",
+                    """els => els
+                        .filter(e => /lmw|bdtw|meteo-wind/i.test(e.className))
+                        .map(e => ({class: e.className, text: e.textContent.trim().slice(0,80)}))
+                    """,
+                )
+            except Exception as e:
+                els = []
+            if els:
+                print(f"\nFRAME {f.url} contains {len(els)} weather elements:")
+                for el in els[:15]:
+                    print(" ", json.dumps(el))
 
-        print("\n--- Elements whose id/class hints at live weather values ---")
-        els = page.eval_on_selector_all(
-            "[id], [class]",
-            """els => els
-                .filter(e => /temp|wind|gust|humid|pressure|dir/i.test(e.id + ' ' + e.className))
-                .map(e => ({tag: e.tagName, id: e.id, class: e.className, text: e.textContent.trim().slice(0, 80)}))
-            """,
-        )
-        for e in els[:40]:
-            print(json.dumps(e))
+        print("\n--- <iframe src> across all frames ---")
+        for f in page.frames:
+            try:
+                srcs = f.eval_on_selector_all("iframe", "els => els.map(e => e.src)")
+            except Exception:
+                srcs = []
+            for s in srcs:
+                print(f"  iframe in {f.url} -> {s}")
+
+        print("\n--- <script src> across all frames (filtered to weather-ish) ---")
+        for f in page.frames:
+            try:
+                srcs = f.eval_on_selector_all("script[src]", "els => els.map(e => e.src)")
+            except Exception:
+                srcs = []
+            for s in srcs:
+                if WEATHER_HINTS.search(s):
+                    print(f"  script in {f.url} -> {s}")
 
         browser.close()
-
-    if not seen:
-        print("\nNo XHR/fetch requests captured at all - data may be fully "
-              "server-rendered, or the page needs more time/interaction.")
 
 
 if __name__ == "__main__":
