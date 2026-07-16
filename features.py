@@ -2,6 +2,13 @@
 features.py - pulls all raw data points for the Malojawind model and turns
 them into a normalized feature vector.
 
+The canonical list of engineered feature names is FEATURE_NAMES below - it
+must match engineer_features()'s returned dict keys exactly (see
+tests/test_features.py). model.new_weights() derives weights.json's schema
+from this tuple, so as long as fresh models are built via new_weights()
+rather than hand-edited, weights.json can't silently drift out of sync with
+what engineer_features() actually computes.
+
 RAW DATA POINTS (20), by source:
 
 Open-Meteo forecast model (api.open-meteo.com) - free, no key:
@@ -64,6 +71,38 @@ import requests
 from meteoswiss import LUGANO_STATION, ZURICH_STATION, fetch_pressure_observations, fetch_sam_hourly_observations
 
 TIMEZONE = "Europe/Zurich"
+
+# Canonical feature schema - the single source of truth for which features
+# the model scores on. Must exactly match engineer_features()'s returned
+# dict keys (tests/test_features.py asserts this against representative
+# fixture data); model.new_weights() builds weights.json's schema from this
+# tuple, so weights.json, engineer_features(), and model.py can never
+# silently drift apart as long as callers go through new_weights() rather
+# than hand-rolling a weights dict.
+FEATURE_NAMES = (
+    "thermal_excess",
+    "pressure_signal",
+    "upper_wind_alignment",
+    "upper_wind_speed_score",
+    "dewpoint_score",
+    "cape_penalty",
+    "freezing_level_score",
+    "precip_penalty",
+    "model_wind",
+    "model_gust",
+    "surface_dir_alignment",
+    "hour_sin",
+    "hour_cos",
+    "doy_sin",
+    "doy_cos",
+    "ensemble_wind_score",
+    "ensemble_agreement_score",
+    "persistence_wind",
+    "upper_wind_dewpoint_interaction",
+    "thermal_seasonal_interaction",
+    "samedan_morning_score",
+    "pressure_nowcast_score",
+)
 
 SILVAPLANA = (46.4573, 9.7967)
 BREGAGLIA = (46.3603, 9.6398)     # Vicosoprano
