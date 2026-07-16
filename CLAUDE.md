@@ -73,12 +73,27 @@ python verify_and_learn.py        # check past predictions against real observat
 python refresh_dashboard.py       # rebuild docs/dashboard_data.json from logs on disk (no network)
 python backtest.py                # full historical retrain (2024-2026), rewrites weights.json + dashboard data
 python -m unittest discover -s tests   # offline test suite (stdlib only, no network calls)
+
+# Historical archive / station research / diagnostics (see docs/DATA_ARCHITECTURE.md,
+# docs/STATION_RESEARCH.md, docs/MALOJA_DIAGNOSTICS.md)
+python historical_data.py sync        # incrementally refresh the station archive (idempotent, no-op if nothing new)
+python historical_data.py validate    # data-quality + gap/staleness checks (non-blocking diagnostic)
+python historical_data.py coverage    # per-station record counts / date ranges
+python station_analysis.py            # ten fixed station-family comparisons + correlation screen + calibration
+python refresh_research_dashboard.py  # rebuild docs/research/research_data.json from the latest report (no network)
 ```
 
 There is no linter or build step configured in this repo; there is an
 offline `unittest` suite under `tests/` (stdlib only, no network calls) —
 run it before trusting a change to `model.py`/`metrics.py`/`ablation.py`/
-`backtest.py`. `forecast_and_log.py` needs
+`backtest.py`. The historical-archive/research commands above are ALSO
+research-only and never write `weights.json` or `docs/dashboard_data.json`
+(the main operational dashboard) — enforced by `tests/test_station_analysis.py`
+asserting `weights.json`'s mtime is unchanged after calling into
+`station_analysis.py`. `historical_data.py sync` does attempt real network
+calls (best-effort, catches all exceptions) but falls back to ingesting
+whatever's already in `logs/raw_cache/` for the three confirmed stations,
+so it's always safe to run even fully offline. `forecast_and_log.py` needs
 `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` env vars to actually send (falls
 back to printing the message if unset). `backtest.py` and
 `verify_and_learn.py` make live network calls to Open-Meteo and MeteoSwiss,
@@ -317,18 +332,153 @@ none remain, while "Tomorrow" always shows its full set independently -
 fixed 2026-07-16, replacing a version that picked "the earliest date with
 any data" as today and could hide tomorrow entirely whenever today still
 had one hour left), "Daily summary" (best hour/max likelihood/peak
-wind/recommendation, shown separately for today and tomorrow), "Live
-performance" (from `live_metrics`, with a provisional-sample note below
-n=30), "Frozen holdout evaluation" (from `evaluation`, full window and the
-14:00-18:00 diagnostic prime window side by side, `evaluation.generated_at`
-shown with a staleness flag past 30 days, and a "Run fresh evaluation"
-button linking to
+wind/recommendation, shown separately for today and tomorrow), "Session
+outlook" (from the optional `session_forecast`/`daily_diagnostics`/
+`station_health`/`model_agreement` fields - see "Historical data archive,
+station research, and diagnostics" below; the whole section hides itself
+when no issuance data exists for today, so a fresh checkout or a repo
+predating this feature renders identically to before), "Live performance"
+(from `live_metrics`, with a provisional-sample note below n=30), "Frozen
+holdout evaluation" (from `evaluation`, full window and the 14:00-18:00
+diagnostic prime window side by side, `evaluation.generated_at` shown with
+a staleness flag past 30 days, and a "Run fresh evaluation" button linking
+to
 `https://github.com/<owner>/<repo>/actions/workflows/wingcheck.yml` in a
 new tab - deliberately just a link, since a static page cannot safely call
 the GitHub API without embedding a credential in frontend code), "Feature
 ablation", and a collapsed "Technical details" section (operational
 threshold confusion matrices, reproducibility seed, the weights list, and
 the monthly/timeline charts).
+
+## Historical data archive, station research, and diagnostics (this PR)
+
+A parallel line of work sits alongside the operational pipeline above: a
+durable historical station archive, a fixed-family station-research
+driver, and a station-derived diagnostics/session-summary layer feeding
+the dashboard's "Session outlook" section - all deliberately isolated from
+the production model. Full detail is in **`docs/DATA_ARCHITECTURE.md`**,
+**`docs/STATION_RESEARCH.md`**, and **`docs/MALOJA_DIAGNOSTICS.md`**; this
+section is the short version.
+
+11. **`station_registry.py`** / **`config/stations.json`** — the station
+    metadata registry (id, coordinates, provider, roles, an honest
+    `verification` field: `"confirmed"` / `"unverified"`, and `enabled`).
+    Exactly three stations are `confirmed` and `enabled` (`sam`, `lug`,
+    `sma` - the same three already used in production) because this
+    branch's sync attempts against `data.geo.admin.ch` were blocked by the
+    sandbox's network policy (confirmed via `historical_data.py sync`'s
+    own `[warn] ... ProxyError ... 403 Forbidden` log). Every other
+    candidate is recorded `enabled: false, verification: "unverified"` -
+    see `docs/STATION_RESEARCH.md` for the full list.
+    `validate_registry()` enforces the honesty invariant that an enabled
+    station must be confirmed, tested by `tests/test_station_registry.py`.
+12. **`historical_data.py`** — the durable archive's CLI (`sync` /
+    `validate` / `coverage`). Normalizes every station's hourly data to
+    one canonical schema (`NORMALIZED_FIELDS`, 20 fields, explicit UTC +
+    Europe/Zurich timestamps, nulls not invented values) under
+    `logs/historical/`. `sync` is idempotent and never overwrites a richer
+    existing record with a sparser one (`merge_normalized_records()`); it
+    tries the already-committed `logs/raw_cache/*.json` first, then a
+    best-effort live fetch (catches all exceptions). **
+    `logs/historical/station_hourly/*.jsonl` is gitignored, deliberately**
+    - fully regenerable in seconds via `historical_data.py sync`, and
+    substantially more verbose per row than `raw_cache/`'s compact format
+    - see `docs/DATA_ARCHITECTURE.md`.
+13. **`data_quality.py`** — implausible-value, negative-speed,
+    gust-less-than-speed, future-timestamp, duplicate, and gap/staleness
+    checks (`STALE_ARCHIVE_DAYS = 30`), wired into `historical_data.py
+    validate`. **Flags, never silently discards.**
+14. **`forecast_vintages.py`** — archives the raw, genuine multi-model
+    forecast payload (issue time, target times, lead-time-in-hours,
+    checksum) *before* `forecast_and_log.py` scores it, via a best-effort
+    `archive_forecast_payload_safe()` call that can never break the
+    actual forecast/Telegram send on failure (logs visibly to stderr
+    instead). Deduped by content checksum, gzip-compressed, stored under
+    `logs/historical/forecast_vintages/YYYY/MM/DD/` and **committed
+    permanently** (unlike the station archive) - a forecast vintage can
+    never be recreated once its lead time has passed.
+15. **`station_features.py`** — pre-forecast station feature generation at
+    the 07:00/10:00 issuance cutoffs, with per-station reporting-delay
+    discipline (an observation timestamped T is only "available" at
+    T + reporting_delay_minutes). Generic per-station features
+    (`latest_wind_speed`, wind-vector components, trends, dew-point
+    depression, etc.) plus pairwise station-comparison helpers. **None of
+    these are added to `features.FEATURE_NAMES`** - research/diagnostics
+    only.
+16. **`maloja_diagnostics.py`** — seven fixed diagnostic families (source
+    heating, pass activation, summit support, radiation support, pressure
+    support, competing flow, data health), each returning a fixed
+    `{score, status, raw_values, sources, explanation_key, missing}`
+    shape with a small, registered explanation-key vocabulary (never
+    free-form generated prose). **Four of the seven have zero real
+    station coverage today** (no confirmed source_region/pass/summit
+    station) and honestly report `missing: true` rather than a fabricated
+    score - only `pressure_support` (lug/sma) has real data. Fully
+    implemented and tested via fixtures regardless, so a future confirmed
+    station activates them with no code change.
+17. **`session_forecast.py`** — deterministic session-level summary
+    (onset/peak/decline, expected wind/gust range, event probability,
+    timing/strength confidence) derived from one day's already-scored
+    hourly forecasts. `event_probability` is the MAX hourly probability,
+    matching the already-validated production convention. Confidence
+    rules are a fixed penalty-subtraction formula (never a hidden model) -
+    see `docs/MALOJA_DIAGNOSTICS.md` for the exact factors and cutoffs.
+18. **`research_metrics.py`** / **`research_report.py`** — chronological,
+    day-grouped rolling-origin (expanding-window) evaluation splits with
+    2026 labeled `kind="reference"` (not `"holdout"`, since
+    `station_analysis.py` inspects it repeatedly), day-level bootstrap
+    confidence intervals, Benjamini-Hochberg FDR correction, and a
+    provenance envelope (commit SHA, input-file checksum, config,
+    warnings) for every saved report.
+19. **`station_analysis.py`** — runs exactly **ten pre-registered, fixed**
+    station-family comparisons (`FAMILY_DEFINITIONS`) via chronological
+    rolling-origin evaluation - never an open-ended search over feature
+    combinations. Also runs a correlation screen (Pearson/Spearman/
+    point-biserial/ROC-AUC with day-level bootstrap CIs and FDR
+    correction) and a calibration reliability summary (ECE) for the
+    production feature set. **Never writes `weights.json`** - asserted in
+    its own `main()` and verified offline by
+    `tests/test_station_analysis.py`. Saves a timestamped JSON+Markdown
+    report to `logs/historical/reports/`.
+20. **`refresh_research_dashboard.py`** / **`docs/research.html`** — a
+    second, completely separate dashboard (`docs/research/research_data.json`,
+    no network calls, never touches the main `docs/dashboard_data.json`)
+    showing station coverage, the fixed family comparison, the
+    correlation screen, calibration, and data-health warnings -
+    explicitly labeled "EXPLORATORY RESEARCH — NOT THE OPERATIONAL
+    DASHBOARD".
+21. **Dashboard optional fields** (`refresh_dashboard.py`'s
+    `optional_issuance_fields()`) — `daily_diagnostics`, `session_forecast`,
+    `station_health`, `model_agreement`, `data_provenance`, built from the
+    latest `logs/forecast_issuances.jsonl` record and degrading to `{}`
+    when that log doesn't exist yet. `forecast_and_log.py`'s
+    `_log_issuance()` (best-effort, never raises) appends one record per
+    issuance with `issued_at`, `model_version`, `feature_schema_version`,
+    `calibration_version`, `station_cutoff`, `station_inputs`,
+    `station_input_age`, `station_quality_flags`, `diagnostics`,
+    `session_forecast`, `hourly_predictions`, `raw_payload_checksums`, and
+    `commit_sha` - appended, never rewritten, so historical forecast
+    records are never altered after the fact.
+
+**Workflow jobs for the above** (`.github/workflows/wingcheck.yml`, kept
+byte-identical to `COPY-ME_workflow.yml`): the `forecast` job now runs
+`historical_data.py sync` before `forecast_and_log.py` (fresh station data
+for the diagnostics) and commits the append-only
+`logs/historical/forecast_vintages/` and `logs/forecast_issuances.jsonl`
+alongside its existing commit. `sync_historical_data` (daily, 03:30 CEST,
+plus manual - commits only `logs/historical/manifests/`) and
+`station_research` (manual only, via the `run_station_analysis` input -
+runs `station_analysis.py` + `refresh_research_dashboard.py`, commits
+reports + research dashboard data, **never** `weights.json`) are new. A
+workflow-level `concurrency` group (`wingcheck-${{ github.ref }}`,
+`cancel-in-progress: false`) prevents two commit-and-push jobs from
+racing. The `forecast` job's manual-dispatch condition explicitly excludes
+both new flags, so ticking `sync_historical_data` or `run_station_analysis`
+alone can't also silently trigger a real forecast + Telegram send.
+`tests/test_workflow.py` asserts each new job's safety properties directly.
+**There is no workflow option to promote a station feature into
+production** - see `docs/STATION_RESEARCH.md`'s explicit prohibition for
+this PR.
 
 ## Conventions specific to this codebase
 
@@ -386,3 +536,40 @@ the monthly/timeline charts).
   `update()` because it trains over the full dataset in epochs rather than
   one online step at a time. Keep the learning rule in sync across both if
   you change it.
+- **No station-derived feature is ever added directly to
+  `features.FEATURE_NAMES`.** `station_features.py`'s generic features and
+  `maloja_diagnostics.py`'s family scores exist only for
+  `station_analysis.py`'s research comparisons and the dashboard's
+  "Session outlook" - promoting one into production would require, at
+  minimum, the underlying station being confirmed (see
+  `docs/STATION_RESEARCH.md`), a stable improvement across multiple
+  rolling-origin folds (not just the repeatedly-inspected 2026
+  reference), and a deliberate, separate, human-reviewed source-code
+  change. This PR does not do that, and is explicitly not scoped to.
+- **A station is not usable for anything beyond exploratory research
+  until `config/stations.json` marks it `verification: "confirmed"` AND
+  `enabled: true`.** Setting those fields requires an actual successful
+  `historical_data.py sync --station <id>` fetch, inspected by a human -
+  never based on a station merely being named in a task description or
+  general regional knowledge. `station_registry.validate_registry()`
+  enforces the invariant that an enabled station must be confirmed.
+- **2026 is a repeatedly-inspected reference for station research, not a
+  pristine holdout**, even though `backtest.py`'s own evaluation/
+  deployment split still treats it correctly (looking at it exactly once
+  per run). `station_analysis.py` inspects it across all ten fixed family
+  comparisons plus the correlation screen, which is a real
+  multiple-comparison risk - that's why `research_metrics.rolling_origin_splits()`
+  labels it `kind="reference"` rather than `"holdout"`, and why the five
+  rolling folds (which train only on data strictly before their own
+  validation period) are the primary evidence for any research finding,
+  not the 2026 number alone.
+- `logs/historical/station_hourly/*.jsonl` is gitignored on purpose (see
+  `docs/DATA_ARCHITECTURE.md`'s "What's committed vs. regenerable") -
+  don't force-add it or "fix" the `.gitignore` entry; it regenerates from
+  committed data in seconds via `historical_data.py sync`.
+  `logs/historical/manifests/`, `logs/historical/forecast_vintages/`, and
+  `logs/historical/reports/` ARE committed - see the same doc for why
+  those three are irreplaceable while the rest is derived.
+- `logs/forecast_issuances.jsonl` is append-only, one record per
+  `forecast_and_log.py` run (not per hour, unlike `logs/predictions.jsonl`)
+  - never hand-edit or rewrite historical entries in it.

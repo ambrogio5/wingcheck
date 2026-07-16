@@ -1,0 +1,128 @@
+{
+  "generated_at": "2026-07-16T18:40:58.456215+00:00",
+  "stations": {
+    "sam": {
+      "name": "Samedan",
+      "provider": "meteoswiss",
+      "roles": [
+        "target_region",
+        "ground_truth"
+      ],
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 399181,
+      "data_start": "1981-01-01T00:00:00+00:00",
+      "data_end": "2026-07-16T12:00:00+00:00"
+    },
+    "lug": {
+      "name": "Lugano",
+      "provider": "meteoswiss",
+      "roles": [
+        "synoptic_pressure"
+      ],
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 196835,
+      "data_start": "2004-02-01T00:00:00+00:00",
+      "data_end": "2026-07-16T12:00:00+00:00"
+    },
+    "sma": {
+      "name": "Z\u00fcrich / Fluntern",
+      "provider": "meteoswiss",
+      "roles": [
+        "synoptic_pressure"
+      ],
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 196770,
+      "data_start": "2004-02-01T00:00:00+00:00",
+      "data_end": "2026-07-16T12:00:00+00:00"
+    },
+    "cor": {
+      "name": "Corvatsch (summit)",
+      "provider": "meteoswiss",
+      "roles": [
+        "summit"
+      ],
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
+    },
+    "piz_nair": {
+      "name": "Piz Nair (St. Moritz)",
+      "provider": "unknown",
+      "roles": [
+        "summit"
+      ],
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
+    },
+    "maloja": {
+      "name": "Maloja",
+      "provider": "meteoswiss",
+      "roles": [
+        "pass",
+        "source_region"
+      ],
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
+    },
+    "sils": {
+      "name": "Sils / Segl",
+      "provider": "unknown",
+      "roles": [
+        "target_region"
+      ],
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
+    },
+    "vicosoprano": {
+      "name": "Vicosoprano",
+      "provider": "unknown",
+      "roles": [
+        "source_region"
+      ],
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
+    },
+    "poschiavo": {
+      "name": "Poschiavo",
+      "provider": "meteoswiss",
+      "roles": [
+        "competing_flow"
+      ],
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
+    },
+    "chur": {
+      "name": "Chur",
+      "provider": "meteoswiss",
+      "roles": [
+        "synoptic_pressure",
+        "down_valley"
+      ],
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
+    }
+  }
+}

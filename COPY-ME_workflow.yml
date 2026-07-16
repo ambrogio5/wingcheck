@@ -1,6 +1,6 @@
 # Save as .github/workflows/wingcheck.yml
 #
-# Four jobs:
+# Six jobs:
 #  - forecast: runs the model, sends Telegram alert, logs predictions, then
 #    immediately runs refresh_dashboard.py and commits BOTH
 #    logs/predictions.jsonl and docs/dashboard_data.json - so the published
@@ -8,6 +8,13 @@
 #    10:00 run, instead of sitting stale until the evening learn job (a
 #    live-forecast-visibility bug fixed on 2026-07-16: predictions were
 #    logged all day but the dashboard only refreshed once, at 20:00 CEST).
+#    Also runs `historical_data.py sync` first (fresh station data for
+#    forecast_and_log.py's diagnostics), and commits the append-only
+#    forecast-vintage archive and issuance log that forecast_and_log.py
+#    itself writes internally (archiving the genuine forecast payload and
+#    the station inputs used - see forecast_vintages.py/station_features.py -
+#    is done from INSIDE forecast_and_log.py, not as separate workflow
+#    steps, so it can never be silently skipped by a workflow edit).
 #  - sample_kitesailing: every 15 min, sunrise-to-sundown (05:00-21:45 CEST,
 #    generous enough to cover the full May-Oct range), scrapes the
 #    kitesailing.ch Silvaplana lake station reading - this is the model's
@@ -21,22 +28,44 @@
 #  - backtest: MANUAL ONLY (workflow_dispatch). Retrains from 2024-2026
 #    history (Samedan-labeled - kitesailing has no historical archive) and
 #    regenerates the dashboard. Run this once to start, and again any time
-#    you want a from-scratch retrain.
+#    you want a from-scratch retrain. The only job that ever writes
+#    weights.json.
+#  - sync_historical_data: daily (lightweight) AND manual. Runs
+#    `historical_data.py sync` + `validate` and commits only the small
+#    manifests (logs/historical/station_hourly/ is git-ignored - see its
+#    README). Never touches weights.json or the operational dashboard.
+#  - station_research: MANUAL ONLY (`run_station_analysis` input). Runs
+#    station_analysis.py's ten fixed, pre-registered family comparisons
+#    plus its correlation/calibration diagnostics, then
+#    refresh_research_dashboard.py. Commits the generated report +
+#    docs/research/research_data.json. NEVER touches weights.json -
+#    station_analysis.py asserts this itself (see its own `main()`) and
+#    tests/test_station_analysis.py checks it offline too. There is no
+#    workflow option to promote a candidate feature or station into
+#    production - that stays a manual source-code change followed by the
+#    existing `run_backtest` option, per this task's explicit "do not
+#    promote" constraint.
 #
-# The forecast/learn/backtest jobs all run the offline `tests/` unittest
-# suite (stdlib only, no network calls, <1s) right after installing
-# dependencies and BEFORE running the real script or committing anything -
-# a schema/metric/calibration regression should fail the job instead of
-# silently committing bad weights or dashboard data.
+# The forecast/learn/backtest/sync_historical_data/station_research jobs
+# all run the offline `tests/` unittest suite (stdlib only, no network
+# calls) right after installing dependencies and BEFORE running the real
+# script or committing anything - a schema/metric/calibration regression
+# should fail the job instead of silently committing bad output.
 #
 #  - validate: runs on every pull_request. Syntax-checks every module and
 #    runs the same offline test suite - nothing else. Deliberately does NOT
-#    run forecasts, learning, scraping, backtests, Telegram calls, or any
-#    commit/push step, since a PR from an untrusted branch must never be
-#    able to trigger those (no secrets are exposed to this job either).
-#    Each operational job's `if:` explicitly requires github.event_name to
-#    be 'schedule' or 'workflow_dispatch' so a pull_request event can never
-#    satisfy them, even if the trigger list above grows in the future.
+#    run forecasts, learning, scraping, backtests, research, Telegram
+#    calls, or any commit/push step, since a PR from an untrusted branch
+#    must never be able to trigger those (no secrets are exposed to this
+#    job either). Each operational job's `if:` explicitly requires
+#    github.event_name to be 'schedule' or 'workflow_dispatch' so a
+#    pull_request event can never satisfy them, even if the trigger list
+#    above grows in the future.
+#
+# A workflow-level `concurrency` group (below) ensures at most one run per
+# branch proceeds at a time, so two jobs that each commit+push (e.g. a
+# manual station_research run overlapping a scheduled forecast run) can
+# never race and produce conflicting commits.
 #
 # Required repo secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 # Required repo setting: Settings -> Actions -> General -> Workflow permissions
@@ -53,13 +82,26 @@ on:
     - cron: "0 5,8 * * *"      # forecast: 07:00 / 10:00 CEST
     - cron: "*/15 3-19 * * *"  # sample_kitesailing: 05:00-21:45 CEST, sunrise to sundown
     - cron: "0 18 * * *"       # learn: 20:00 CEST, checks that day's window
+    - cron: "30 1 * * *"       # sync_historical_data: 03:30 CEST, off-peak lightweight station sync
   workflow_dispatch:
     inputs:
       run_backtest:
         description: "Run the full historical backtest/retrain instead of a normal forecast"
         type: boolean
         default: false
+      sync_historical_data:
+        description: "Sync the historical station archive (historical_data.py sync)"
+        type: boolean
+        default: false
+      run_station_analysis:
+        description: "Run station_analysis.py's fixed family comparisons and refresh docs/research.html (never touches weights.json, never promotes a feature)"
+        type: boolean
+        default: false
   pull_request:
+
+concurrency:
+  group: wingcheck-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   # Lightweight PR validation: syntax + offline tests only. No network
@@ -99,9 +141,14 @@ jobs:
           git push
 
   forecast:
+    # Manual dispatch only runs a forecast when NONE of the other special
+    # flags are set - otherwise ticking e.g. sync_historical_data alone
+    # would also silently trigger a real forecast/Telegram send as a side
+    # effect, which is never what that dispatch was asking for.
     if: >
       (github.event_name == 'schedule' && github.event.schedule == '0 5,8 * * *') ||
-      (github.event_name == 'workflow_dispatch' && inputs.run_backtest != true)
+      (github.event_name == 'workflow_dispatch' && inputs.run_backtest != true &&
+       inputs.sync_historical_data != true && inputs.run_station_analysis != true)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -112,16 +159,18 @@ jobs:
           python-version: "3.12"
       - run: pip install requests
       - run: python -m unittest discover -s tests
+      - run: python historical_data.py sync
       - run: python forecast_and_log.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - run: python refresh_dashboard.py
-      - name: Commit prediction log and refreshed dashboard data
+      - name: Commit prediction log, forecast vintages, issuance log, and refreshed dashboard data
         run: |
           git config user.name "wingcheck-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add logs/predictions.jsonl docs/dashboard_data.json
+          git add logs/predictions.jsonl logs/forecast_issuances.jsonl docs/dashboard_data.json \
+                  logs/historical/forecast_vintages/ logs/historical/manifests/
           git diff --staged --quiet || git commit -m "log predictions and refresh dashboard $(date -u +%F)"
           git pull --rebase origin main
           git push
@@ -173,5 +222,54 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/predictions.jsonl weights.json docs/dashboard_data.json
           git diff --staged --quiet || git commit -m "learn from outcomes $(date -u +%F)"
+          git pull --rebase origin main
+          git push
+
+  sync_historical_data:
+    if: >
+      (github.event_name == 'schedule' && github.event.schedule == '30 1 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.sync_historical_data == true)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python -m unittest discover -s tests
+      - run: python historical_data.py sync
+      - run: python historical_data.py validate || true  # diagnostic - flags issues, never blocks the commit
+      - name: Commit historical archive manifests
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/historical/manifests/
+          git diff --staged --quiet || git commit -m "sync historical station archive $(date -u +%F)"
+          git pull --rebase origin main
+          git push
+
+  station_research:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_station_analysis == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python -m unittest discover -s tests
+      - run: python historical_data.py sync
+      - run: python station_analysis.py
+      - run: python refresh_research_dashboard.py
+      - name: Commit research report and research dashboard data
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/historical/reports/ logs/historical/manifests/ docs/research/research_data.json
+          git diff --staged --quiet || git commit -m "station research run $(date -u +%F)"
           git pull --rebase origin main
           git push

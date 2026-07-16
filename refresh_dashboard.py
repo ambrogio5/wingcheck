@@ -48,6 +48,7 @@ BASE_DIR = os.path.dirname(__file__)
 DATASET_PATH = os.path.join(BASE_DIR, "logs", "backtest_dataset.jsonl")
 PREDICTIONS_PATH = os.path.join(BASE_DIR, "logs", "predictions.jsonl")
 DASHBOARD_DATA_PATH = os.path.join(BASE_DIR, "docs", "dashboard_data.json")
+ISSUANCE_LOG_PATH = os.path.join(BASE_DIR, "logs", "forecast_issuances.jsonl")
 ZURICH_TZ = ZoneInfo("Europe/Zurich")
 
 # 8-point compass, meteorological convention (direction the wind blows FROM).
@@ -162,6 +163,56 @@ def monthly_breakdown(entries):
     }
 
 
+def _latest_issuance():
+    """Optional-fields support (section 10): returns the most recent
+    logs/forecast_issuances.jsonl record, or None if the file doesn't
+    exist yet (a fresh checkout, or a repo predating this feature) - every
+    caller must handle None gracefully so the dashboard keeps working
+    without it."""
+    if not os.path.exists(ISSUANCE_LOG_PATH):
+        return None
+    latest = None
+    with open(ISSUANCE_LOG_PATH) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                latest = json.loads(line)
+    return latest
+
+
+def optional_issuance_fields(issuance: dict) -> dict:
+    """Builds the 5 optional dashboard fields from the latest issuance
+    record. Returns {} for every field when no issuance data exists yet -
+    docs/index.html must render identically whether these keys are present
+    or entirely absent."""
+    if not issuance:
+        return {"daily_diagnostics": {}, "session_forecast": {}, "station_health": {},
+                "model_agreement": {}, "data_provenance": {}}
+
+    dates = list(issuance.get("session_forecast", {}).keys())
+    diagnostics = issuance.get("diagnostics", {})
+    return {
+        "daily_diagnostics": {date: diagnostics for date in dates},
+        "session_forecast": issuance.get("session_forecast", {}),
+        "station_health": {
+            "data_health": diagnostics.get("data_health", {}),
+            "station_input_age_minutes": issuance.get("station_input_age", {}),
+            "station_quality_flags": issuance.get("station_quality_flags", []),
+        },
+        "model_agreement": {
+            date: sf.get("model_agreement") for date, sf in issuance.get("session_forecast", {}).items()
+        },
+        "data_provenance": {
+            "issued_at": issuance.get("issued_at"),
+            "commit_sha": issuance.get("commit_sha"),
+            "model_version": issuance.get("model_version"),
+            "feature_schema_version": issuance.get("feature_schema_version"),
+            "calibration_version": issuance.get("calibration_version"),
+            "raw_payload_checksums": issuance.get("raw_payload_checksums", {}),
+        },
+    }
+
+
 def main():
     weights = load_weights()
     backtest_samples = read_jsonl(DATASET_PATH)
@@ -230,6 +281,10 @@ def main():
              "probability": e["probability"], "year": e["year"], "source": e["source"]}
             for e in entries
         ],
+        # Optional fields (section 10) - {} when no issuance record exists
+        # yet (fresh checkout / older repo state). docs/index.html must
+        # keep working whether these keys are present or absent/empty.
+        **optional_issuance_fields(_latest_issuance()),
     }
 
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)

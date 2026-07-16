@@ -153,5 +153,72 @@ class FrozenSectionPreservationTests(unittest.TestCase):
         self.assertEqual(after["evaluation"], {"n_holdout_samples": 0})
 
 
+class OptionalIssuanceFieldsTests(unittest.TestCase):
+    """Section 10's dashboard contract: daily_diagnostics/session_forecast/
+    station_health/model_agreement/data_provenance must all degrade to {}
+    gracefully with no issuance log, and populate correctly when one
+    exists - the dashboard must keep working either way."""
+
+    def test_no_issuance_returns_all_empty_dicts(self):
+        fields = rd.optional_issuance_fields(None)
+        self.assertEqual(fields, {
+            "daily_diagnostics": {}, "session_forecast": {}, "station_health": {},
+            "model_agreement": {}, "data_provenance": {},
+        })
+
+    def test_populated_issuance_shapes_every_field(self):
+        issuance = {
+            "issued_at": "2026-07-16T07:00:00+00:00",
+            "commit_sha": "abc123",
+            "model_version": 3,
+            "feature_schema_version": 3,
+            "calibration_version": "uncalibrated-v1",
+            "diagnostics": {"pressure_support": {"status": "favourable", "missing": False}},
+            "session_forecast": {"2026-07-16": {"model_agreement": 0.8, "peak_hour": "2026-07-16T15:00"}},
+            "station_input_age": {"sam": 12.0},
+            "station_quality_flags": ["summit_support_missing_station_data"],
+            "raw_payload_checksums": {"open_meteo": "deadbeef"},
+        }
+        fields = rd.optional_issuance_fields(issuance)
+        self.assertEqual(fields["session_forecast"], issuance["session_forecast"])
+        self.assertEqual(fields["daily_diagnostics"], {"2026-07-16": issuance["diagnostics"]})
+        self.assertEqual(fields["model_agreement"], {"2026-07-16": 0.8})
+        self.assertEqual(fields["station_health"]["station_quality_flags"], issuance["station_quality_flags"])
+        self.assertEqual(fields["data_provenance"]["commit_sha"], "abc123")
+        self.assertEqual(fields["data_provenance"]["raw_payload_checksums"], {"open_meteo": "deadbeef"})
+
+    def test_latest_issuance_returns_none_when_file_absent(self):
+        orig = rd.ISSUANCE_LOG_PATH
+        rd.ISSUANCE_LOG_PATH = "/nonexistent/path/forecast_issuances.jsonl"
+        try:
+            self.assertIsNone(rd._latest_issuance())
+        finally:
+            rd.ISSUANCE_LOG_PATH = orig
+
+    def test_main_still_succeeds_without_issuance_log(self):
+        # main() itself (exercised by the classes above) must not require
+        # forecast_issuances.jsonl to exist - already implicitly covered by
+        # every other test in this file never creating one, but assert the
+        # resulting dashboard_data.json explicitly has the optional keys.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orig_dataset, orig_predictions, orig_dashboard, orig_issuance = (
+                rd.DATASET_PATH, rd.PREDICTIONS_PATH, rd.DASHBOARD_DATA_PATH, rd.ISSUANCE_LOG_PATH)
+            rd.DATASET_PATH = os.path.join(tmpdir, "backtest_dataset.jsonl")
+            rd.PREDICTIONS_PATH = os.path.join(tmpdir, "predictions.jsonl")
+            rd.DASHBOARD_DATA_PATH = os.path.join(tmpdir, "dashboard_data.json")
+            rd.ISSUANCE_LOG_PATH = os.path.join(tmpdir, "forecast_issuances.jsonl")
+            open(rd.DATASET_PATH, "w").close()
+            open(rd.PREDICTIONS_PATH, "w").close()
+            try:
+                rd.main()
+                with open(rd.DASHBOARD_DATA_PATH) as f:
+                    data = json.load(f)
+                for key in ("daily_diagnostics", "session_forecast", "station_health", "model_agreement", "data_provenance"):
+                    self.assertEqual(data[key], {})
+            finally:
+                rd.DATASET_PATH, rd.PREDICTIONS_PATH, rd.DASHBOARD_DATA_PATH, rd.ISSUANCE_LOG_PATH = (
+                    orig_dataset, orig_predictions, orig_dashboard, orig_issuance)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -209,6 +209,50 @@ on GitHub Actions `ubuntu-latest` runners) rather than reimplementing its
 date-handling logic in Python; they skip cleanly if `node` isn't on PATH,
 so the core Python suite never depends on it.
 
+## Historical data, station research, and diagnostics
+
+Alongside the operational pipeline, this repo also has a durable
+historical station archive and a diagnostic/research layer that evaluates
+whether real local weather stations would improve the forecast - kept
+completely separate from the production model until a finding clears an
+explicit promotion process. Full detail lives in three dedicated
+documents:
+
+- **`docs/DATA_ARCHITECTURE.md`** — the archive's directory layout,
+  canonical normalized schema, what's committed vs. regenerable, the
+  station registry, sync/validate/coverage commands, and disaster
+  recovery.
+- **`docs/STATION_RESEARCH.md`** — every registered station (confirmed and
+  unverified) and its status, plus the explicit feature-promotion
+  prohibition for this PR.
+- **`docs/MALOJA_DIAGNOSTICS.md`** — the pre-forecast station feature
+  layer, the seven fixed diagnostic families (source heating, pass
+  activation, summit support, radiation support, pressure support,
+  competing flow, data health), and the session-level summary shown on
+  the dashboard's "Session outlook" section.
+
+In short:
+```bash
+python3 historical_data.py sync       # incrementally refresh the station archive (idempotent)
+python3 historical_data.py validate   # data-quality + continuity checks
+python3 historical_data.py coverage   # per-station record counts / date ranges
+python3 station_analysis.py           # ten fixed station-family comparisons + correlation screen + calibration
+python3 refresh_research_dashboard.py # rebuild docs/research/research_data.json (no network)
+```
+
+**None of the above ever writes `weights.json` or the main
+`docs/dashboard_data.json`** - `station_analysis.py` asserts this itself
+and `tests/test_station_analysis.py` checks it offline. Only three
+stations (Samedan, Lugano, Zürich) are confirmed with real historical
+data; every other candidate is honestly marked unverified rather than
+assumed to exist - see `docs/STATION_RESEARCH.md`. **2026 is a
+repeatedly-inspected reference for this research, not a pristine
+holdout** - `station_analysis.py` uses chronological, day-grouped
+rolling-origin (expanding-window) evaluation, with 2026 reported
+separately and labeled accordingly, so a real trend across multiple years
+of folds - not one inspection of 2026 - is what would actually justify a
+future promotion.
+
 ## Files
 
 | File | Role |
@@ -219,15 +263,27 @@ so the core Python suite never depends on it.
 | `ablation.py` | Feature-group ablation comparison (diagnostic, not model selection) |
 | `meteoswiss.py` | Real Samedan wind + Lugano/Zürich pressure (fallback ground truth + nowcast features) |
 | `kitesailing_weather.py` | Scrapes the real Silvaplana lake reading (primary ground truth) |
-| `forecast_and_log.py` | Daily forecast + Telegram + prediction log |
+| `forecast_and_log.py` | Daily forecast + Telegram + prediction log + forecast-vintage archival + issuance provenance record |
 | `verify_and_learn.py` | Checks predictions vs reality, updates weights |
 | `backtest.py` | One-shot historical retrain (2024–2026, Samedan-labeled) — leak-free evaluation/deployment split, see above |
 | `historical_cache.py` | Caches backtest.py's raw fetches so retrains don't re-pull the same history |
 | `refresh_dashboard.py` | Nightly dashboard data rebuild (never recomputes the frozen `evaluation`/`deployment` sections) |
+| `station_registry.py` | Loads/validates `config/stations.json` (the station registry) — see `docs/STATION_RESEARCH.md` |
+| `historical_data.py` | Durable historical-archive CLI (`sync`/`validate`/`coverage`) — see `docs/DATA_ARCHITECTURE.md` |
+| `data_quality.py` | Implausible-value/gap/staleness validation for the historical archive — flags, never discards |
+| `forecast_vintages.py` | Archives genuine forecast-model payloads before scoring, gzip-compressed, deduped by checksum |
+| `station_features.py` | Pre-forecast station feature generation (07:00/10:00 cutoffs, reporting delay) — see `docs/MALOJA_DIAGNOSTICS.md` |
+| `maloja_diagnostics.py` | Seven fixed diagnostic families with a small, fixed explanation-key vocabulary |
+| `session_forecast.py` | Deterministic session-level summary (onset/peak/decline, confidence rules) |
+| `research_metrics.py` | Rolling-origin (expanding-window) splits, day-level bootstrap CIs, Benjamini-Hochberg FDR correction |
+| `research_report.py` | Provenance envelope (commit SHA, data checksums, config) for every research report |
+| `station_analysis.py` | Ten fixed station-family comparisons + correlation screen + calibration (research-only, never touches `weights.json`) |
+| `refresh_research_dashboard.py` | Rebuilds `docs/research/research_data.json` from the latest report (never touches the main dashboard) |
+| `docs/research.html` | Secondary, explicitly-labeled-exploratory research dashboard |
 | `tests/` | Offline `unittest` suite (stdlib-only, no network) |
 | `weights.json` | Current DEPLOYMENT model weights (auto-updated live, replaced wholesale by each `backtest.py` run) |
 | `docs/` | Dashboard (GitHub Pages): `index.html` + `dashboard-logic.js` (date-handling helpers) + `dashboard_data.json` |
-| `logs/` | Prediction log, backtest dataset, kitesailing observations, raw data cache (auto-committed) |
+| `logs/` | Prediction log, backtest dataset, kitesailing observations, raw data cache, forecast issuances (auto-committed) |
 
 ## Known limitations
 
@@ -249,5 +305,13 @@ so the core Python suite never depends on it.
   ablation table). ~31% of hours land within ±2kt of the rideable
   threshold, an inherent noise floor no amount of feature/model tuning
   removes on its own; see CLAUDE.md's "Accuracy ceiling" note.
+- **No station-derived feature is promoted to production in this PR, and
+  none should be without a real trend across multiple rolling-origin
+  folds.** Four of the five new candidate diagnostic families (source
+  heating, pass activation, summit support, radiation support) have zero
+  real station coverage today - only three stations (Samedan, Lugano,
+  Zürich) are confirmed. See `docs/STATION_RESEARCH.md` for every
+  candidate's status and `docs/MALOJA_DIAGNOSTICS.md` for how they're
+  honestly reported as "missing" rather than fabricated.
 
 Data: Open-Meteo (CC BY 4.0) · MeteoSwiss Open Data (Source: MeteoSwiss)

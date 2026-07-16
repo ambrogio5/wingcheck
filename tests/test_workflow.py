@@ -30,6 +30,20 @@ def _job_block(text, job_name):
     return m.group(1)
 
 
+def _git_add_block(job_text):
+    """Returns the full `git add ...` command from a job's commit step,
+    joining any `\\`-continued lines - some commit steps stage several
+    paths across multiple lines."""
+    lines = job_text.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip().startswith("git add"))
+    block_lines = [lines[start]]
+    i = start
+    while block_lines[-1].rstrip().endswith("\\"):
+        i += 1
+        block_lines.append(lines[i])
+    return "\n".join(block_lines)
+
+
 class PullRequestTriggerTests(unittest.TestCase):
     def setUp(self):
         self.text = _read(WORKFLOW_PATH)
@@ -59,7 +73,8 @@ class PullRequestTriggerTests(unittest.TestCase):
         """Each operational job's `if:` must require github.event_name to be
         'schedule' or 'workflow_dispatch' - a pull_request event can never
         make any branch of these conditions true."""
-        for job_name in ("backtest", "forecast", "sample_kitesailing", "learn"):
+        for job_name in ("backtest", "forecast", "sample_kitesailing", "learn",
+                         "sync_historical_data", "station_research"):
             job = _job_block(self.text, job_name)
             if_line = re.search(r"if:.*?(?=\n  \w|\n    \w+:|\Z)", job, re.DOTALL)
             self.assertIsNotNone(if_line, f"{job_name} has no `if:` condition")
@@ -119,6 +134,110 @@ class ForecastJobRefreshesDashboardTests(unittest.TestCase):
 class CopyMeWorkflowSyncTests(unittest.TestCase):
     def test_copy_me_workflow_matches_real_workflow(self):
         self.assertEqual(_read(WORKFLOW_PATH), _read(COPY_ME_PATH))
+
+
+class ConcurrencyGroupTests(unittest.TestCase):
+    def test_concurrency_group_is_scoped_per_branch_and_never_cancels(self):
+        text = _read(WORKFLOW_PATH)
+        block = re.search(r"^concurrency:\n(.*?)^jobs:", text, re.MULTILINE | re.DOTALL).group(1)
+        self.assertIn("github.ref", block)
+        self.assertIn("cancel-in-progress: false", block)
+
+
+class ForecastJobArchivesStationDataTests(unittest.TestCase):
+    """Section 12: forecast jobs must sync station data before running the
+    forecast (so forecast_and_log.py's diagnostics have fresh input) and
+    commit the append-only forecast-vintage archive + issuance log it
+    writes internally."""
+
+    def setUp(self):
+        self.job = _job_block(_read(WORKFLOW_PATH), "forecast")
+
+    def test_syncs_historical_data_before_forecast(self):
+        sync_pos = self.job.index("historical_data.py sync")
+        forecast_pos = self.job.index("python forecast_and_log.py")
+        self.assertLess(sync_pos, forecast_pos)
+
+    def test_commits_forecast_vintages_and_issuance_log(self):
+        git_add_block = _git_add_block(self.job)
+        self.assertIn("logs/forecast_issuances.jsonl", git_add_block)
+        self.assertIn("logs/historical/forecast_vintages/", git_add_block)
+
+    def test_manual_dispatch_condition_excludes_other_flags(self):
+        # Ticking sync_historical_data or run_station_analysis alone must
+        # NOT also fire a real forecast/Telegram send as a side effect.
+        if_line = re.search(r"if:.*?(?=\n    runs-on)", self.job, re.DOTALL).group(0)
+        self.assertIn("inputs.sync_historical_data != true", if_line)
+        self.assertIn("inputs.run_station_analysis != true", if_line)
+
+
+class SyncHistoricalDataJobTests(unittest.TestCase):
+    def setUp(self):
+        self.job = _job_block(_read(WORKFLOW_PATH), "sync_historical_data")
+
+    def test_runs_tests_before_sync(self):
+        test_pos = self.job.index("unittest discover -s tests")
+        sync_pos = self.job.index("historical_data.py sync")
+        self.assertLess(test_pos, sync_pos)
+
+    def test_commit_only_touches_historical_manifests(self):
+        git_add_line = _git_add_block(self.job)
+        self.assertIn("logs/historical/manifests/", git_add_line)
+        for forbidden in ("weights.json", "docs/dashboard_data.json", "docs/research"):
+            self.assertNotIn(forbidden, git_add_line, f"sync_historical_data must not stage {forbidden!r}")
+
+    def test_never_references_weights_or_telegram(self):
+        for forbidden in ("weights.json", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "backtest.py"):
+            self.assertNotIn(forbidden, self.job)
+
+
+class StationResearchJobTests(unittest.TestCase):
+    """station_research runs station_analysis.py's fixed family comparisons
+    and publishes the research dashboard data, but must never overwrite
+    production weights or the main dashboard - there is no workflow option
+    to promote a feature into production (a deliberate, explicit
+    constraint - see docs/STATION_RESEARCH.md)."""
+
+    def setUp(self):
+        self.job = _job_block(_read(WORKFLOW_PATH), "station_research")
+
+    def test_runs_tests_before_station_analysis(self):
+        test_pos = self.job.index("unittest discover -s tests")
+        analysis_pos = self.job.index("python station_analysis.py")
+        self.assertLess(test_pos, analysis_pos)
+
+    def test_commit_never_stages_weights_or_main_dashboard(self):
+        git_add_line = _git_add_block(self.job)
+        self.assertIn("logs/historical/reports/", git_add_line)
+        self.assertIn("docs/research/research_data.json", git_add_line)
+        for forbidden in ("weights.json", "docs/dashboard_data.json"):
+            self.assertNotIn(forbidden, git_add_line, f"station_research must not stage {forbidden!r}")
+
+    def test_never_references_weights_json_or_backtest(self):
+        self.assertNotIn("weights.json", self.job)
+        self.assertNotIn("python backtest.py", self.job)
+
+    def test_runs_refresh_research_dashboard(self):
+        self.assertIn("python refresh_research_dashboard.py", self.job)
+
+
+class WorkflowDispatchInputsTests(unittest.TestCase):
+    """Every workflow_dispatch boolean input referenced by an `if:`
+    condition must actually be declared, so a typo can't silently make a
+    flag permanently false."""
+
+    def test_all_dispatch_inputs_referenced_in_ifs_are_declared(self):
+        text = _read(WORKFLOW_PATH)
+        inputs_block = re.search(r"workflow_dispatch:\n(.*?)^  pull_request:", text,
+                                  re.MULTILINE | re.DOTALL).group(1)
+        declared = set(re.findall(r"^\s+(\w+):\n\s+description:", inputs_block, re.MULTILINE))
+        referenced = set(re.findall(r"inputs\.(\w+)", text))
+        self.assertTrue(referenced)
+        self.assertTrue(referenced.issubset(declared), f"undeclared inputs referenced: {referenced - declared}")
+
+    def test_run_station_analysis_input_declared(self):
+        text = _read(WORKFLOW_PATH)
+        self.assertIn("run_station_analysis:", text)
 
 
 if __name__ == "__main__":

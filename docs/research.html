@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Wingcheck exploratory station research - not the operational dashboard.">
+<title>Wingcheck · Research</title>
+<style>
+  :root{
+    --ice:#F5F8FC; --card:#FFFFFF; --line:#E4EBF2;
+    --ink:#15242F; --ink-2:#5A6B7A; --ink-3:#93A3B1;
+    --blue:#2273C3; --blue-soft:#E3EFFA;
+    --warn:#D98E04; --warn-soft:#FBF1DD; --warn-ink:#8a5c05;
+    --body:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ice);color:var(--ink);font-family:var(--body);overflow-x:hidden;}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 18px 64px;}
+  h1,h2{font-weight:700;letter-spacing:-0.01em;}
+  .banner{background:var(--warn-soft);color:var(--warn-ink);padding:14px 18px;border-radius:var(--radius);
+    font-size:13.5px;font-weight:600;margin:24px 0 18px;}
+  header{padding:24px 0 8px;}
+  h1{font-size:clamp(24px,5vw,32px);}
+  .sub{color:var(--ink-2);font-size:13.5px;margin-top:6px;}
+  section{margin-top:20px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;
+    overflow-x:auto;}
+  h2{font-size:16px;margin-bottom:10px;}
+  .explain{font-size:12.5px;color:var(--ink-2);margin-bottom:12px;line-height:1.5;}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap;}
+  th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;}
+  th{color:var(--ink-3);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.03em;}
+  td.num{font-family:var(--mono);}
+  .empty{color:var(--ink-3);font-style:italic;font-size:13px;}
+  .warn-list{list-style:none;}
+  .warn-list li{padding:6px 0;border-bottom:1px solid var(--line-soft,var(--line));font-size:12.5px;color:var(--ink-2);}
+  .back{font-size:12.5px;color:var(--blue);text-decoration:none;}
+  .status-chip{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:100px;
+    background:var(--blue-soft);color:var(--blue);margin-left:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="./index.html">&larr; Back to forecast dashboard</a>
+    <h1>⚗ Station research</h1>
+    <div class="sub" id="genAt">Loading...</div>
+  </header>
+
+  <div class="banner">⚗ EXPLORATORY RESEARCH — NOT THE OPERATIONAL DASHBOARD. Nothing on this page has been
+    promoted to production. See docs/STATION_RESEARCH.md and feature_candidates-style promotion rules in
+    CLAUDE.md before treating any number here as a production guarantee.</div>
+
+  <section class="card">
+    <h2>Station coverage</h2>
+    <p class="explain">Every station registered in config/stations.json, with real record counts where a
+      confirmed, enabled station has been synced. Unconfirmed candidates always show zero records - that is
+      not a negative finding, it means the station has never actually been fetched.</p>
+    <div id="coverageTable"></div>
+  </section>
+
+  <section class="card">
+    <h2>Fixed station-family comparison <span class="status-chip" id="bestFamilyChip"></span></h2>
+    <p class="explain">Ten pre-registered comparisons (never an open-ended search), evaluated with
+      chronological, day-grouped rolling-origin splits. The 2026 column is a repeatedly-inspected
+      <em>reference</em>, not a pristine holdout - see the rolling folds for the primary evidence.</p>
+    <div id="familyTable"></div>
+  </section>
+
+  <section class="card">
+    <h2>Correlation screen</h2>
+    <p class="explain">Per-feature Pearson / point-biserial correlation and univariate ROC AUC against the
+      outcome, with day-level bootstrap CIs and Benjamini-Hochberg FDR significance flagging. Sorted by
+      distance from AUC 0.5 (most to least discriminative).</p>
+    <div id="correlationTable"></div>
+  </section>
+
+  <section class="card">
+    <h2>Calibration reliability (production feature set)</h2>
+    <p class="explain">Expected Calibration Error per rolling fold for the current production feature set -
+      a diagnostic only; no calibration transform is fitted or applied anywhere in this project.</p>
+    <div id="calibrationTable"></div>
+  </section>
+
+  <section class="card">
+    <h2>Data-health warnings</h2>
+    <div id="warningsList"></div>
+  </section>
+
+  <section class="card">
+    <h2>Forecast-vintage archive</h2>
+    <div id="vintageSummary"></div>
+  </section>
+</div>
+
+<script>
+function fmtPct(v){ return (v==null) ? '—' : Math.round(v*100)+'%'; }
+function fmtNum(v, d=3){ return (v==null) ? '—' : Number(v).toFixed(d); }
+
+function renderCoverage(d){
+  const el = document.getElementById('coverageTable');
+  const stations = d.station_coverage || {};
+  const ids = Object.keys(stations);
+  if (!ids.length){ el.innerHTML = '<div class="empty">No station coverage manifest yet - run historical_data.py sync.</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Station</th><th>Roles</th><th>Enabled</th><th>Verification</th>
+    <th>Records</th><th>Data start</th><th>Data end</th></tr></thead><tbody>` +
+    ids.map(id=>{
+      const s = stations[id];
+      return `<tr><td>${s.name||id}</td><td>${(s.roles||[]).join(', ')}</td><td>${s.enabled?'yes':'no'}</td>
+        <td>${s.verification||'—'}</td><td class="num">${(s.n_records||0).toLocaleString()}</td>
+        <td class="num">${(s.data_start||'—').slice(0,10)}</td><td class="num">${(s.data_end||'—').slice(0,10)}</td></tr>`;
+    }).join('') + `</tbody></table>`;
+}
+
+function renderFamilies(d){
+  const el = document.getElementById('familyTable');
+  const sa = d.station_analysis;
+  if (!sa){ el.innerHTML = '<div class="empty">No station_analysis.py report yet - run it to populate this table.</div>'; return; }
+  const comparison = sa.rolling_origin_family_comparison || {};
+  const names = Object.keys(comparison);
+  const foldNames = names.length ? comparison[names[0]].map(f=>f.fold) : [];
+  document.getElementById('bestFamilyChip').textContent = sa.best_family ?
+    `best (2026 ref): ${sa.best_family.name} (AUC ${fmtNum(sa.best_family.reference_roc_auc)})` : '';
+  el.innerHTML = `<table><thead><tr><th>Family</th>` + foldNames.map(f=>`<th>${f}</th>`).join('') +
+    `</tr></thead><tbody>` + names.map(name=>{
+      const folds = comparison[name];
+      return `<tr><td>${name}</td>` + folds.map(f=>`<td class="num">${fmtNum(f.full_window && f.full_window.roc_auc)}</td>`).join('') + `</tr>`;
+    }).join('') + `</tbody></table>`;
+}
+
+function renderCorrelation(d){
+  const el = document.getElementById('correlationTable');
+  const sa = d.station_analysis;
+  if (!sa){ el.innerHTML = '<div class="empty">No correlation data yet.</div>'; return; }
+  const features = sa.correlation.features || {};
+  const rows = Object.entries(features).sort((a,b)=>
+    Math.abs((b[1].roc_auc||0.5)-0.5) - Math.abs((a[1].roc_auc||0.5)-0.5));
+  el.innerHTML = `<table><thead><tr><th>Feature</th><th>Pearson</th><th>Point-biserial</th><th>ROC AUC</th>
+    <th>Coverage</th><th>90% CI</th><th>FDR sig.</th></tr></thead><tbody>` +
+    rows.map(([name,v])=>`<tr><td>${name}</td><td class="num">${fmtNum(v.pearson)}</td>
+      <td class="num">${fmtNum(v.point_biserial)}</td><td class="num">${fmtNum(v.roc_auc)}</td>
+      <td class="num">${fmtPct(v.coverage)}</td>
+      <td class="num">${v.pearson_bootstrap_ci_90pct ? '['+fmtNum(v.pearson_bootstrap_ci_90pct[0],2)+', '+fmtNum(v.pearson_bootstrap_ci_90pct[1],2)+']' : '—'}</td>
+      <td class="num">${v['fdr_significant_at_0.10'] ? 'yes' : 'no'}</td></tr>`).join('') + `</tbody></table>`;
+}
+
+function renderCalibration(d){
+  const el = document.getElementById('calibrationTable');
+  const sa = d.station_analysis;
+  const cal = sa && sa.calibration;
+  if (!cal || !cal.length){ el.innerHTML = '<div class="empty">No calibration data yet.</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Fold</th><th>Kind</th><th>n</th><th>ECE</th></tr></thead><tbody>` +
+    cal.map(c=>`<tr><td>${c.fold}</td><td>${c.kind}</td><td class="num">${c.n}</td>
+      <td class="num">${fmtNum(c.expected_calibration_error)}</td></tr>`).join('') + `</tbody></table>`;
+}
+
+function renderWarnings(d){
+  const el = document.getElementById('warningsList');
+  const sa = d.station_analysis;
+  const warnings = sa ? (sa.data_health_warnings || []) : [];
+  if (!warnings.length){ el.innerHTML = '<div class="empty">No warnings recorded.</div>'; return; }
+  el.innerHTML = `<ul class="warn-list">` + warnings.map(w=>`<li>${w}</li>`).join('') + `</ul>`;
+}
+
+function renderVintages(d){
+  const el = document.getElementById('vintageSummary');
+  const v = d.forecast_vintages || {n_vintages:0};
+  el.innerHTML = `<table><tbody>
+    <tr><th>Archived vintages</th><td class="num">${v.n_vintages}</td></tr>
+    <tr><th>Earliest issue</th><td class="num">${(v.earliest_issue||'—')}</td></tr>
+    <tr><th>Latest issue</th><td class="num">${(v.latest_issue||'—')}</td></tr>
+  </tbody></table>`;
+}
+
+async function init(){
+  let d;
+  try{
+    const r = await fetch(`./research/research_data.json?v=${Date.now()}`, {cache:'no-store'});
+    if(!r.ok) throw 0;
+    d = await r.json();
+  }catch(e){
+    d = {generated_at:new Date().toISOString(), is_sample_data:true, station_coverage:{}, forecast_vintages:{n_vintages:0}};
+  }
+  for (const fn of [renderCoverage, renderFamilies, renderCorrelation, renderCalibration, renderWarnings, renderVintages]){
+    try{ fn(d); }catch(e){ console.error(`${fn.name} failed:`, e); }
+  }
+  document.getElementById('genAt').textContent =
+    (d.is_sample_data ? 'No research report yet - ' : 'Generated ') +
+    (d.generated_at||'').slice(0,16).replace('T',' ') + ' UTC';
+}
+init();
+</script>
+</body>
+</html>

@@ -99,6 +99,13 @@
   .recommendation{margin-top:14px;padding:14px 16px;background:var(--blue-soft);border-radius:12px;
     font-size:13.5px;color:var(--blue-deep);font-weight:500;line-height:1.5;}
 
+  /* ---------- Session outlook (optional section) ---------- */
+  .outlook-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-top:14px;}
+  .reason-list{list-style:none;padding:0;margin:0;font-size:13px;color:var(--ink-2);line-height:1.7;}
+  .reason-list li{padding-left:1.2em;position:relative;}
+  .reason-list li::before{content:"•";position:absolute;left:0;color:var(--ink-3);}
+  .reason-list:empty::before{content:"No diagnostic data yet.";color:var(--ink-3);font-style:italic;}
+
   /* ---------- Generic stat row (live performance) ---------- */
   .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;}
   .stat{padding:14px 0;}
@@ -249,6 +256,24 @@
         <div class="recommendation" id="tomorrowRecommendation"></div>
       </div>
     </div>
+  </section>
+
+  <!-- ================= SESSION OUTLOOK (optional - degrades to nothing) ================= -->
+  <section class="card" id="outlookSection" aria-labelledby="outlook-h" style="display:none;">
+    <div class="section-head"><h2 id="outlook-h">Session outlook</h2>
+      <div class="hint">Research diagnostics - context, not a guarantee</div></div>
+    <div class="summary-grid" id="outlookGrid"></div>
+    <div class="outlook-columns">
+      <div>
+        <div class="summary-day-head">Why it may work</div>
+        <ul class="reason-list" id="whyWorkList"></ul>
+      </div>
+      <div>
+        <div class="summary-day-head">What could prevent it</div>
+        <ul class="reason-list" id="whyNotList"></ul>
+      </div>
+    </div>
+    <div class="stat-row" id="stationHealthRow" style="margin-top:14px;"></div>
   </section>
 
   <!-- ================= LIVE PERFORMANCE ================= -->
@@ -506,6 +531,94 @@ function renderDailySummary(d){
   renderDaySummary('tomorrow', tomorrowCards, 'No forecast data for tomorrow yet.');
 }
 
+// Fixed explanation-key -> short human text map (maloja_diagnostics.py
+// never generates free-form prose - only these registered keys).
+const EXPLANATION_TEXT = {
+  source_heating_favourable:'Source region notably warmer than the target region.',
+  source_heating_neutral:'Source-region heating is modest today.',
+  source_heating_unfavourable:'Source region is not warmer than the target region.',
+  source_heating_missing_station_data:'No confirmed source-region station yet.',
+  pass_activation_favourable:'Pass-aligned wind already building.',
+  pass_activation_neutral:'Pass wind is present but not clearly aligned.',
+  pass_activation_unfavourable:'No pass wind onset detected yet.',
+  pass_activation_missing_station_data:'No confirmed pass station yet.',
+  summit_support_supportive:'Summit wind is in the supportive range and aligned.',
+  summit_support_weak:'Summit wind is too weak to reinforce the thermal.',
+  summit_support_excessive:'Summit wind may be strong enough to override the thermal.',
+  summit_support_opposing:'Summit wind direction opposes the expected flow.',
+  summit_support_missing_station_data:'No confirmed summit station yet.',
+  radiation_support_favourable:'Strong morning radiation, little recent rain.',
+  radiation_support_neutral:'Radiation/precipitation signal is mixed.',
+  radiation_support_unfavourable:'Recent precipitation may suppress heating.',
+  radiation_support_missing_station_data:'No radiation/precipitation station data yet.',
+  pressure_support_favourable:'Observed Lugano-Zürich pressure gradient is favourable.',
+  pressure_support_neutral:'Observed pressure gradient is only weakly favourable.',
+  pressure_support_unfavourable:'Observed pressure gradient does not support the thermal.',
+  pressure_support_missing_station_data:'Pressure station data unavailable.',
+  competing_flow_clear:'No competing synoptic flow detected.',
+  competing_flow_easterly:'Easterly flow may suppress the thermal.',
+  competing_flow_northerly:'Northerly flow may suppress the thermal.',
+  competing_flow_misaligned_shear:'Summit and surface wind are poorly aligned.',
+  competing_flow_missing_data:'No wind-direction observation available.',
+  data_health_healthy:'Station data coverage is healthy.',
+  data_health_degraded:'Station data coverage is degraded.',
+  data_health_critical:'Station data coverage is critical - most inputs missing.',
+};
+const FAVOURABLE_STATUSES = new Set(['favourable','supportive','clear','healthy']);
+const UNFAVOURABLE_STATUSES = new Set(['unfavourable','opposing','easterly','northerly','misaligned_shear','excessive','degraded','critical']);
+
+function renderSessionOutlook(d){
+  const section = document.getElementById('outlookSection');
+  const sessionByDate = d.session_forecast || {};
+  const diagByDate = d.daily_diagnostics || {};
+  const today = (typeof zurichTodayDateString === 'function') ? zurichTodayDateString() : null;
+  const dateKey = (today && sessionByDate[today]) ? today : Object.keys(sessionByDate)[0];
+
+  if (!dateKey){ section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const sf = sessionByDate[dateKey] || {};
+  const diag = diagByDate[dateKey] || {};
+  const health = d.station_health || {};
+
+  const grid = document.getElementById('outlookGrid');
+  const fmtTime = t => t ? t.slice(11,16) : '—';
+  const stats = [
+    ['Peak hour', fmtTime(sf.peak_hour)],
+    ['Best window', sf.best_window_start ? `${fmtTime(sf.best_window_start)}–${fmtTime(sf.best_window_end)}` : '—'],
+    ['Event likelihood', sf.event_probability!=null ? Math.round(sf.event_probability*100)+'%' : '—'],
+    ['Timing confidence', sf.timing_confidence || '—'],
+    ['Strength confidence', sf.strength_confidence || '—'],
+  ];
+  grid.innerHTML = stats.map(([label,value])=>`
+    <div class="summary-stat"><div class="s-label">${label}</div><div class="s-value">${value}</div></div>
+  `).join('');
+
+  const whyWork = document.getElementById('whyWorkList');
+  const whyNot = document.getElementById('whyNotList');
+  const workItems = [], notItems = [];
+  for (const d2 of Object.values(diag)){
+    if (!d2 || !d2.explanation_key) continue;
+    const text = EXPLANATION_TEXT[d2.explanation_key] || d2.explanation_key;
+    if (FAVOURABLE_STATUSES.has(d2.status)) workItems.push(text);
+    else if (UNFAVOURABLE_STATUSES.has(d2.status)) notItems.push(text);
+  }
+  whyWork.innerHTML = workItems.map(t=>`<li>${t}</li>`).join('');
+  whyNot.innerHTML = notItems.map(t=>`<li>${t}</li>`).join('');
+
+  const healthRow = document.getElementById('stationHealthRow');
+  const dh = health.data_health || {};
+  const ages = health.station_input_age_minutes || {};
+  const ageEntries = Object.entries(ages).filter(([,v])=>v!=null);
+  const oldestAge = ageEntries.length ? Math.max(...ageEntries.map(([,v])=>v)) : null;
+  healthRow.innerHTML = [
+    ['Station coverage', dh.raw_values && dh.raw_values.mean_coverage!=null ? Math.round(dh.raw_values.mean_coverage*100)+'%' : '—'],
+    ['Data health status', dh.status || '—'],
+    ['Oldest station input', oldestAge!=null ? Math.round(oldestAge)+' min' : '—'],
+    ['Model agreement', (d.model_agreement && d.model_agreement[dateKey]!=null) ? Math.round(d.model_agreement[dateKey]*100)+'%' : '—'],
+  ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+}
+
 function renderLivePerformance(d){
   const lv = d.live_metrics || {n:0};
   const el = document.getElementById('liveStatRow');
@@ -737,8 +850,8 @@ async function init(){
   // Each section renders independently - one failing (e.g. Chart.js not
   // loading) must not blank out the others, especially today's forecast,
   // which is the page's actual headline answer.
-  for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderLivePerformance,
-                     renderFrozenEvaluation, renderOperationalAndRepro, renderAblation,
+  for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
+                     renderLivePerformance, renderFrozenEvaluation, renderOperationalAndRepro, renderAblation,
                      renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
   }
@@ -760,6 +873,7 @@ window.__FALLBACK__ = {
     upper_wind_speed_score:.5,dewpoint_score:.3,cape_penalty:.4,
     freezing_level_score:.2,precip_penalty:.3}},
   monthly_breakdown:{}, timeline:[],
+  daily_diagnostics:{}, session_forecast:{}, station_health:{}, model_agreement:{}, data_provenance:{},
 };
 </script>
 </body>
