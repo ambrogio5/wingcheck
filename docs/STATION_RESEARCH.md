@@ -46,32 +46,58 @@ radiation/moisture) depends on a station role with zero confirmed
 stations, so those families are honestly reported as having zero real
 coverage rather than a fabricated result.
 
-## Corvatsch (COV) - identity confirmed, metadata pending a real fetch
+## Corvatsch (COV) - real data confirmed reachable; metadata and the enable decision still pending
 
 `cov` (Piz Corvatsch, official MeteoSwiss abbreviation **COV**) is different
 from every other entry below: its existence as a genuine, official
 MeteoSwiss automatic station is **confirmed** - given directly, not guessed
 (an earlier iteration of this registry used the wrong, invented abbreviation
-`cor` for the same physical station; that entry has been replaced). What
-remains unverified is the exact metadata (latitude/longitude/elevation,
-available variables) and a real successful fetch in this repo's own
-environment - both were attempted this session
-(`meteoswiss.fetch_station_metadata('cov')` against the official
-`ogd-smn_meta_stations.csv`, and `meteoswiss.fetch_station_observations('cov')`
-against the STAC catalog) and blocked by the sandbox's network policy (the
-same `403 ProxyError` documented elsewhere in this file's history for
-sam/lug/sma). See `docs/DATA_ARCHITECTURE.md`'s Corvatsch section for the
-approximate elevation given in the task specification (~3294-3297m, deliberately
-NOT written into `config/stations.json`'s `elevation_m` field until a real
-fetch confirms it) and `historical_data.py`'s generic-station sync path
-(`meteoswiss.fetch_station_metadata`/`fetch_station_observations`, added this
-session) that will complete this the moment it runs somewhere with real
-network access - see Part 15 of this PR's own verification steps.
+`cor` for the same physical station; that entry has been replaced).
+
+**Real data fetch succeeded** - `historical_data.py sync --station cov`,
+dispatched via the `sync_historical_data` workflow's `probe_station` input
+in a real, network-enabled GitHub Actions run (2026-07-16, run
+[29537134420](https://github.com/ambrogio5/wingcheck/actions/runs/29537134420)),
+returned a genuine historical archive:
+
+- **398,816 real hourly records, 1981-01-01 through 2026-07-16** -
+  essentially matching Samedan's own record depth (399,181 records, same
+  start year). Files loaded: `ogd-smn_cov_h_historical_{1980-1989,1990-1999,
+  2000-2009,2010-2019,2020-2029}.csv`, `ogd-smn_cov_h_now.csv`,
+  `ogd-smn_cov_h_recent.csv`.
+- `historical_data.py validate` flagged 33,609 records (~8.4%, vs. sam's
+  0.006%, lug/sma's 0%) - but the per-flag-type breakdown (added
+  specifically to investigate this, see `data_quality.flag_counts()`)
+  shows **99.6% of that (33,468) is a single, well-understood cause**:
+  `implausible_global_radiation_wm2`. The plausibility ceiling (1400 W/m²
+  in `data_quality.PLAUSIBLE_RANGES`) was calibrated against sam/lug/sma,
+  none of which sit above ~1700m or are routinely snow-covered; Corvatsch
+  is a ~3300m, frequently snow-covered summit, where solar-radiation
+  sensors legitimately read above a sea-level-tuned ceiling due to
+  thinner atmosphere plus snow-albedo reflection - a well-documented real
+  effect at high alpine stations (e.g. Jungfraujoch). The remainder (138
+  `implausible_relative_humidity_pct`, likely rime-icing sensor
+  artifacts - also a known high-altitude effect; 1 `gust_less_than_speed`;
+  2 `implausible_sunshine_duration_min`) is negligible. **This reads as
+  genuine, physically-expected high-summit data, not a data-quality
+  problem** - but see "What would change a candidate's status" below:
+  this analysis is not itself the human sign-off that section requires.
+
+**What's still unverified**: the exact metadata (latitude/longitude/
+elevation) - `meteoswiss.fetch_station_metadata('cov')` against the
+official `ogd-smn_meta_stations.csv` has not yet been run for real (the
+probe above only exercised the STAC observational-data fetch, not the
+separate metadata-CSV fetch). See `docs/DATA_ARCHITECTURE.md`'s Corvatsch
+section for the approximate elevation given in the task specification
+(~3294-3297m, deliberately NOT written into `config/stations.json`'s
+`elevation_m` field until a real metadata fetch confirms it).
 
 `config/stations.json`'s `cov` entry stays `verification: "unverified",
-enabled: false` until that real fetch succeeds and a human inspects the
-result - the same bar every other station in this registry must clear,
-despite COV's identity already being known.
+enabled: false` - the real data above is strong, encouraging evidence, but
+per this project's established rule a human still has to inspect it
+(alongside a real metadata fetch) and edit the registry by hand before
+COV counts as confirmed/enabled - this document reporting a clean result
+is not itself that sign-off.
 
 ## Unverified candidates
 
