@@ -1,0 +1,1666 @@
+{
+  "script": "calibration_analysis",
+  "generated_at": "2026-07-16T17:47:07.612781+00:00",
+  "commit_sha": "1aa9eef6423723207129c9ee702828e10e13e9f6",
+  "config": {
+    "seed": 20260716,
+    "epochs": 40,
+    "n_bins": 10
+  },
+  "data_manifest": {
+    "/home/user/wingcheck/logs/backtest_dataset.jsonl": "e2ba9275cdaca1de8eb58e4a611c5886cefbc05f0ea5281f12b30e3693e27748"
+  },
+  "warnings": [
+    "Calibration mappings (Platt/isotonic) are fit on each fold's TRAINING split only and applied to that fold's separate validation split - never fit on the period being measured.",
+    "Beta calibration was not implemented this pass - see calibration.py's module docstring."
+  ],
+  "limitations": [
+    "The 2026 fold is a repeatedly-inspected reference evaluation, not a pristine holdout."
+  ],
+  "folds": [
+    {
+      "fold": "2024-08_validate",
+      "kind": "rolling",
+      "n_train": 644,
+      "n_validate": 217,
+      "uncalibrated": {
+        "brier_score": 0.1823,
+        "log_loss": 0.5357,
+        "expected_calibration_error": 0.1208,
+        "maximum_calibration_error": 0.3278,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 2,
+            "avg_predicted": 0.0561,
+            "observed_rate": 0.0,
+            "calibration_error": 0.0561
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 9,
+            "avg_predicted": 0.1437,
+            "observed_rate": 0.0,
+            "calibration_error": 0.1437
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 8,
+            "avg_predicted": 0.2544,
+            "observed_rate": 0.5,
+            "calibration_error": 0.2456
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 11,
+            "avg_predicted": 0.3574,
+            "observed_rate": 0.4545,
+            "calibration_error": 0.0971
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 18,
+            "avg_predicted": 0.4396,
+            "observed_rate": 0.3333,
+            "calibration_error": 0.1063
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 15,
+            "avg_predicted": 0.5519,
+            "observed_rate": 0.5333,
+            "calibration_error": 0.0186
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 15,
+            "avg_predicted": 0.6433,
+            "observed_rate": 0.6667,
+            "calibration_error": 0.0234
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 24,
+            "avg_predicted": 0.7616,
+            "observed_rate": 0.4583,
+            "calibration_error": 0.3033
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 19,
+            "avg_predicted": 0.8541,
+            "observed_rate": 0.5263,
+            "calibration_error": 0.3278
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 96,
+            "avg_predicted": 0.966,
+            "observed_rate": 0.9062,
+            "calibration_error": 0.0597
+          }
+        ]
+      },
+      "platt": {
+        "brier_score": 0.1879,
+        "log_loss": 0.5564,
+        "expected_calibration_error": 0.1293,
+        "maximum_calibration_error": 0.3597,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 2,
+            "avg_predicted": 0.0767,
+            "observed_rate": 0.0,
+            "calibration_error": 0.0767
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 6,
+            "avg_predicted": 0.1633,
+            "observed_rate": 0.0,
+            "calibration_error": 0.1633
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 7,
+            "avg_predicted": 0.2574,
+            "observed_rate": 0.2857,
+            "calibration_error": 0.0283
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 6,
+            "avg_predicted": 0.3567,
+            "observed_rate": 0.5,
+            "calibration_error": 0.1433
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 18,
+            "avg_predicted": 0.4526,
+            "observed_rate": 0.4444,
+            "calibration_error": 0.0082
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 15,
+            "avg_predicted": 0.5479,
+            "observed_rate": 0.2667,
+            "calibration_error": 0.2812
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 18,
+            "avg_predicted": 0.6555,
+            "observed_rate": 0.6667,
+            "calibration_error": 0.0112
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 16,
+            "avg_predicted": 0.7533,
+            "observed_rate": 0.5625,
+            "calibration_error": 0.1908
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 29,
+            "avg_predicted": 0.8425,
+            "observed_rate": 0.4828,
+            "calibration_error": 0.3597
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 100,
+            "avg_predicted": 0.9681,
+            "observed_rate": 0.89,
+            "calibration_error": 0.0781
+          }
+        ]
+      },
+      "isotonic": {
+        "brier_score": 0.2011,
+        "log_loss": 0.6289,
+        "expected_calibration_error": 0.1494,
+        "maximum_calibration_error": 0.4071,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 1,
+            "avg_predicted": 0.0769,
+            "observed_rate": 0.0,
+            "calibration_error": 0.0769
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 3,
+            "avg_predicted": 0.1599,
+            "observed_rate": 0.0,
+            "calibration_error": 0.1599
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 5,
+            "avg_predicted": 0.25,
+            "observed_rate": 0.0,
+            "calibration_error": 0.25
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 21,
+            "avg_predicted": 0.3247,
+            "observed_rate": 0.4286,
+            "calibration_error": 0.1039
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 7,
+            "avg_predicted": 0.4,
+            "observed_rate": 0.2857,
+            "calibration_error": 0.1143
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 39,
+            "avg_predicted": 0.5674,
+            "observed_rate": 0.5128,
+            "calibration_error": 0.0545
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 2,
+            "avg_predicted": 0.6667,
+            "observed_rate": 1.0,
+            "calibration_error": 0.3333
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 24,
+            "avg_predicted": 0.8654,
+            "observed_rate": 0.4583,
+            "calibration_error": 0.4071
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 115,
+            "avg_predicted": 0.9745,
+            "observed_rate": 0.8435,
+            "calibration_error": 0.131
+          }
+        ]
+      },
+      "platt_params": {
+        "a": 0.9685378224867179,
+        "b": 0.24849564303198018
+      }
+    },
+    {
+      "fold": "2024-09_validate",
+      "kind": "rolling",
+      "n_train": 861,
+      "n_validate": 210,
+      "uncalibrated": {
+        "brier_score": 0.2106,
+        "log_loss": 0.6636,
+        "expected_calibration_error": 0.1752,
+        "maximum_calibration_error": 0.3879,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 8,
+            "avg_predicted": 0.1424,
+            "observed_rate": 0.0,
+            "calibration_error": 0.1424
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 13,
+            "avg_predicted": 0.2491,
+            "observed_rate": 0.0769,
+            "calibration_error": 0.1722
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 8,
+            "avg_predicted": 0.345,
+            "observed_rate": 0.25,
+            "calibration_error": 0.095
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 13,
+            "avg_predicted": 0.4474,
+            "observed_rate": 0.2308,
+            "calibration_error": 0.2167
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 12,
+            "avg_predicted": 0.5466,
+            "observed_rate": 0.5,
+            "calibration_error": 0.0466
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 15,
+            "avg_predicted": 0.6454,
+            "observed_rate": 0.8,
+            "calibration_error": 0.1546
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 24,
+            "avg_predicted": 0.7629,
+            "observed_rate": 0.375,
+            "calibration_error": 0.3879
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 38,
+            "avg_predicted": 0.8531,
+            "observed_rate": 0.7368,
+            "calibration_error": 0.1163
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 79,
+            "avg_predicted": 0.9522,
+            "observed_rate": 0.7848,
+            "calibration_error": 0.1674
+          }
+        ]
+      },
+      "platt": {
+        "brier_score": 0.2135,
+        "log_loss": 0.6693,
+        "expected_calibration_error": 0.1685,
+        "maximum_calibration_error": 0.3594,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 7,
+            "avg_predicted": 0.1594,
+            "observed_rate": 0.0,
+            "calibration_error": 0.1594
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 10,
+            "avg_predicted": 0.2605,
+            "observed_rate": 0.1,
+            "calibration_error": 0.1605
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 10,
+            "avg_predicted": 0.3443,
+            "observed_rate": 0.2,
+            "calibration_error": 0.1443
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 11,
+            "avg_predicted": 0.4503,
+            "observed_rate": 0.0909,
+            "calibration_error": 0.3594
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 12,
+            "avg_predicted": 0.5387,
+            "observed_rate": 0.5833,
+            "calibration_error": 0.0446
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 17,
+            "avg_predicted": 0.6455,
+            "observed_rate": 0.6471,
+            "calibration_error": 0.0016
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 20,
+            "avg_predicted": 0.7573,
+            "observed_rate": 0.4,
+            "calibration_error": 0.3573
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 44,
+            "avg_predicted": 0.8497,
+            "observed_rate": 0.7045,
+            "calibration_error": 0.1451
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 79,
+            "avg_predicted": 0.9515,
+            "observed_rate": 0.7848,
+            "calibration_error": 0.1667
+          }
+        ]
+      },
+      "isotonic": {
+        "brier_score": 0.2216,
+        "log_loss": 0.7098,
+        "expected_calibration_error": 0.1844,
+        "maximum_calibration_error": 0.2862,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 8,
+            "avg_predicted": 0.17,
+            "observed_rate": 0.0,
+            "calibration_error": 0.17
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 6,
+            "avg_predicted": 0.2308,
+            "observed_rate": 0.1667,
+            "calibration_error": 0.0641
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 20,
+            "avg_predicted": 0.3862,
+            "observed_rate": 0.1,
+            "calibration_error": 0.2862
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 32,
+            "avg_predicted": 0.5455,
+            "observed_rate": 0.5938,
+            "calibration_error": 0.0483
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 3,
+            "avg_predicted": 0.6389,
+            "observed_rate": 0.6667,
+            "calibration_error": 0.0278
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 29,
+            "avg_predicted": 0.7387,
+            "observed_rate": 0.4828,
+            "calibration_error": 0.2559
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 112,
+            "avg_predicted": 0.9572,
+            "observed_rate": 0.7589,
+            "calibration_error": 0.1982
+          }
+        ]
+      },
+      "platt_params": {
+        "a": 0.9555433126085996,
+        "b": 0.10787637604075263
+      }
+    },
+    {
+      "fold": "2025-05_06_validate",
+      "kind": "rolling",
+      "n_train": 1288,
+      "n_validate": 427,
+      "uncalibrated": {
+        "brier_score": 0.2053,
+        "log_loss": 0.6289,
+        "expected_calibration_error": 0.1524,
+        "maximum_calibration_error": 0.2761,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 10,
+            "avg_predicted": 0.0702,
+            "observed_rate": 0.1,
+            "calibration_error": 0.0298
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 26,
+            "avg_predicted": 0.1592,
+            "observed_rate": 0.1154,
+            "calibration_error": 0.0439
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 28,
+            "avg_predicted": 0.2623,
+            "observed_rate": 0.2143,
+            "calibration_error": 0.048
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 21,
+            "avg_predicted": 0.3473,
+            "observed_rate": 0.1429,
+            "calibration_error": 0.2045
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 41,
+            "avg_predicted": 0.4504,
+            "observed_rate": 0.2683,
+            "calibration_error": 0.1821
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 40,
+            "avg_predicted": 0.5528,
+            "observed_rate": 0.35,
+            "calibration_error": 0.2028
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 30,
+            "avg_predicted": 0.6427,
+            "observed_rate": 0.3667,
+            "calibration_error": 0.2761
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 47,
+            "avg_predicted": 0.7547,
+            "observed_rate": 0.4894,
+            "calibration_error": 0.2653
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 63,
+            "avg_predicted": 0.8527,
+            "observed_rate": 0.7143,
+            "calibration_error": 0.1385
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 121,
+            "avg_predicted": 0.9499,
+            "observed_rate": 0.843,
+            "calibration_error": 0.1069
+          }
+        ]
+      },
+      "platt": {
+        "brier_score": 0.1895,
+        "log_loss": 0.5762,
+        "expected_calibration_error": 0.097,
+        "maximum_calibration_error": 0.1766,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 11,
+            "avg_predicted": 0.0724,
+            "observed_rate": 0.0909,
+            "calibration_error": 0.0185
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 28,
+            "avg_predicted": 0.1532,
+            "observed_rate": 0.1429,
+            "calibration_error": 0.0104
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 35,
+            "avg_predicted": 0.248,
+            "observed_rate": 0.1714,
+            "calibration_error": 0.0766
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 39,
+            "avg_predicted": 0.359,
+            "observed_rate": 0.2564,
+            "calibration_error": 0.1026
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 42,
+            "avg_predicted": 0.4465,
+            "observed_rate": 0.3095,
+            "calibration_error": 0.137
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 36,
+            "avg_predicted": 0.537,
+            "observed_rate": 0.3611,
+            "calibration_error": 0.1759
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 42,
+            "avg_predicted": 0.6528,
+            "observed_rate": 0.4762,
+            "calibration_error": 0.1766
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 50,
+            "avg_predicted": 0.7484,
+            "observed_rate": 0.68,
+            "calibration_error": 0.0684
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 74,
+            "avg_predicted": 0.8561,
+            "observed_rate": 0.8108,
+            "calibration_error": 0.0453
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 70,
+            "avg_predicted": 0.9424,
+            "observed_rate": 0.8286,
+            "calibration_error": 0.1138
+          }
+        ]
+      },
+      "isotonic": {
+        "brier_score": 0.1877,
+        "log_loss": 0.5758,
+        "expected_calibration_error": 0.0933,
+        "maximum_calibration_error": 0.1667,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 37,
+            "avg_predicted": 0.0765,
+            "observed_rate": 0.1081,
+            "calibration_error": 0.0316
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 3,
+            "avg_predicted": 0.1667,
+            "observed_rate": 0.3333,
+            "calibration_error": 0.1667
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 19,
+            "avg_predicted": 0.2571,
+            "observed_rate": 0.1579,
+            "calibration_error": 0.0992
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 33,
+            "avg_predicted": 0.3311,
+            "observed_rate": 0.2121,
+            "calibration_error": 0.119
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 93,
+            "avg_predicted": 0.4302,
+            "observed_rate": 0.3118,
+            "calibration_error": 0.1184
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 18,
+            "avg_predicted": 0.5647,
+            "observed_rate": 0.4444,
+            "calibration_error": 0.1203
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 54,
+            "avg_predicted": 0.6444,
+            "observed_rate": 0.5556,
+            "calibration_error": 0.0888
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 50,
+            "avg_predicted": 0.7658,
+            "observed_rate": 0.72,
+            "calibration_error": 0.0458
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 14,
+            "avg_predicted": 0.8547,
+            "observed_rate": 0.8571,
+            "calibration_error": 0.0024
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 106,
+            "avg_predicted": 0.9534,
+            "observed_rate": 0.8396,
+            "calibration_error": 0.1138
+          }
+        ]
+      },
+      "platt_params": {
+        "a": 0.8854708313481264,
+        "b": -0.2874524586301356
+      }
+    },
+    {
+      "fold": "2025-07_08_validate",
+      "kind": "rolling",
+      "n_train": 1715,
+      "n_validate": 434,
+      "uncalibrated": {
+        "brier_score": 0.1975,
+        "log_loss": 0.5733,
+        "expected_calibration_error": 0.0657,
+        "maximum_calibration_error": 0.1393,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 19,
+            "avg_predicted": 0.0712,
+            "observed_rate": 0.2105,
+            "calibration_error": 0.1393
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 47,
+            "avg_predicted": 0.1563,
+            "observed_rate": 0.1702,
+            "calibration_error": 0.0139
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 55,
+            "avg_predicted": 0.2475,
+            "observed_rate": 0.3455,
+            "calibration_error": 0.0979
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 47,
+            "avg_predicted": 0.3481,
+            "observed_rate": 0.3617,
+            "calibration_error": 0.0136
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 43,
+            "avg_predicted": 0.4494,
+            "observed_rate": 0.4419,
+            "calibration_error": 0.0075
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 34,
+            "avg_predicted": 0.5565,
+            "observed_rate": 0.5,
+            "calibration_error": 0.0565
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 43,
+            "avg_predicted": 0.6493,
+            "observed_rate": 0.5349,
+            "calibration_error": 0.1144
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 44,
+            "avg_predicted": 0.748,
+            "observed_rate": 0.6364,
+            "calibration_error": 0.1117
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 39,
+            "avg_predicted": 0.8552,
+            "observed_rate": 0.7179,
+            "calibration_error": 0.1372
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 63,
+            "avg_predicted": 0.9403,
+            "observed_rate": 0.9683,
+            "calibration_error": 0.028
+          }
+        ]
+      },
+      "platt": {
+        "brier_score": 0.196,
+        "log_loss": 0.5699,
+        "expected_calibration_error": 0.0705,
+        "maximum_calibration_error": 0.1667,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 18,
+            "avg_predicted": 0.0713,
+            "observed_rate": 0.2222,
+            "calibration_error": 0.1509
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 49,
+            "avg_predicted": 0.1542,
+            "observed_rate": 0.1633,
+            "calibration_error": 0.0091
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 58,
+            "avg_predicted": 0.2445,
+            "observed_rate": 0.3621,
+            "calibration_error": 0.1175
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 53,
+            "avg_predicted": 0.3476,
+            "observed_rate": 0.3208,
+            "calibration_error": 0.0269
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 40,
+            "avg_predicted": 0.4483,
+            "observed_rate": 0.5,
+            "calibration_error": 0.0517
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 43,
+            "avg_predicted": 0.5596,
+            "observed_rate": 0.4884,
+            "calibration_error": 0.0712
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 38,
+            "avg_predicted": 0.6521,
+            "observed_rate": 0.6579,
+            "calibration_error": 0.0058
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 40,
+            "avg_predicted": 0.7417,
+            "observed_rate": 0.575,
+            "calibration_error": 0.1667
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 43,
+            "avg_predicted": 0.8548,
+            "observed_rate": 0.7674,
+            "calibration_error": 0.0874
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 52,
+            "avg_predicted": 0.9343,
+            "observed_rate": 1.0,
+            "calibration_error": 0.0657
+          }
+        ]
+      },
+      "isotonic": {
+        "brier_score": 0.1947,
+        "log_loss": 0.57,
+        "expected_calibration_error": 0.0609,
+        "maximum_calibration_error": 0.25,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 18,
+            "avg_predicted": 0.0311,
+            "observed_rate": 0.2222,
+            "calibration_error": 0.1912
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 48,
+            "avg_predicted": 0.1309,
+            "observed_rate": 0.1667,
+            "calibration_error": 0.0358
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 30,
+            "avg_predicted": 0.2223,
+            "observed_rate": 0.2333,
+            "calibration_error": 0.011
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 103,
+            "avg_predicted": 0.349,
+            "observed_rate": 0.4078,
+            "calibration_error": 0.0587
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 69,
+            "avg_predicted": 0.5237,
+            "observed_rate": 0.4783,
+            "calibration_error": 0.0454
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 49,
+            "avg_predicted": 0.6334,
+            "observed_rate": 0.6531,
+            "calibration_error": 0.0197
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 1,
+            "avg_predicted": 0.75,
+            "observed_rate": 1.0,
+            "calibration_error": 0.25
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 43,
+            "avg_predicted": 0.8314,
+            "observed_rate": 0.6279,
+            "calibration_error": 0.2035
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 73,
+            "avg_predicted": 0.9343,
+            "observed_rate": 0.9589,
+            "calibration_error": 0.0246
+          }
+        ]
+      },
+      "platt_params": {
+        "a": 0.952624394514227,
+        "b": -0.09344892325446602
+      }
+    },
+    {
+      "fold": "2025-09_10_validate",
+      "kind": "rolling",
+      "n_train": 2149,
+      "n_validate": 427,
+      "uncalibrated": {
+        "brier_score": 0.2026,
+        "log_loss": 0.5968,
+        "expected_calibration_error": 0.099,
+        "maximum_calibration_error": 0.1763,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 83,
+            "avg_predicted": 0.0583,
+            "observed_rate": 0.1084,
+            "calibration_error": 0.0502
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 71,
+            "avg_predicted": 0.1476,
+            "observed_rate": 0.3239,
+            "calibration_error": 0.1763
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 53,
+            "avg_predicted": 0.2431,
+            "observed_rate": 0.3585,
+            "calibration_error": 0.1154
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 38,
+            "avg_predicted": 0.3494,
+            "observed_rate": 0.4737,
+            "calibration_error": 0.1243
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 38,
+            "avg_predicted": 0.4546,
+            "observed_rate": 0.5526,
+            "calibration_error": 0.098
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 28,
+            "avg_predicted": 0.5487,
+            "observed_rate": 0.5,
+            "calibration_error": 0.0487
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 29,
+            "avg_predicted": 0.6486,
+            "observed_rate": 0.7586,
+            "calibration_error": 0.11
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 26,
+            "avg_predicted": 0.7591,
+            "observed_rate": 0.6923,
+            "calibration_error": 0.0668
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 31,
+            "avg_predicted": 0.8439,
+            "observed_rate": 0.7742,
+            "calibration_error": 0.0697
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 30,
+            "avg_predicted": 0.9523,
+            "observed_rate": 0.8667,
+            "calibration_error": 0.0856
+          }
+        ]
+      },
+      "platt": {
+        "brier_score": 0.1957,
+        "log_loss": 0.5768,
+        "expected_calibration_error": 0.058,
+        "maximum_calibration_error": 0.1164,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 42,
+            "avg_predicted": 0.0736,
+            "observed_rate": 0.0476,
+            "calibration_error": 0.026
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 61,
+            "avg_predicted": 0.1556,
+            "observed_rate": 0.1803,
+            "calibration_error": 0.0247
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 51,
+            "avg_predicted": 0.2562,
+            "observed_rate": 0.3725,
+            "calibration_error": 0.1164
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 45,
+            "avg_predicted": 0.3429,
+            "observed_rate": 0.3778,
+            "calibration_error": 0.0348
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 41,
+            "avg_predicted": 0.4495,
+            "observed_rate": 0.3902,
+            "calibration_error": 0.0593
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 39,
+            "avg_predicted": 0.5539,
+            "observed_rate": 0.5641,
+            "calibration_error": 0.0102
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 36,
+            "avg_predicted": 0.6478,
+            "observed_rate": 0.5833,
+            "calibration_error": 0.0645
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 32,
+            "avg_predicted": 0.7452,
+            "observed_rate": 0.6875,
+            "calibration_error": 0.0577
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 44,
+            "avg_predicted": 0.8509,
+            "observed_rate": 0.75,
+            "calibration_error": 0.1009
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 36,
+            "avg_predicted": 0.9511,
+            "observed_rate": 0.8611,
+            "calibration_error": 0.09
+          }
+        ]
+      },
+      "isotonic": {
+        "brier_score": 0.1979,
+        "log_loss": 0.6434,
+        "expected_calibration_error": 0.063,
+        "maximum_calibration_error": 0.2429,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 71,
+            "avg_predicted": 0.0726,
+            "observed_rate": 0.0845,
+            "calibration_error": 0.0119
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 31,
+            "avg_predicted": 0.176,
+            "observed_rate": 0.2258,
+            "calibration_error": 0.0499
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 38,
+            "avg_predicted": 0.2589,
+            "observed_rate": 0.3684,
+            "calibration_error": 0.1096
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 48,
+            "avg_predicted": 0.3404,
+            "observed_rate": 0.375,
+            "calibration_error": 0.0346
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 72,
+            "avg_predicted": 0.4805,
+            "observed_rate": 0.4722,
+            "calibration_error": 0.0082
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 43,
+            "avg_predicted": 0.5702,
+            "observed_rate": 0.5116,
+            "calibration_error": 0.0586
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 5,
+            "avg_predicted": 0.6429,
+            "observed_rate": 0.4,
+            "calibration_error": 0.2429
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 7,
+            "avg_predicted": 0.7407,
+            "observed_rate": 0.7143,
+            "calibration_error": 0.0265
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 40,
+            "avg_predicted": 0.8215,
+            "observed_rate": 0.7,
+            "calibration_error": 0.1215
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 72,
+            "avg_predicted": 0.9349,
+            "observed_rate": 0.8056,
+            "calibration_error": 0.1294
+          }
+        ]
+      },
+      "platt_params": {
+        "a": 0.9119520790189489,
+        "b": 0.4312597371270383
+      }
+    },
+    {
+      "fold": "2026_reference",
+      "kind": "reference",
+      "n_train": 2576,
+      "n_validate": 535,
+      "uncalibrated": {
+        "brier_score": 0.2148,
+        "log_loss": 0.6282,
+        "expected_calibration_error": 0.1033,
+        "maximum_calibration_error": 0.1896,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 19,
+            "avg_predicted": 0.0666,
+            "observed_rate": 0.2105,
+            "calibration_error": 0.144
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 31,
+            "avg_predicted": 0.1496,
+            "observed_rate": 0.2258,
+            "calibration_error": 0.0763
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 30,
+            "avg_predicted": 0.2495,
+            "observed_rate": 0.2333,
+            "calibration_error": 0.0162
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 35,
+            "avg_predicted": 0.3422,
+            "observed_rate": 0.2857,
+            "calibration_error": 0.0565
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 58,
+            "avg_predicted": 0.4486,
+            "observed_rate": 0.2759,
+            "calibration_error": 0.1728
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 56,
+            "avg_predicted": 0.5547,
+            "observed_rate": 0.5,
+            "calibration_error": 0.0547
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 57,
+            "avg_predicted": 0.6535,
+            "observed_rate": 0.614,
+            "calibration_error": 0.0394
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 78,
+            "avg_predicted": 0.7468,
+            "observed_rate": 0.6282,
+            "calibration_error": 0.1186
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 86,
+            "avg_predicted": 0.8524,
+            "observed_rate": 0.6628,
+            "calibration_error": 0.1896
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 85,
+            "avg_predicted": 0.9391,
+            "observed_rate": 0.8588,
+            "calibration_error": 0.0802
+          }
+        ]
+      },
+      "platt": {
+        "brier_score": 0.2058,
+        "log_loss": 0.6014,
+        "expected_calibration_error": 0.0708,
+        "maximum_calibration_error": 0.1124,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 23,
+            "avg_predicted": 0.067,
+            "observed_rate": 0.1739,
+            "calibration_error": 0.1069
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 38,
+            "avg_predicted": 0.1486,
+            "observed_rate": 0.2105,
+            "calibration_error": 0.062
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 45,
+            "avg_predicted": 0.2523,
+            "observed_rate": 0.3333,
+            "calibration_error": 0.081
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 60,
+            "avg_predicted": 0.3597,
+            "observed_rate": 0.25,
+            "calibration_error": 0.1097
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 62,
+            "avg_predicted": 0.4585,
+            "observed_rate": 0.4839,
+            "calibration_error": 0.0254
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 57,
+            "avg_predicted": 0.5574,
+            "observed_rate": 0.5965,
+            "calibration_error": 0.0391
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 72,
+            "avg_predicted": 0.6497,
+            "observed_rate": 0.6389,
+            "calibration_error": 0.0108
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 67,
+            "avg_predicted": 0.7529,
+            "observed_rate": 0.6418,
+            "calibration_error": 0.1111
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 77,
+            "avg_predicted": 0.8526,
+            "observed_rate": 0.7403,
+            "calibration_error": 0.1124
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 34,
+            "avg_predicted": 0.9364,
+            "observed_rate": 1.0,
+            "calibration_error": 0.0636
+          }
+        ]
+      },
+      "isotonic": {
+        "brier_score": 0.2077,
+        "log_loss": 0.6582,
+        "expected_calibration_error": 0.0734,
+        "maximum_calibration_error": 0.2072,
+        "reliability_table": [
+          {
+            "bin_low": 0.0,
+            "bin_high": 0.1,
+            "n": 40,
+            "avg_predicted": 0.0428,
+            "observed_rate": 0.25,
+            "calibration_error": 0.2072
+          },
+          {
+            "bin_low": 0.1,
+            "bin_high": 0.2,
+            "n": 29,
+            "avg_predicted": 0.153,
+            "observed_rate": 0.1724,
+            "calibration_error": 0.0194
+          },
+          {
+            "bin_low": 0.2,
+            "bin_high": 0.3,
+            "n": 37,
+            "avg_predicted": 0.2334,
+            "observed_rate": 0.3243,
+            "calibration_error": 0.0909
+          },
+          {
+            "bin_low": 0.3,
+            "bin_high": 0.4,
+            "n": 108,
+            "avg_predicted": 0.3697,
+            "observed_rate": 0.3241,
+            "calibration_error": 0.0457
+          },
+          {
+            "bin_low": 0.4,
+            "bin_high": 0.5,
+            "n": 0,
+            "avg_predicted": null,
+            "observed_rate": null,
+            "calibration_error": null
+          },
+          {
+            "bin_low": 0.5,
+            "bin_high": 0.6,
+            "n": 98,
+            "avg_predicted": 0.5563,
+            "observed_rate": 0.602,
+            "calibration_error": 0.0457
+          },
+          {
+            "bin_low": 0.6,
+            "bin_high": 0.7,
+            "n": 38,
+            "avg_predicted": 0.6622,
+            "observed_rate": 0.7105,
+            "calibration_error": 0.0484
+          },
+          {
+            "bin_low": 0.7,
+            "bin_high": 0.8,
+            "n": 65,
+            "avg_predicted": 0.7513,
+            "observed_rate": 0.6154,
+            "calibration_error": 0.1359
+          },
+          {
+            "bin_low": 0.8,
+            "bin_high": 0.9,
+            "n": 80,
+            "avg_predicted": 0.8494,
+            "observed_rate": 0.7625,
+            "calibration_error": 0.0869
+          },
+          {
+            "bin_low": 0.9,
+            "bin_high": 1.0,
+            "n": 40,
+            "avg_predicted": 0.9258,
+            "observed_rate": 0.925,
+            "calibration_error": 0.0008
+          }
+        ]
+      },
+      "platt_params": {
+        "a": 0.902876765294719,
+        "b": -0.33664857531737297
+      }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T17:24:38.878620+00:00",
+  "generated_at": "2026-07-16T17:47:21.596791+00:00",
   "is_sample_data": false,
   "station_coverage": {
     "sam": {
@@ -629,7 +629,7 @@
   },
   "last_asset_sync": "2026-07-16T16:35:26.966966+00:00",
   "station_analysis": {
-    "generated_at": "2026-07-16T17:04:33.575982+00:00",
+    "generated_at": "2026-07-16T17:46:58.208410+00:00",
     "correlation": {
       "thermal_excess": {
         "pearson": -0.07951387430779946,
@@ -4167,7 +4167,7 @@
     }
   },
   "calibration_analysis": {
-    "generated_at": "2026-07-16T17:12:07.406013+00:00",
+    "generated_at": "2026-07-16T17:47:07.612781+00:00",
     "folds": [
       {
         "fold": "2024-08_validate",
@@ -5816,7 +5816,7 @@
     ]
   },
   "regime_analysis": {
-    "generated_at": "2026-07-16T17:14:43.938683+00:00",
+    "generated_at": "2026-07-16T17:47:09.844999+00:00",
     "false_positive_summary": {
       "northerly_suppression": {
         "n": 740,
@@ -5861,7 +5861,7 @@
     }
   },
   "continuous_target_analysis": {
-    "generated_at": "2026-07-16T17:16:16.663545+00:00",
+    "generated_at": "2026-07-16T17:47:14.987608+00:00",
     "continuous_wind_target": [
       {
         "fold": "2024-08_validate",
