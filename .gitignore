@@ -1,2 +1,9 @@
 __pycache__/
 *.pyc
+
+# Regenerable historical-archive derived data: the normalized per-station
+# hourly JSONL is ~10x more verbose per row than logs/raw_cache/'s compact
+# format (repeats station metadata on every row) and fully regenerates in
+# seconds via `python3 historical_data.py sync` - see docs/DATA_ARCHITECTURE.md.
+# Only the small manifests (tens of KB) are committed.
+logs/historical/station_hourly/*.jsonl
