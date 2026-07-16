@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T20:12:51.377000+00:00",
+  "generated_at": "2026-07-16T20:51:06.051937+00:00",
   "total_samples": 3111,
   "samples_per_year": {
     "2024": 1288,
@@ -22389,16 +22389,16 @@
   "model_agreement": {},
   "data_provenance": {},
   "lake_station_health": {
-    "last_attempt_at": null,
+    "last_attempt_at": "2026-07-16T20:15:05.269282+00:00",
     "last_success_at": null,
-    "last_observation_at": "2026-07-16T16:54:32.240847+00:00",
-    "age_minutes": 198.3,
-    "observations_today": 1,
+    "last_observation_at": "2026-07-16T20:14:47.744093+00:00",
+    "age_minutes": 36.3,
+    "observations_today": 2,
     "successful_attempts_today": 0,
-    "failed_attempts_today": 0,
+    "failed_attempts_today": 1,
     "coverage_12_18": 0.0,
-    "consecutive_failures": 0,
-    "status": "critical"
+    "consecutive_failures": 1,
+    "status": "degraded"
   },
   "summit_station_health": {},
   "verification_sources": {
