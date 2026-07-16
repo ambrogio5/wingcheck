@@ -1,2 +1,12 @@
 __pycache__/
 *.pyc
+
+# Regenerable historical-archive derived data - see
+# logs/historical/station_hourly/README.md and docs/DATA_ARCHITECTURE.md
+# for why these are NOT committed (verbose normalized schema x 40+ years
+# of station history would add well over 1GB for data fully regenerable
+# offline, in seconds, from logs/raw_cache/*.json, which IS committed).
+logs/historical/station_hourly/*.jsonl
+logs/historical/datasets/*.jsonl
+logs/historical/datasets/*.csv
+

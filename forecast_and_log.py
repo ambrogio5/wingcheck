@@ -2,9 +2,13 @@
 forecast_and_log.py - run this on a schedule (e.g. twice daily).
 
 1. Pulls the raw data points (features.py).
-2. Scores each hour in the afternoon window with the current model (model.py).
-3. Sends a Telegram summary.
-4. Logs every scored hour to logs/predictions.jsonl - engineered features
+2. Archives the genuine forecast vintage (forecast_vintages.py) - exactly
+   what was fetched, before any scoring happens, so a future retrain can
+   eventually use real multi-day-lead forecasts instead of Open-Meteo's
+   0-hour historical archive. Best-effort: never breaks the pipeline below.
+3. Scores each hour in the afternoon window with the current model (model.py).
+4. Sends a Telegram summary.
+5. Logs every scored hour to logs/predictions.jsonl - engineered features
    (for verify_and_learn.py to later check against reality) AND the full
    unnormalized raw snapshot (features.raw_snapshot) - Open-Meteo's live API
    only serves ~3 months of history, so this is the only lasting record of
@@ -18,6 +22,7 @@ import json
 from datetime import datetime, timezone
 
 from features import fetch_raw, engineer_features, raw_snapshot
+from forecast_vintages import archive_forecast_payload_safe
 from model import score, load_weights
 
 WINDOW_START_HOUR = 12  # reverted from a brief narrowing to 15 - backtest.py's
@@ -51,6 +56,10 @@ def tier_from_prob(p, weights):
 
 def build_and_log():
     raw = fetch_raw(forecast_days=3)
+    issue_time_utc = datetime.now(timezone.utc)
+    archive_forecast_payload_safe(
+        raw, issue_time_utc=issue_time_utc,
+        source_url="https://api.open-meteo.com/v1/forecast (Silvaplana/Bregaglia/Maloja + Lugano/Zurich pressure + ICON/GFS/ECMWF ensemble)")
     weights = load_weights()
     times = raw["silvaplana"]["time"]
 

@@ -152,6 +152,19 @@ def _fetch_station_observations(station: str, parser, include_historical: bool) 
     return obs
 
 
+def fetch_wind_observations(station: str, include_historical: bool = True) -> dict:
+    """Returns {datetime_utc: {"speed_kmh":..., "gust_kmh":...}} for ANY
+    SwissMetNet station code exposing the fu3010h0/fu3010h1 wind columns
+    (confirmed for "sam" against the live API on 2026-07-16 - other
+    stations are expected to use the same column names since they're part
+    of the same standardized SwissMetNet CSV format, but that has not been
+    independently confirmed for every station; historical_data.py's sync
+    command surfaces a parse failure clearly rather than silently
+    substituting a guess). Generalizes fetch_sam_hourly_observations below,
+    which is now a thin wrapper kept for backward compatibility."""
+    return _fetch_station_observations(station, _parse_wind_csv, include_historical)
+
+
 def fetch_sam_hourly_observations(include_historical: bool = True) -> dict:
     """Returns {datetime_utc: {"speed_kmh":..., "gust_kmh":...}} for Samedan
     (SAM) - the model's ground-truth fallback (see kitesailing_weather.py
@@ -161,7 +174,7 @@ def fetch_sam_hourly_observations(include_historical: bool = True) -> dict:
     the daily verification job).
     include_historical=True: everything the catalog lists (used by the
     backtest to cover 2024+)."""
-    return _fetch_station_observations("sam", _parse_wind_csv, include_historical)
+    return fetch_wind_observations("sam", include_historical)
 
 
 def fetch_pressure_observations(station: str, include_historical: bool = True) -> dict:
