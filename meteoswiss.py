@@ -170,3 +170,210 @@ def fetch_pressure_observations(station: str, include_historical: bool = True) -
     features.py's pressure_nowcast_score - see this module's docstring for
     why that's a nowcast feature, not a replacement for pressure_signal."""
     return _fetch_station_observations(station, _parse_pressure_csv, include_historical)
+
+
+# ---------------------------------------------------------------------------
+# Generic multi-variable MeteoSwiss station support (added for Corvatsch/COV
+# and any future confirmed station beyond the original sam/lug/sma). Unlike
+# the role-specific parsers above (one variable each, hand-picked column),
+# this fetches every documented SwissMetNet hourly parameter a station
+# happens to publish and fails LOUDLY if a variable the caller explicitly
+# asked for isn't in the CSV header - it never silently guesses what an
+# unrecognized column means.
+#
+# CONFIRMED_COLUMNS lists the exact column codes this repo has verified
+# against a live fetch (fu3010h0/fu3010h1/pp0qffh0 - see this module's
+# original docstring). Every other column below (tre200h0, ure200h0,
+# dkl010h0, rre150h0, gre000h0, sre000h0) is a documented, standard
+# SwissMetNet parameter abbreviation but has NOT yet been independently
+# confirmed against a live COV fetch in this repo - that confirmation only
+# happens the first time `historical_data.py sync --station cov` actually
+# runs somewhere with real network access (see docs/DATA_ARCHITECTURE.md).
+# `parse_generic_station_csv()`'s `raw_column_map`/`confirmed_columns`/
+# `unconfirmed_columns` output makes this distinction visible in the
+# archive's own provenance metadata, not just in this comment.
+# ---------------------------------------------------------------------------
+
+METADATA_CSV_URL = "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ogd-smn_meta_stations.csv"
+
+CONFIRMED_COLUMNS = ("fu3010h0", "fu3010h1", "pp0qffh0")
+
+# normalized field name -> (raw SwissMetNet column code, unit of the raw column)
+GENERIC_FIELD_COLUMNS = {
+    "temperature_c": ("tre200h0", "degC"),
+    "relative_humidity_pct": ("ure200h0", "percent"),
+    "dew_point_c": ("tde200h0", "degC"),
+    "wind_speed_ms": ("fu3010h0", "km/h"),   # converted to m/s during parsing
+    "wind_gust_ms": ("fu3010h1", "km/h"),    # converted to m/s during parsing
+    "wind_direction_deg": ("dkl010h0", "degrees"),
+    "precipitation_mm": ("rre150h0", "mm"),
+    "global_radiation_wm2": ("gre000h0", "W/m2"),
+    "sunshine_duration_min": ("sre000h0", "min"),
+    "pressure_sea_level_hpa": ("pp0qffh0", "hPa"),
+}
+_KMH_TO_MS_FIELDS = ("wind_speed_ms", "wind_gust_ms")
+PARSER_VERSION = 1
+
+
+def fetch_station_metadata(station_id: str = None) -> dict:
+    """Fetches the official MeteoSwiss station metadata CSV
+    (METADATA_CSV_URL) and returns either one station's metadata dict
+    (station_id given, case-insensitive on the official abbreviation) or
+    the full {station_abbr_lower: {...}} dict (station_id=None).
+
+    Raises ValueError if station_id is given but not found in the
+    official metadata - never silently returns a guessed/empty result for
+    a station that should exist."""
+    r = requests.get(METADATA_CSV_URL, timeout=60)
+    r.raise_for_status()
+    text = r.content.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text), delimiter=";")
+    stations = {}
+    for row in reader:
+        row = {k.lower(): v for k, v in row.items()}
+        abbr = (row.get("station_abbr") or "").strip().lower()
+        if not abbr:
+            continue
+        stations[abbr] = {
+            "station_abbr": row.get("station_abbr"),
+            "name": row.get("station_name"),
+            "canton": row.get("station_canton"),
+            "latitude": _safe_float(row.get("station_coordinates_wgs84_lat")),
+            "longitude": _safe_float(row.get("station_coordinates_wgs84_lon")),
+            "elevation_m": _safe_float(row.get("station_height_masl")),
+            "data_since": row.get("station_data_since"),
+            "wigos_id": row.get("station_wigos_id"),
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "source_url": METADATA_CSV_URL,
+        }
+    if station_id:
+        key = station_id.strip().lower()
+        if key not in stations:
+            raise ValueError(f"station {station_id!r} not found in official MeteoSwiss metadata CSV")
+        return stations[key]
+    return stations
+
+
+def _safe_float(raw):
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v else None  # NaN check
+
+
+def parse_generic_station_csv(text: str, requested_variables=None) -> dict:
+    """Generic multi-variable parser. requested_variables=None parses
+    whatever's available (best-effort); pass an explicit list of
+    normalized field names to REQUIRE them - a variable requested but
+    whose column isn't in this CSV's header raises ValueError immediately
+    rather than silently returning None for it forever.
+
+    Returns {"observations": {datetime_utc: {field: value}},
+             "raw_column_map": {field: raw_column_code},
+             "units": {field: unit_string},
+             "confirmed_columns": [...], "unconfirmed_columns": [...]}."""
+    reader = csv.DictReader(io.StringIO(text), delimiter=";")
+    header_lower = {h.lower() for h in (reader.fieldnames or [])}
+
+    wanted = requested_variables if requested_variables is not None else list(GENERIC_FIELD_COLUMNS)
+    raw_column_map = {}
+    missing = []
+    for field in wanted:
+        spec = GENERIC_FIELD_COLUMNS.get(field)
+        if spec is None:
+            missing.append(field)  # not a recognized normalized field name at all
+            continue
+        column, _unit = spec
+        if column.lower() not in header_lower:
+            missing.append(field)
+            continue
+        raw_column_map[field] = column
+
+    if requested_variables is not None and missing:
+        raise ValueError(
+            f"requested core variable(s) not present in this station's CSV header: {missing} "
+            f"(available columns: {sorted(header_lower)})"
+        )
+
+    obs = {}
+    for row in reader:
+        row = {k.lower(): v for k, v in row.items()}
+        ts_raw = row.get("reference_timestamp") or row.get("time")
+        if not ts_raw:
+            continue
+        try:
+            dt = datetime.strptime(ts_raw.strip(), "%d.%m.%Y %H:%M").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        record = {}
+        for field, column in raw_column_map.items():
+            val = _safe_float(row.get(column.lower()))
+            if val is not None and field in _KMH_TO_MS_FIELDS:
+                val = val * (1000.0 / 3600.0)
+            record[field] = val
+        obs[dt] = record
+
+    used_columns = set(raw_column_map.values())
+    return {
+        "observations": obs,
+        "raw_column_map": raw_column_map,
+        "units": {f: ("m/s" if f in _KMH_TO_MS_FIELDS else GENERIC_FIELD_COLUMNS[f][1]) for f in raw_column_map},
+        "confirmed_columns": sorted(used_columns & set(CONFIRMED_COLUMNS)),
+        "unconfirmed_columns": sorted(used_columns - set(CONFIRMED_COLUMNS)),
+        "parser_version": PARSER_VERSION,
+    }
+
+
+def fetch_station_observations(station_id: str, include_historical: bool = True, variables=None) -> dict:
+    """Generic version of _fetch_station_observations: fetches whatever
+    hourly CSV file(s) the STAC catalog lists for this station (same
+    discovery mechanism as fetch_sam_hourly_observations/
+    fetch_pressure_observations) and parses every requested variable with
+    parse_generic_station_csv(). Returns
+    {"observations": {...}, "raw_column_map": {...}, "units": {...},
+     "confirmed_columns": [...], "unconfirmed_columns": [...],
+     "source_assets": [urls actually fetched], "parser_version": ...}."""
+    recent_url = _recent_url(station_id)
+    urls = [recent_url]
+    if include_historical:
+        try:
+            urls = _discover_hourly_urls(station_id)
+            if not urls:
+                urls = [recent_url]
+        except requests.RequestException as e:
+            print(f"[warn] {station_id} STAC catalog lookup failed ({e}); falling back to recent file only")
+            urls = [recent_url]
+
+    merged_obs = {}
+    raw_column_map = {}
+    units = {}
+    confirmed_columns = set()
+    unconfirmed_columns = set()
+    source_assets = []
+    for url in urls:
+        try:
+            r = requests.get(url, timeout=120)
+            r.raise_for_status()
+            text = r.content.decode("utf-8", errors="replace")
+        except requests.RequestException as e:
+            print(f"[warn] could not fetch {url}: {e}")
+            continue
+        result = parse_generic_station_csv(text, requested_variables=variables)
+        merged_obs.update(result["observations"])
+        raw_column_map.update(result["raw_column_map"])
+        units.update(result["units"])
+        confirmed_columns.update(result["confirmed_columns"])
+        unconfirmed_columns.update(result["unconfirmed_columns"])
+        source_assets.append(url)
+        print(f"  loaded {len(result['observations'])} hours from {url.rsplit('/', 1)[-1]}")
+
+    return {
+        "observations": merged_obs,
+        "raw_column_map": raw_column_map,
+        "units": units,
+        "confirmed_columns": sorted(confirmed_columns),
+        "unconfirmed_columns": sorted(unconfirmed_columns),
+        "source_assets": source_assets,
+        "parser_version": PARSER_VERSION,
+    }
