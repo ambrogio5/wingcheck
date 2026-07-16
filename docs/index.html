@@ -101,6 +101,15 @@
   .tier-badge.marginal{background:var(--warn-soft);color:#8a5c05;}
   .tier-badge.unlikely{background:var(--line-soft);color:var(--ink-3);}
   .upcoming-empty{color:var(--ink-3);font-size:13.5px;padding:4px 0;}
+
+  /* ---------- Metrics tables (holdout / operational / ablation) ---------- */
+  .table-wrap{overflow-x:auto;}
+  .metrics-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .metrics-table th,.metrics-table td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+  .metrics-table th:first-child,.metrics-table td:first-child{text-align:left;}
+  .metrics-table th{color:var(--ink-3);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  .metrics-table td{font-family:var(--mono);color:var(--ink);}
+  .metrics-table td:first-child{font-family:var(--body);color:var(--ink);font-weight:500;white-space:normal;}
 </style>
 </head>
 <body>
@@ -147,6 +156,28 @@
     </div>
   </section>
 
+  <!-- ================= Holdout evaluation ================= -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Holdout evaluation</h2>
+      <div class="hint">2026, on a model that never saw it</div>
+    </div>
+    <p class="explain">These numbers come from a separate, from-scratch model trained ONLY on 2024+2025, scored once against 2026 and then discarded — it is never deployed. The live model (see "What the model listens to" below) is trained on all three years, so its own performance on 2026 would not be an honest holdout and is intentionally not reported here.</p>
+    <div class="table-wrap"><table class="metrics-table" id="holdoutTable"></table></div>
+    <p class="explain" style="margin-top:16px;margin-bottom:8px;">Operational alert tiers, scored on that same untouched 2026 holdout (thresholds calibrated only on 2024+2025, never on 2026 itself) — this is what MARGINAL/GOOD alerts actually perform like, not just the raw 0.5 cutoff above:</p>
+    <div class="table-wrap"><table class="metrics-table" id="operationalTable"></table></div>
+  </section>
+
+  <!-- ================= Ablation ================= -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Feature ablation</h2>
+      <div class="hint">Diagnostic only — not model selection</div>
+    </div>
+    <p class="explain">Each row is its own model, trained fresh on 2024+2025 with only the listed features, scored once against the same 2026 holdout above. Picking the best-looking row here and reporting its holdout number as "the" model's accuracy would itself be a form of holdout leakage — this table exists to explain roughly how much each feature group contributes, not to select a winner. The deployed model always uses the full feature set.</p>
+    <div class="table-wrap"><table class="metrics-table" id="ablationTable"></table></div>
+  </section>
+
   <!-- ================= Monthly + Weights ================= -->
   <div class="two-col">
     <section class="card">
@@ -165,7 +196,7 @@
   <footer>
     <div id="genAt">—</div>
     <div class="mono" id="sampleCount">—</div>
-    <div class="mono">Data: Open-Meteo · Ground truth: kitesailing.ch · Source: MeteoSwiss</div>
+    <div class="mono">Data: Open-Meteo · Ground truth: kitesailing.ch (primary), MeteoSwiss Samedan (fallback + secondary signal)</div>
   </footer>
 </div>
 
@@ -192,6 +223,7 @@ const FEATURES = {
   upper_wind_dewpoint_interaction:{name:"Aloft wind × dry air", desc:"Combined effect of upper wind and dryness"},
   thermal_seasonal_interaction:{name:"Heating × season",   desc:"How the thermal effect shifts through the year"},
   samedan_morning_score: {name:"Samedan this morning",     desc:"Real upstream wind already measured today"},
+  pressure_nowcast_score:{name:"Pressure gradient now",    desc:"Lugano–Zürich gradient from real station readings this morning, not the forecast"},
 };
 
 const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
@@ -239,26 +271,29 @@ function renderStatus(d){
 }
 
 function renderKpis(d){
-  const bt = d.holdout_metrics_2026 || {};
+  const ev = d.evaluation || {};
+  const hourlyFull = (ev.hourly && ev.hourly.full_window) || {};
+  const bt = hourlyFull['cutoff_0.5'] || {};
+  const good = hourlyFull['cutoff_good'] || {};
   const lv = d.live_metrics || {n:0};
   const hasLive = lv.n > 0;
   const cards = [];
 
   if (hasLive){
     cards.push({cls:'hero-kpi', label:'Right in the real world', value:fmtPct(lv.accuracy),
-      sub:`Across ${lv.n} live forecasts, verified against the Samedan station`});
+      sub:`Across ${lv.n} live forecasts, verified against the real Silvaplana lake reading (kitesailing.ch), Samedan as fallback`});
   } else {
     cards.push({cls:'hero-kpi', label:'Right in the real world', value:'—',
       sub:'Appears once the first live forecasts are verified'});
   }
-  cards.push({label:'Right on past seasons', value:fmtPct(bt.accuracy),
-    sub: bt.trivial_baseline_accuracy
-      ? `vs ${fmtPct(bt.trivial_baseline_accuracy)} if it always guessed “no wind”`
-      : 'Tested on a season it never trained on'});
-  cards.push({label:'When it says “go”, it’s right', value:fmtPct(hasLive ? lv.precision : bt.precision),
-    sub:'Precision — how trustworthy a green light is'});
-  cards.push({label:'Rideable days it catches', value:fmtPct(hasLive ? lv.recall : bt.recall),
-    sub:'Recall — how few good sessions it misses'});
+  cards.push({label:'Right on a season it never trained on', value:fmtPct(bt.accuracy),
+    sub: bt.majority_baseline_accuracy
+      ? `2026 hourly holdout, vs ${fmtPct(bt.majority_baseline_accuracy)} if it always guessed the majority class`
+      : 'No holdout data yet — run backtest.py'});
+  cards.push({label:'When it says GOOD, it’s right', value:fmtPct(good.precision),
+    sub:`Operational GOOD-tier precision on the 2026 holdout (cutoff ${ (ev.thresholds && ev.thresholds.good) ?? '—' })`});
+  cards.push({label:'Rideable hours GOOD catches', value:fmtPct(good.recall),
+    sub:'Operational GOOD-tier recall on the 2026 holdout — how many real sessions a GOOD alert alone would catch'});
 
   document.getElementById('kpiRow').innerHTML = cards.map(k=>`
     <div class="kpi ${k.cls||''}">
@@ -266,6 +301,62 @@ function renderKpis(d){
       <div class="k-value">${k.value}</div>
       <div class="k-sub">${k.sub||''}</div>
     </div>`).join('');
+}
+
+function renderHoldoutTable(d){
+  const ev = d.evaluation || {};
+  const rows = [
+    ['Hourly · full window (12–18h)', ev.hourly && ev.hourly.full_window],
+    ['Hourly · prime window (15–18h)', ev.hourly && ev.hourly.prime_window],
+    ['Session · full window (12–18h)', ev.session && ev.session.full_window],
+    ['Session · prime window (15–18h)', ev.session && ev.session.prime_window],
+  ];
+  const el = document.getElementById('holdoutTable');
+  if (!rows.some(r=>r[1])){ el.innerHTML = '<tr><td>No holdout data yet — run backtest.py</td></tr>'; return; }
+  const head = '<tr><th>Split</th><th>n</th><th>Accuracy @0.5</th><th>Baseline</th><th>ROC AUC</th><th>PR AUC</th><th>Brier</th></tr>';
+  const body = rows.map(([label, r])=>{
+    const c = (r && r['cutoff_0.5']) || {};
+    const n = r ? (r.n ?? r.n_days ?? '—') : '—';
+    return `<tr><td>${label}</td><td>${n}</td><td>${fmtPct(c.accuracy)}</td><td>${fmtPct(c.majority_baseline_accuracy)}</td><td>${c.roc_auc ?? '—'}</td><td>${c.pr_auc ?? '—'}</td><td>${c.brier_score ?? '—'}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + body;
+}
+
+function renderOperationalTable(d){
+  const ev = d.evaluation || {};
+  const hf = (ev.hourly && ev.hourly.full_window) || {};
+  const th = ev.thresholds || {};
+  const el = document.getElementById('operationalTable');
+  if (!hf['cutoff_marginal'] && !hf['cutoff_good']){ el.innerHTML = '<tr><td>No holdout data yet</td></tr>'; return; }
+  const rows = [
+    ['MARGINAL', th.marginal, hf['cutoff_marginal']],
+    ['GOOD', th.good, hf['cutoff_good']],
+  ];
+  const head = '<tr><th>Tier</th><th>Cutoff</th><th>Precision</th><th>Recall</th><th>Accuracy</th><th>Balanced acc.</th></tr>';
+  const body = rows.map(([label, cutoff, r])=>{
+    r = r || {};
+    return `<tr><td>${label}</td><td>${cutoff ?? '—'}</td><td>${fmtPct(r.precision)}</td><td>${fmtPct(r.recall)}</td><td>${fmtPct(r.accuracy)}</td><td>${fmtPct(r.balanced_accuracy)}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + body;
+}
+
+const ABLATION_LABELS = {
+  majority_class_baseline: 'Majority-class baseline',
+  forecast_wind_only: 'Forecast wind only',
+  wind_gust_direction: 'Wind + gust + direction',
+  previous_core_physical_set: 'Previous core physical set',
+  full_current_model: 'Full current model',
+  full_minus_pressure_nowcast: 'Full − pressure nowcast',
+  full_minus_samedan_morning: 'Full − Samedan morning',
+};
+
+function renderAblation(d){
+  const groups = (d.evaluation && d.evaluation.ablation && d.evaluation.ablation.groups) || [];
+  const el = document.getElementById('ablationTable');
+  if (!groups.length){ el.innerHTML = '<tr><td>No ablation data yet — run backtest.py</td></tr>'; return; }
+  const head = '<tr><th>Group</th><th>Features</th><th>Accuracy</th><th>Balanced acc.</th><th>ROC AUC</th><th>PR AUC</th><th>Brier</th></tr>';
+  const body = groups.map(g=>`<tr><td>${ABLATION_LABELS[g.name]||g.name}</td><td>${g.n_features}</td><td>${fmtPct(g.accuracy)}</td><td>${fmtPct(g.balanced_accuracy)}</td><td>${g.roc_auc ?? '—'}</td><td>${g.pr_auc ?? '—'}</td><td>${g.brier_score ?? '—'}</td></tr>`).join('');
+  el.innerHTML = head + body;
 }
 
 function renderTimeline(d){
@@ -364,7 +455,7 @@ async function init(){
   // Each section renders independently - one failing (e.g. Chart.js not
   // loading) must not blank out the others, especially the upcoming
   // forecast, which is the page's actual headline answer.
-  for (const fn of [renderStatus, renderUpcoming, renderKpis, renderTimeline, renderMonthly, renderWeights]){
+  for (const fn of [renderStatus, renderUpcoming, renderKpis, renderHoldoutTable, renderOperationalTable, renderAblation, renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
   }
   document.getElementById('genAt').textContent =
@@ -379,7 +470,7 @@ init();
 // Minimal fallback so the page renders even opened as a plain file
 window.__FALLBACK__ = {
   generated_at:new Date().toISOString(), total_samples:0,
-  samples_per_year:{}, holdout_metrics_2026:{}, live_metrics:{n:0},
+  samples_per_year:{}, evaluation:{}, deployment:{}, live_metrics:{n:0},
   upcoming_forecast:[],
   final_weights:{weights:{thermal_excess:.9,pressure_signal:.8,upper_wind_alignment:.8,
     upper_wind_speed_score:.5,dewpoint_score:.3,cape_penalty:.4,

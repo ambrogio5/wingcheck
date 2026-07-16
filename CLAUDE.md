@@ -29,6 +29,29 @@ real, currently-open labeling-criterion mismatch between the
 historically-trained weights and the live online updates — see the
 "Conventions" section below and `backtest.py`'s docstring.
 
+**2026-07-16 leakage fix, and what it changed (and didn't)**: that original
+67.9%/53.6% figure came from a `backtest.py` that loaded the already-trained
+`weights.json` and reset only the bias before "evaluating" on 2026 — since
+the per-feature weights had already been shaped by a previous retrain that
+included 2026, the holdout wasn't actually untouched. `backtest.py` now
+builds two separate models from `model.new_weights()` (never from
+`weights.json`): an EVALUATION model trained only on 2024+2025 and scored
+once against 2026, then discarded, and a DEPLOYMENT model trained on all
+three years and saved to `weights.json` (see `model.py`'s and
+`backtest.py`'s docstrings, and the "Conventions" bullet below). Re-run with
+the fix, the honest 2026 hourly holdout came out at 69.4% vs a 53.5%
+majority-class baseline, AUC 0.747 — CONFIRMING the original headline
+figure rather than invalidating it (the leak didn't move the number much in
+this case, though there was no way to know that without fixing it). The
+feature ablation (`ablation.py`) still shows most of the discriminative
+power coming from forecast wind alone (AUC ~0.72); `pressure_nowcast_score`
+and `samedan_morning_score` each move full-model AUC by <0.001 either way —
+new features, not yet proven, exactly as expected this early. See
+`docs/dashboard_data.json`'s `evaluation`/`deployment` sections and the
+dashboard's "Holdout evaluation"/"Feature ablation" tables for the current
+run's exact numbers - don't hardcode these figures elsewhere, they update
+every time `backtest.py` runs.
+
 **A tried-and-reverted change, for the record**: the window was briefly
 narrowed to 15:00-18:00 on the theory that hours 12-14 were just noise. The
 2026-07-16 backtest disproved that empirically — full-model AUC on the 2026
@@ -49,10 +72,13 @@ python kitesailing_weather.py     # scrape one live Silvaplana reading, append t
 python verify_and_learn.py        # check past predictions against real observations, update weights.json
 python refresh_dashboard.py       # rebuild docs/dashboard_data.json from logs on disk (no network)
 python backtest.py                # full historical retrain (2024-2026), rewrites weights.json + dashboard data
+python -m unittest discover -s tests   # offline test suite (stdlib only, no network calls)
 ```
 
-There is no test suite, linter, or build step configured in this repo — these
-scripts are the only entry points. `forecast_and_log.py` needs
+There is no linter or build step configured in this repo; there is an
+offline `unittest` suite under `tests/` (stdlib only, no network calls) —
+run it before trusting a change to `model.py`/`metrics.py`/`ablation.py`/
+`backtest.py`. `forecast_and_log.py` needs
 `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` env vars to actually send (falls
 back to printing the message if unset). `backtest.py` and
 `verify_and_learn.py` make live network calls to Open-Meteo and MeteoSwiss,
@@ -178,9 +204,11 @@ for exactly this reason. Don't hoist it back to module level.
    `logs/backtest_dataset.jsonl` (historical) with verified entries from
    `logs/predictions.jsonl` (live), re-scoring everything with the *current*
    weights so the dashboard's probability trace always reflects today's
-   model. The frozen 2026 holdout metrics from the original backtest are
-   carried over unchanged, not recomputed (recomputing would let holdout
-   data leak into "training" through the deployed weights). Also builds
+   model. The frozen `evaluation`, `deployment`, and `reproducibility`
+   sections from the original backtest run are carried over unchanged, not
+   recomputed (recomputing `evaluation` would let 2026 holdout data leak
+   into "training" through the continuously-learning deployed weights) —
+   only `backtest.py` may write those three top-level keys. Also builds
    `upcoming_forecast` — the latest logged prediction per *future* target
    hour (`upcoming_forecast()`, deduped the same way as training) — this is
    what `docs/index.html` renders as "Next sessions"; it's the only part of
@@ -189,11 +217,24 @@ for exactly this reason. Don't hoist it back to module level.
 9. **`backtest.py`** (manual only, `workflow_dispatch`) — the only way to
    retrain from scratch. Builds a labeled dataset for May–Oct 2024/2025/2026
    from Open-Meteo's historical archive + real SAM obs (still the only
-   ground truth available historically — see `meteoswiss.py` above), trains
-   on 2024+2025, evaluates on a 2026 holdout (reporting accuracy against a
-   trivial "always-no" baseline), then folds the holdout into training
-   before saving deployed weights. Also (re)calibrates the GOOD/MARGINAL
-   probability thresholds stored in `weights.json`. Goes through
+   ground truth available historically — see `meteoswiss.py` above). Trains
+   TWO separate models, both from `model.new_weights()` (never by loading
+   `weights.json` and partially resetting it — see the "2026-07-16 leakage
+   fix" note above and the Conventions bullet below): an EVALUATION model
+   trained only on 2024+2025, with thresholds calibrated only on 2024+2025,
+   scored once against the untouched 2026 holdout and then discarded; and a
+   DEPLOYMENT model trained on 2024+2025+2026, with thresholds calibrated on
+   all three years, which is the only one saved to `weights.json`. Reports,
+   via `metrics.py`, hourly and session-level (`metrics.build_session_samples`)
+   accuracy/balanced-accuracy/precision/recall/ROC-AUC/PR-AUC/Brier for both
+   the full window (12:00–18:00) and a 15:00–18:00 "prime window" diagnostic
+   slice (same model, same training window — NOT a second training run),
+   plus operational MARGINAL/GOOD threshold performance and a feature
+   ablation (`ablation.py`, diagnostic only, see its docstring). Training is
+   reproducible: `model.train_epochs()` shuffles with a locally-scoped
+   `random.Random(model.DEFAULT_TRAIN_SEED)`, so identical cached raw data
+   reproduces byte-identical weights; the seed/epoch count are recorded in
+   `docs/dashboard_data.json`'s `reproducibility` section. Goes through
    `historical_cache.py` rather than calling `features.fetch_raw_historical`/
    `meteoswiss.fetch_sam_hourly_observations` directly — see below.
 10. **`historical_cache.py`** — persists backtest.py's raw fetches under
@@ -232,8 +273,20 @@ just a single `index.html` with inline CSS/JS and Chart.js from a CDN.
 
 - Feature names in `engineer_features()`'s returned dict, `weights.json`'s
   `weights` object, and any place a feature is looked up by name
-  (`model.py`) must all match exactly — there's no schema enforcement, just
-  a shared naming convention across files.
+  (`model.py`) must all match exactly. `features.FEATURE_NAMES` is the
+  single source of truth for the 22-feature schema; `model.new_weights()`
+  builds a fresh weights dict from it (or an explicit subset, for
+  `ablation.py`) and `model.validate_schema()` raises `ValueError` on any
+  drift between a weights dict and the expected feature set — call it
+  right after building a fresh evaluation/deployment model.
+- Never construct a "blank slate" model any way other than
+  `model.new_weights()` — not by loading `weights.json` and resetting some
+  fields by hand. Doing that once left `backtest.py`'s "2026 holdout"
+  evaluation contaminated by a previous retrain's exposure to 2026 (see
+  the "2026-07-16 leakage fix" note above). Every fresh-start path — an
+  evaluation model trained only on past years, a deployment model trained
+  on everything, ablation's per-feature-group models, a deliberate reset —
+  goes through `new_weights()`.
 - All prediction/backtest logs are JSONL (one JSON object per line),
   appended-to or fully rewritten with `save_predictions`/similar helpers —
   never hand-edit these files.

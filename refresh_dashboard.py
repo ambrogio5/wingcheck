@@ -17,9 +17,14 @@ What it computes:
     live, deduplicated, verified predictions - the number that matters most,
     since it reflects real forecast conditions (1-3 day lead), not backtest
     conditions (0-hour archive data).
-  - The original backtest holdout metrics, carried over unchanged for
-    reference (they describe a fixed past experiment; recomputing them with
-    newer weights would quietly turn the holdout into training data).
+  - The original backtest's "evaluation" (honest 2026 holdout metrics from
+    a model that only ever saw 2024+2025), "deployment" (the model actually
+    saved to weights.json, trained on everything), and "reproducibility"
+    (seed/epochs) sections, all carried over UNCHANGED from the last
+    backtest.py run - recomputing "evaluation" with today's weights.json
+    would quietly turn the 2026 holdout into training data, since those
+    weights keep learning from live outcomes that overlap the holdout
+    period. Only backtest.py may write these sections.
   - A merged timeline: historical samples + live verified hours, all
     re-scored with current weights so the probability trace reflects the
     model you have today.
@@ -142,15 +147,25 @@ def main():
     verified = dedupe_latest_per_hour([p for p in predictions if p.get("verified")])
     verified.sort(key=lambda r: r["target_time"])
 
-    # Carry over the frozen backtest holdout metrics if a previous dashboard
-    # data file has them (they describe a fixed experiment; do not recompute).
-    holdout_metrics = None
+    # Carry over the frozen evaluation/deployment/reproducibility sections
+    # from the last backtest.py run untouched (they describe a fixed
+    # experiment against a model that has since been superseded by
+    # whatever weights.json now holds via verify_and_learn.py's online
+    # updates - recomputing "evaluation" with CURRENT weights would quietly
+    # turn the 2026 holdout into training data, since those weights have
+    # continued learning from live outcomes that overlap the holdout
+    # period).
+    evaluation = None
+    deployment = None
+    reproducibility = None
     if os.path.exists(DASHBOARD_DATA_PATH):
         try:
             with open(DASHBOARD_DATA_PATH) as f:
                 prev = json.load(f)
             if not prev.get("is_sample_data"):
-                holdout_metrics = prev.get("holdout_metrics_2026")
+                evaluation = prev.get("evaluation")
+                deployment = prev.get("deployment")
+                reproducibility = prev.get("reproducibility")
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -180,7 +195,9 @@ def main():
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_samples": len(entries),
         "samples_per_year": per_year,
-        "holdout_metrics_2026": holdout_metrics or {"n": 0},
+        "reproducibility": reproducibility or {},
+        "evaluation": evaluation or {"n_holdout_samples": 0},
+        "deployment": deployment or {},
         "live_metrics": live_metrics(verified),
         "upcoming_forecast": upcoming_forecast(predictions),
         "final_weights": weights,
