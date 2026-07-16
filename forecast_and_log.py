@@ -68,25 +68,54 @@ def _current_station_cutoff(issued_at_local: datetime) -> str:
     return "07:00" if issued_at_local.hour < 9 else "10:00"
 
 
+NOWCAST_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "logs", "current_station_observations.json")
+
+
+def _station_records_for_inputs(sid: str, station):
+    """The OPERATIONAL path: read station_nowcast.py's small, bounded
+    logs/current_station_observations.json snapshot (written by the
+    workflow's `python station_nowcast.py` step, which runs instead of a
+    full `historical_data.py sync` in the forecast job - see
+    station_nowcast.py's own docstring). Falls back to the historical
+    station_hourly archive ONLY when that snapshot doesn't exist at all -
+    a local research/dev run that hasn't run station_nowcast.py first,
+    never the normal GitHub Actions operational path."""
+    if os.path.exists(NOWCAST_SNAPSHOT_PATH):
+        with open(NOWCAST_SNAPSHOT_PATH) as f:
+            snapshot = json.load(f)
+        entry = snapshot.get("stations", {}).get(sid)
+        return entry.get("observations", []) if entry else []
+    import historical_data as hd
+    print(f"[info] {NOWCAST_SNAPSHOT_PATH} not found - falling back to the historical archive "
+          f"(research/local-dev path; the operational workflow always runs station_nowcast.py first)")
+    return hd._read_jsonl(hd.station_hourly_path(sid))
+
+
 def _load_station_inputs(today_local_date: str, cutoff: str):
-    """Best-effort: loads each enabled station's already-synced archive
-    (historical_data.py sync populates it - this function does NOT fetch
-    over the network itself, keeping forecast_and_log.py's own network
-    surface unchanged) and generates today's pre-forecast station
-    features. Returns ({}, {}) on any failure - diagnostics/session
-    summaries degrade to "missing" gracefully rather than blocking the
-    actual forecast/Telegram send."""
+    """Best-effort: loads each enabled station's recent observations (via
+    station_nowcast.py's snapshot in normal operation - see
+    _station_records_for_inputs) and generates today's pre-forecast
+    station features. Returns ({}, {}, {}) on any failure - diagnostics/
+    session summaries degrade to "missing" gracefully rather than
+    blocking the actual forecast/Telegram send.
+
+    Also returns the raw records actually used per station (bounded -
+    station_nowcast.py's own LOOKBACK_HOURS already caps this) so
+    _log_issuance can preserve exactly what was known at issuance time
+    (Part 12's data-preservation requirement) - not just the derived
+    features."""
     try:
-        import historical_data as hd
         import station_features as sf
         import station_registry
         registry = station_registry.load_registry()
         station_feats = {}
         station_input_age = {}
+        station_records = {}
         for sid, s in registry.items():
             if not s.enabled:
                 continue
-            records = hd._read_jsonl(hd.station_hourly_path(sid))
+            records = _station_records_for_inputs(sid, s)
+            station_records[sid] = records
             feats = sf.generate_station_features(records, today_local_date, cutoff, s.reporting_delay_minutes)
             station_feats[sid] = feats
             todays = [r for r in records if r["timestamp_local"].startswith(today_local_date)]
@@ -96,23 +125,42 @@ def _load_station_inputs(today_local_date: str, cutoff: str):
                 station_input_age[sid] = round((datetime.now(ZURICH_TZ) - latest_dt).total_seconds() / 60.0, 1)
             else:
                 station_input_age[sid] = None
-        return station_feats, station_input_age
+        return station_feats, station_input_age, station_records
     except Exception as e:
         print(f"[warn] could not load station inputs for diagnostics ({e}); continuing without them")
-        return {}, {}
+        return {}, {}, {}
 
 
-def _build_diagnostics(station_feats: dict, forecast_pressure_signal):
+def _build_diagnostics(station_feats: dict, registry, forecast_pressure_signal, station_input_age=None):
     import maloja_diagnostics as md
+    import station_features as sf
+
+    station_input_age = station_input_age or {}
+    grouped = sf.group_station_features_by_role(station_feats, registry)
+    _, source_feats = sf.first_station_in_role(grouped.get("source_region", {}))
+    _, pass_feats = sf.first_station_in_role(grouped.get("pass", {}))
+    summit_sid, summit_feats = sf.first_station_in_role(grouped.get("summit", {}))
+
+    surface_dir = None  # no confirmed surface direction-reporting station yet
+    summit_dir = md._direction_from_vector(summit_feats.get("wind_u"), summit_feats.get("wind_v")) if summit_feats else None
+
+    # The richer 14-value diagnosis (Part 6) is used whenever a summit
+    # station actually has usable data; it degrades to the same "missing"
+    # explanation_key as the simpler summit_support() when it doesn't.
+    summit_diagnosis = md.summit_wind_diagnosis(
+        summit_feats, samedan_feats=station_feats.get("sam", {}), station_id=summit_sid or "cov",
+        age_minutes=station_input_age.get(summit_sid) if summit_sid else None,
+    )
+
     return {
-        "source_heating": md.source_heating(station_feats.get("_source_region", {}), station_feats.get("sam", {})),
-        "pass_activation": md.pass_activation(station_feats.get("_pass", {})),
-        "summit_support": md.summit_support(station_feats.get("_summit", {})),
-        "radiation_support": md.radiation_support(station_feats.get("_source_region", {})),
+        "source_heating": md.source_heating(source_feats, station_feats.get("sam", {})),
+        "pass_activation": md.pass_activation(pass_feats),
+        "summit_support": summit_diagnosis,
+        "radiation_support": md.radiation_support(source_feats),
         "pressure_support": md.pressure_support(station_feats.get("lug", {}), station_feats.get("sma", {}),
                                                   forecast_pressure_signal=forecast_pressure_signal),
-        "competing_flow": md.competing_flow(None),  # no confirmed direction-reporting station yet
-        "data_health": md.data_health({k: v for k, v in station_feats.items() if not k.startswith("_")}),
+        "competing_flow": md.competing_flow(surface_dir, summit_wind_dir_deg=summit_dir),
+        "data_health": md.data_health(station_feats),
     }
 
 
@@ -125,11 +173,20 @@ def _log_issuance(raw, results, weights, issued_at_utc, vintage_entry):
         cutoff = _current_station_cutoff(issued_at_local)
         today_local_date = issued_at_local.strftime("%Y-%m-%d")
 
-        station_feats, station_input_age = _load_station_inputs(today_local_date, cutoff)
+        import station_registry
+        import station_features as sf
+        station_feats, station_input_age, station_records = _load_station_inputs(today_local_date, cutoff)
+        registry = station_registry.load_registry()
         pressure_signal_values = [r["features"].get("pressure_signal") for r in results if r["features"].get("pressure_signal") is not None]
         forecast_pressure_signal = sum(pressure_signal_values) / len(pressure_signal_values) if pressure_signal_values else None
-        diagnostics = _build_diagnostics(station_feats, forecast_pressure_signal)
-        station_quality_flags = [d["explanation_key"] for d in diagnostics.values() if d.get("missing")]
+        diagnostics = _build_diagnostics(station_feats, registry, forecast_pressure_signal, station_input_age)
+        # summit_wind_diagnosis() (Part 6) reports "missing" via status
+        # rather than a separate boolean field like the other diagnostics -
+        # check both so a missing summit reading is flagged the same way.
+        station_quality_flags = [
+            d["explanation_key"] for d in diagnostics.values()
+            if d.get("missing") or d.get("status") == "missing"
+        ]
 
         by_date = {}
         for r in results:
@@ -147,6 +204,18 @@ def _log_issuance(raw, results, weights, issued_at_utc, vintage_entry):
             for date, day_results in by_date.items()
         }
 
+        # Part 12 data preservation: keep enough to reconstruct exactly
+        # what was known at issuance time, not just the derived features.
+        station_reporting_delay_minutes = {sid: registry[sid].reporting_delay_minutes for sid in station_feats if sid in registry}
+        station_source_assets = {
+            sid: sorted({r.get("source_asset") for r in records if r.get("source_asset")})
+            for sid, records in station_records.items()
+        }
+        station_role_aggregates = {
+            role: sorted(group.keys())
+            for role, group in sf.group_station_features_by_role(station_feats, registry).items()
+        }
+
         record = {
             "issued_at": issued_at_utc.isoformat(),
             "model_version": weights.get("version"),
@@ -156,6 +225,10 @@ def _log_issuance(raw, results, weights, issued_at_utc, vintage_entry):
             "station_inputs": station_feats,
             "station_input_age": station_input_age,
             "station_quality_flags": station_quality_flags,
+            "station_raw_observations": station_records,
+            "station_reporting_delay_minutes": station_reporting_delay_minutes,
+            "station_source_assets": station_source_assets,
+            "station_role_aggregates": station_role_aggregates,
             "diagnostics": diagnostics,
             "session_forecast": session_forecasts,
             "hourly_predictions": [
