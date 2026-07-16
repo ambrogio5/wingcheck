@@ -127,7 +127,7 @@ class SyncIntegrationTests(unittest.TestCase):
         hd.RAW_CACHE_DIR = os.path.join(self.tmpdir, "raw_cache")
         hd.COVERAGE_MANIFEST_PATH = os.path.join(hd.MANIFEST_DIR, "stations.json")
         hd.ASSETS_MANIFEST_PATH = os.path.join(hd.MANIFEST_DIR, "assets.jsonl")
-        hd._attempt_live_fetch = lambda station_id: ({}, None)
+        hd._attempt_live_fetch = lambda station_id, full_history=False: ({}, None)
 
         os.makedirs(hd.RAW_CACHE_DIR)
         with open(os.path.join(hd.RAW_CACHE_DIR, "samedan_archive.json"), "w") as f:
