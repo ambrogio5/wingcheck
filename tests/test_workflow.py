@@ -87,6 +87,35 @@ class PullRequestTriggerTests(unittest.TestCase):
         self.assertLess(backtest_pos, commit_pos)
 
 
+class ForecastJobRefreshesDashboardTests(unittest.TestCase):
+    """The 2026-07-16 dashboard-visibility fix: the forecast job (07:00 and
+    10:00 CEST) must refresh docs/dashboard_data.json immediately, instead
+    of leaving today's/tomorrow's forecast invisible until the evening
+    learn job runs."""
+
+    def setUp(self):
+        self.job = _job_block(_read(WORKFLOW_PATH), "forecast")
+
+    def test_forecast_job_runs_refresh_dashboard(self):
+        self.assertIn("python refresh_dashboard.py", self.job)
+
+    def test_refresh_dashboard_runs_after_forecast_and_log(self):
+        forecast_pos = self.job.index("python forecast_and_log.py")
+        refresh_pos = self.job.index("python refresh_dashboard.py")
+        self.assertLess(forecast_pos, refresh_pos)
+
+    def test_forecast_commit_includes_dashboard_data(self):
+        commit_section = self.job[self.job.index("git add"):]
+        git_add_line = commit_section.splitlines()[0]
+        self.assertIn("docs/dashboard_data.json", git_add_line)
+        self.assertIn("logs/predictions.jsonl", git_add_line)
+
+    def test_refresh_runs_before_the_commit(self):
+        refresh_pos = self.job.index("python refresh_dashboard.py")
+        commit_pos = self.job.index("git add")
+        self.assertLess(refresh_pos, commit_pos)
+
+
 class CopyMeWorkflowSyncTests(unittest.TestCase):
     def test_copy_me_workflow_matches_real_workflow(self):
         self.assertEqual(_read(WORKFLOW_PATH), _read(COPY_ME_PATH))
