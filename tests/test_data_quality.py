@@ -96,6 +96,31 @@ class StationRecordsValidationTests(unittest.TestCase):
         self.assertEqual(result["flagged"][0]["index"], 0)
         self.assertIn("implausible_temperature_c", result["flagged"][0]["flags"])
 
+    def test_flag_counts_tallies_per_flag_type(self):
+        records = [
+            _rec("2026-07-01T06:00:00+00:00", temperature_c=999.0),
+            _rec("2026-07-01T07:00:00+00:00", temperature_c=999.0),
+            _rec("2026-07-01T08:00:00+00:00", wind_speed_ms=200.0, wind_gust_ms=200.0),
+        ]
+        result = dq.validate_station_records(records)
+        self.assertEqual(result["flag_counts"], {
+            "implausible_temperature_c": 2,
+            "implausible_wind_speed_ms": 1,
+            "implausible_wind_gust_ms": 1,
+        })
+
+    def test_flag_counts_empty_when_nothing_flagged(self):
+        records = [_rec(f"2026-07-01T{h:02d}:00:00+00:00") for h in range(6, 9)]
+        result = dq.validate_station_records(records)
+        self.assertEqual(result["flag_counts"], {})
+
+    def test_flag_counts_helper_matches_flagged_list_directly(self):
+        flagged = [
+            {"index": 0, "timestamp_utc": "t0", "flags": ["a", "b"]},
+            {"index": 1, "timestamp_utc": "t1", "flags": ["a"]},
+        ]
+        self.assertEqual(dq.flag_counts(flagged), {"a": 2, "b": 1})
+
 
 class SyncHealthTests(unittest.TestCase):
     def test_empty_archive_for_enabled_station_flagged(self):

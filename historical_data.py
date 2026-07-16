@@ -426,6 +426,8 @@ def main(argv=None):
         for sid, findings in report.items():
             print(f"{sid}: {findings['n_flagged']} flagged record(s), "
                   f"{findings['n_duplicates']} duplicate(s), {findings['n_gaps']} gap(s)")
+            if findings["flag_counts"]:
+                print(f"  flag breakdown: {json.dumps(findings['flag_counts'])}")
     elif args.command == "coverage":
         cov = coverage_report(args.station)
         print(json.dumps(cov, indent=2))

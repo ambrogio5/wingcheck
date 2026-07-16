@@ -75,10 +75,25 @@ def find_timestamp_gaps(records: list, expected_interval_hours: int = 1) -> list
     return gaps
 
 
+def flag_counts(flagged: list) -> dict:
+    """Tallies how many times each flag string occurs across a station's
+    flagged records - a station with a high n_flagged could mean one
+    dominant, explainable cause (e.g. a plausibility range calibrated for
+    a lowland station rejecting a genuinely extreme high-altitude summit
+    reading) or many unrelated small issues; n_flagged alone can't tell
+    those apart, this can."""
+    counts = {}
+    for entry in flagged:
+        for flag in entry["flags"]:
+            counts[flag] = counts.get(flag, 0) + 1
+    return counts
+
+
 def validate_station_records(records: list) -> dict:
     """Full validation pass for one station's records. Returns flagged
-    records (with the record's own index and its flags), duplicate
-    timestamps, and gaps - the archive isn't modified."""
+    records (with the record's own index and its flags), a per-flag-type
+    tally (flag_counts), duplicate timestamps, and gaps - the archive
+    isn't modified."""
     flagged = []
     for i, r in enumerate(records):
         flags = validate_record(r)
@@ -90,6 +105,7 @@ def validate_station_records(records: list) -> dict:
         "n_records": len(records),
         "n_flagged": len(flagged),
         "flagged": flagged,
+        "flag_counts": flag_counts(flagged),
         "n_duplicates": len(duplicates),
         "duplicates": duplicates,
         "n_gaps": len(gaps),
