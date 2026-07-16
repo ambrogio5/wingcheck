@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T21:45:28.052952+00:00",
+  "generated_at": "2026-07-16T23:20:10.148420+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -47,9 +47,9 @@
       ],
       "enabled": false,
       "verification": "unverified",
-      "n_records": 398816,
+      "n_records": 398817,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-16T21:00:00+00:00"
+      "data_end": "2026-07-16T22:00:00+00:00"
     },
     "piz_nair": {
       "name": "Piz Nair (St. Moritz)",
