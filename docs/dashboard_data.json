@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T15:13:06.273808+00:00",
+  "generated_at": "2026-07-16T16:07:39.208988+00:00",
   "total_samples": 3111,
   "samples_per_year": {
     "2024": 1288,
@@ -366,124 +366,116 @@
   },
   "upcoming_forecast": [
     {
-      "target_time": "2026-07-16T18:00",
-      "probability": 0.923,
-      "tier": "GOOD",
-      "model_wind_kt": 8.8,
-      "model_gust_kt": 18.3,
-      "model_wind_dir": null
-    },
-    {
       "target_time": "2026-07-17T12:00",
-      "probability": 0.252,
+      "probability": 0.352,
       "tier": "UNLIKELY",
-      "model_wind_kt": 4.7,
-      "model_gust_kt": 10.5,
-      "model_wind_dir": null
+      "model_wind_kt": 5.0,
+      "model_gust_kt": 10.9,
+      "model_wind_dir": "S"
     },
     {
       "target_time": "2026-07-17T13:00",
-      "probability": 0.635,
+      "probability": 0.593,
       "tier": "UNLIKELY",
-      "model_wind_kt": 8.9,
-      "model_gust_kt": 18.5,
-      "model_wind_dir": null
+      "model_wind_kt": 8.5,
+      "model_gust_kt": 17.9,
+      "model_wind_dir": "S"
     },
     {
       "target_time": "2026-07-17T14:00",
-      "probability": 0.828,
-      "tier": "GOOD",
-      "model_wind_kt": 10.3,
-      "model_gust_kt": 21.6,
-      "model_wind_dir": null
+      "probability": 0.717,
+      "tier": "MARGINAL",
+      "model_wind_kt": 9.1,
+      "model_gust_kt": 19.2,
+      "model_wind_dir": "S"
     },
     {
       "target_time": "2026-07-17T15:00",
-      "probability": 0.902,
-      "tier": "GOOD",
-      "model_wind_kt": 10.3,
-      "model_gust_kt": 22.4,
-      "model_wind_dir": null
-    },
-    {
-      "target_time": "2026-07-17T16:00",
-      "probability": 0.919,
-      "tier": "GOOD",
-      "model_wind_kt": 9.6,
-      "model_gust_kt": 21.4,
-      "model_wind_dir": null
-    },
-    {
-      "target_time": "2026-07-17T17:00",
-      "probability": 0.919,
+      "probability": 0.886,
       "tier": "GOOD",
       "model_wind_kt": 9.4,
       "model_gust_kt": 19.8,
-      "model_wind_dir": null
+      "model_wind_dir": "S"
+    },
+    {
+      "target_time": "2026-07-17T16:00",
+      "probability": 0.949,
+      "tier": "GOOD",
+      "model_wind_kt": 10.3,
+      "model_gust_kt": 21.4,
+      "model_wind_dir": "SW"
+    },
+    {
+      "target_time": "2026-07-17T17:00",
+      "probability": 0.965,
+      "tier": "GOOD",
+      "model_wind_kt": 10.3,
+      "model_gust_kt": 22.7,
+      "model_wind_dir": "SW"
     },
     {
       "target_time": "2026-07-17T18:00",
-      "probability": 0.946,
+      "probability": 0.951,
       "tier": "GOOD",
       "model_wind_kt": 8.9,
-      "model_gust_kt": 20.2,
-      "model_wind_dir": null
+      "model_gust_kt": 20.8,
+      "model_wind_dir": "S"
     },
     {
       "target_time": "2026-07-18T12:00",
-      "probability": 0.143,
+      "probability": 0.302,
       "tier": "UNLIKELY",
-      "model_wind_kt": 4.0,
-      "model_gust_kt": 10.5,
-      "model_wind_dir": null
+      "model_wind_kt": 3.2,
+      "model_gust_kt": 7.9,
+      "model_wind_dir": "W"
     },
     {
       "target_time": "2026-07-18T13:00",
-      "probability": 0.211,
+      "probability": 0.333,
       "tier": "UNLIKELY",
-      "model_wind_kt": 4.3,
-      "model_gust_kt": 11.1,
-      "model_wind_dir": null
+      "model_wind_kt": 4.0,
+      "model_gust_kt": 10.1,
+      "model_wind_dir": "W"
     },
     {
       "target_time": "2026-07-18T14:00",
-      "probability": 0.434,
+      "probability": 0.475,
       "tier": "UNLIKELY",
-      "model_wind_kt": 6.0,
-      "model_gust_kt": 12.6,
-      "model_wind_dir": null
+      "model_wind_kt": 5.7,
+      "model_gust_kt": 11.8,
+      "model_wind_dir": "NW"
     },
     {
       "target_time": "2026-07-18T15:00",
-      "probability": 0.638,
+      "probability": 0.532,
       "tier": "UNLIKELY",
       "model_wind_kt": 6.1,
       "model_gust_kt": 15.0,
-      "model_wind_dir": null
+      "model_wind_dir": "NW"
     },
     {
       "target_time": "2026-07-18T16:00",
-      "probability": 0.589,
+      "probability": 0.586,
       "tier": "UNLIKELY",
       "model_wind_kt": 3.8,
       "model_gust_kt": 13.8,
-      "model_wind_dir": null
+      "model_wind_dir": "NW"
     },
     {
       "target_time": "2026-07-18T17:00",
-      "probability": 0.613,
+      "probability": 0.58,
       "tier": "UNLIKELY",
       "model_wind_kt": 4.1,
       "model_gust_kt": 13.6,
-      "model_wind_dir": null
+      "model_wind_dir": "NW"
     },
     {
       "target_time": "2026-07-18T18:00",
-      "probability": 0.611,
+      "probability": 0.579,
       "tier": "UNLIKELY",
       "model_wind_kt": 4.1,
       "model_gust_kt": 12.0,
-      "model_wind_dir": null
+      "model_wind_dir": "N"
     }
   ],
   "final_weights": {
