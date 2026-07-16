@@ -4,3 +4,4 @@
 {"station_id": "sam", "provider": "meteoswiss", "source_asset": "meteoswiss:sam:recent", "checksum": "712e414291185f028dc06215d44b7014065a1edb56bb9da402b0d55e7a6885cb", "retrieved_at": "2026-07-16T18:54:02.878869+00:00", "n_records": 4704}
 {"station_id": "lug", "provider": "meteoswiss", "source_asset": "meteoswiss:lug:recent", "checksum": "712e414291185f028dc06215d44b7014065a1edb56bb9da402b0d55e7a6885cb", "retrieved_at": "2026-07-16T18:54:02.878869+00:00", "n_records": 4704}
 {"station_id": "sma", "provider": "meteoswiss", "source_asset": "meteoswiss:sma:recent", "checksum": "712e414291185f028dc06215d44b7014065a1edb56bb9da402b0d55e7a6885cb", "retrieved_at": "2026-07-16T18:54:02.878869+00:00", "n_records": 4704}
+{"station_id": "cov", "provider": "meteoswiss", "source_asset": "meteoswiss:cov:historical_discovery", "checksum": "8412d6bfbc94878595f4b9beef5496d626196ae3be0868dca1e5a294117241a3", "retrieved_at": "2026-07-16T21:44:54.174608+00:00", "n_records": 398816}
