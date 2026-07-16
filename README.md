@@ -1,10 +1,10 @@
 # Malojawind — Silvaplana wingfoil forecast
 
 Self-improving forecast for the Maloja wind at Lake Silvaplana.
-Scores 9 physical drivers (Bregaglia thermal contrast, Lugano–Zürich pressure
-gradient, 700hPa wind, CAPE, cloud cover, and more) from 20 raw data points,
-sends Telegram alerts, verifies itself against MeteoSwiss's real Samedan
-station, and retrains its weights nightly.
+Scores 20 engineered features (Bregaglia thermal contrast, Lugano–Zürich
+pressure gradient, 700hPa wind, CAPE, a multi-model wind ensemble, and more)
+from 20+ raw data points, sends Telegram alerts, verifies itself against
+MeteoSwiss's real Samedan station, and retrains its weights nightly.
 
 ## Setup (once, ~15 minutes)
 

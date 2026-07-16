@@ -14,7 +14,7 @@ i.e. wingfoil season only, matching how you'd actually use this.
 
 Steps:
   1. Fetch weather + SAM obs for each season.
-  2. Build one labeled sample per afternoon hour (12-18h) per day.
+  2. Build one labeled sample per afternoon hour (15-18h) per day.
   3. Chronological split: train on 2024+2025, hold out 2026 to see how the
      model would have done on data it never trained on.
   4. Train (multiple epochs of online gradient descent over the training set).
@@ -35,8 +35,9 @@ from features import fetch_raw_historical, engineer_features
 from meteoswiss import fetch_sam_hourly_observations, SAM_PROXY_KT
 from model import load_weights, save_weights, score
 
-WINDOW_START_HOUR = 12
-WINDOW_END_HOUR = 18
+WINDOW_START_HOUR = 15  # keep in sync with forecast_and_log.py - narrowed
+WINDOW_END_HOUR = 18    # from 12 since 12-14 sit near the base rate (thermal
+                        # hasn't kicked in) and add mostly noise, not signal
 MARGINAL_KT = 10
 LEARNING_RATE = 0.05
 EPOCHS = 40

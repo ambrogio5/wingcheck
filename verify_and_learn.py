@@ -1,6 +1,6 @@
 """
 verify_and_learn.py - run once daily, a few hours after a prediction window
-has passed (e.g. 20:00 local, checking the 12-18h window from that day).
+has passed (e.g. 20:00 local, checking the 15-18h window from that day).
 
 1. Reads unverified predictions from logs/predictions.jsonl.
 2. For any whose target_time is safely in the past, fetches the REAL
