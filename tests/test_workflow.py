@@ -73,7 +73,7 @@ class PullRequestTriggerTests(unittest.TestCase):
         """Each operational job's `if:` must require github.event_name to be
         'schedule' or 'workflow_dispatch' - a pull_request event can never
         make any branch of these conditions true."""
-        for job_name in ("backtest", "forecast", "sample_kitesailing", "learn",
+        for job_name in ("backtest", "forecast", "learn",
                          "sync_historical_data", "station_research"):
             job = _job_block(self.text, job_name)
             if_line = re.search(r"if:.*?(?=\n  \w|\n    \w+:|\Z)", job, re.DOTALL)
@@ -153,10 +153,16 @@ class ForecastJobArchivesStationDataTests(unittest.TestCase):
     def setUp(self):
         self.job = _job_block(_read(WORKFLOW_PATH), "forecast")
 
-    def test_syncs_historical_data_before_forecast(self):
-        sync_pos = self.job.index("historical_data.py sync")
+    def test_runs_lightweight_nowcast_before_forecast_not_full_historical_sync(self):
+        # station_nowcast.py (recent-tail only) runs before forecast_and_log.py;
+        # the full historical_data.py sync must NOT run in this job at all -
+        # that would re-download/re-normalize years of station history on
+        # every forecast run, which is exactly what station_nowcast.py exists
+        # to avoid (see station_nowcast.py's own docstring).
+        nowcast_pos = self.job.index("python station_nowcast.py")
         forecast_pos = self.job.index("python forecast_and_log.py")
-        self.assertLess(sync_pos, forecast_pos)
+        self.assertLess(nowcast_pos, forecast_pos)
+        self.assertNotIn("historical_data.py sync", self.job)
 
     def test_commits_forecast_vintages_and_issuance_log(self):
         git_add_block = _git_add_block(self.job)
@@ -238,6 +244,109 @@ class WorkflowDispatchInputsTests(unittest.TestCase):
     def test_run_station_analysis_input_declared(self):
         text = _read(WORKFLOW_PATH)
         self.assertIn("run_station_analysis:", text)
+
+
+class MainWorkflowNoLongerSamplesKitesailingTests(unittest.TestCase):
+    """Part 8/9: the kitesailing sample loop was extracted out of
+    wingcheck.yml entirely into its own workflow file with its own
+    concurrency group - main workflow must not retain any trace of the
+    old inline 15-minute sampling job."""
+
+    def setUp(self):
+        self.text = _read(WORKFLOW_PATH)
+
+    def test_no_sample_kitesailing_job(self):
+        self.assertNotRegex(self.text, r"^  sample_kitesailing:", re.MULTILINE)
+
+    def test_no_fifteen_minute_kitesailing_cron(self):
+        self.assertNotIn("*/15 3-19 * * *", self.text)
+
+    def test_concurrency_group_renamed_operational(self):
+        block = re.search(r"^concurrency:\n(.*?)^jobs:", self.text, re.MULTILINE | re.DOTALL).group(1)
+        self.assertIn("wingcheck-operational-", block)
+
+
+SAMPLER_WORKFLOW_PATH = os.path.join(REPO_ROOT, ".github", "workflows", "kitesailing-sampler.yml")
+SAMPLER_COPY_ME_PATH = os.path.join(REPO_ROOT, "COPY-ME_kitesailing-sampler.yml")
+
+
+class KitesailingSamplerWorkflowTests(unittest.TestCase):
+    """Part 8/9: the extracted lake-sampler workflow - separate concurrency
+    group from the main operational workflow, no pull_request trigger at
+    all (so a PR event can never run it), always-commit-then-fail-visibly
+    ordering, and failure-artifact upload wired to the sample step's own
+    outcome."""
+
+    def setUp(self):
+        self.text = _read(SAMPLER_WORKFLOW_PATH)
+
+    def test_file_exists(self):
+        self.assertTrue(os.path.exists(SAMPLER_WORKFLOW_PATH))
+
+    def test_no_pull_request_trigger(self):
+        on_block = re.search(r"^on:\n(.*?)^concurrency:", self.text, re.MULTILINE | re.DOTALL).group(1)
+        self.assertNotIn("pull_request", on_block)
+
+    def test_has_schedule_and_workflow_dispatch_triggers(self):
+        on_block = re.search(r"^on:\n(.*?)^concurrency:", self.text, re.MULTILINE | re.DOTALL).group(1)
+        self.assertIn("schedule:", on_block)
+        self.assertIn("workflow_dispatch:", on_block)
+
+    def test_concurrency_group_is_separate_from_main_workflow_and_cancels_in_progress(self):
+        block = re.search(r"^concurrency:\n(.*?)^jobs:", self.text, re.MULTILINE | re.DOTALL).group(1)
+        self.assertIn("kitesailing-sampler", block)
+        self.assertNotIn("wingcheck-operational", block)
+        self.assertNotIn("github.ref", block)  # single global group, not per-branch
+        self.assertIn("cancel-in-progress: true", block)
+
+    def test_sample_step_continues_on_error_so_commit_step_still_runs(self):
+        sample_step = self.text[self.text.index("id: sample"):]
+        self.assertIn("continue-on-error: true", sample_step.splitlines()[2])
+
+    def test_commit_step_runs_always_and_before_the_failure_check(self):
+        commit_pos = self.text.index("Commit observation and health log")
+        commit_if_line = self.text.splitlines()[self.text[:commit_pos].count("\n") + 1]
+        self.assertIn("if: always()", commit_if_line)
+        fail_pos = self.text.index("Fail the job visibly")
+        self.assertLess(commit_pos, fail_pos)
+
+    def test_commit_step_stages_observation_and_health_log(self):
+        commit_section = self.text[self.text.index("Commit observation and health log"):]
+        git_add_line = next(l for l in commit_section.splitlines() if l.strip().startswith("git add"))
+        self.assertIn("logs/kitesailing_observations.jsonl", git_add_line)
+        self.assertIn("logs/kitesailing_ingestion_health.jsonl", git_add_line)
+
+    def test_never_writes_a_fake_observation_on_failure(self):
+        # The workflow itself has no fallback-observation logic - it only
+        # ever commits whatever kitesailing_weather.py's own attempt_reading()
+        # wrote (which never fabricates a reading on failure - see that
+        # module's tests). Guard against a future regression reintroducing
+        # a synthetic/fallback write directly in the workflow YAML.
+        for forbidden in ("fallback", "synthetic", "placeholder_reading"):
+            self.assertNotIn(forbidden, self.text.lower())
+
+    def test_upload_artifact_gated_on_sample_step_failure_only(self):
+        upload_section = self.text[self.text.index("Upload failure artifacts"):]
+        if_line = next(l for l in upload_section.splitlines() if l.strip().startswith("if:"))
+        self.assertIn("steps.sample.outcome == 'failure'", if_line)
+
+    def test_fail_job_step_gated_on_sample_step_failure_only(self):
+        fail_section = self.text[self.text.index("Fail the job visibly"):]
+        if_line = next(l for l in fail_section.splitlines() if l.strip().startswith("if:"))
+        self.assertIn("steps.sample.outcome == 'failure'", if_line)
+
+    def test_no_secrets_referenced(self):
+        # This workflow never needs Telegram credentials - it only scrapes
+        # and commits, unlike forecast_and_log.py's job in the main workflow.
+        for forbidden in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+            self.assertNotIn(forbidden, self.text)
+
+
+class SamplerCopyMeSyncTests(unittest.TestCase):
+    def test_copy_me_sampler_workflow_matches_real_workflow(self):
+        self.assertTrue(os.path.exists(SAMPLER_COPY_ME_PATH),
+                         "COPY-ME_kitesailing-sampler.yml is missing")
+        self.assertEqual(_read(SAMPLER_WORKFLOW_PATH), _read(SAMPLER_COPY_ME_PATH))
 
 
 if __name__ == "__main__":
