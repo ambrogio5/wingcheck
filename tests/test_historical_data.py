@@ -166,10 +166,44 @@ class SyncIntegrationTests(unittest.TestCase):
         results = hd.sync(["not_a_real_station"])
         self.assertEqual(results["not_a_real_station"]["status"], "unknown_station")
 
-    def test_not_enabled_station_is_skipped(self):
+    def test_default_sync_skips_not_enabled_stations(self):
+        # station_ids=None (the default, used by the scheduled job) must
+        # never attempt a live fetch for a disabled station - it isn't
+        # even included in the default id list, so it never appears in
+        # the results at all. Only an operator explicitly naming a
+        # candidate opts into probing it (see the next test).
+        sr.load_registry = lambda path=None: {
+            "sam": _fake_station("sam"),
+            "cor": _fake_station("cor", enabled=False, verification="unverified"),
+        }
+        results = hd.sync(None)
+        self.assertIn("sam", results)
+        self.assertNotIn("cor", results)
+
+    def test_explicitly_named_not_enabled_station_is_probed(self):
+        # `sync --station <id>` for a not-yet-enabled candidate must
+        # actually attempt a fetch, so a human can inspect real data
+        # before deciding whether to confirm/enable it - this is what
+        # docs/STATION_RESEARCH.md's documented bootstrap process
+        # ("run sync --station <id>, inspect the data, then enable it by
+        # hand") depends on; without this, that process was impossible.
         sr.load_registry = lambda path=None: {"cor": _fake_station("cor", enabled=False, verification="unverified")}
+        dt = datetime(2026, 7, 1, 6, 0, tzinfo=timezone.utc)
+        hd._attempt_live_fetch = lambda station_id, full_history=False: (
+            {dt: {"wind_speed_ms": 5.0}}, "meteoswiss:cor:recent")
         results = hd.sync(["cor"])
-        self.assertEqual(results["cor"]["status"], "not_enabled")
+        self.assertEqual(results["cor"]["status"], "ok")
+        self.assertEqual(results["cor"]["added"], 1)
+
+    def test_explicitly_named_not_enabled_station_with_no_data_reports_honestly(self):
+        # If the explicit probe finds nothing (e.g. network still blocked),
+        # it must report that honestly rather than falling back to the
+        # generic "not_enabled" status, which would look like the probe
+        # never even tried.
+        sr.load_registry = lambda path=None: {"cor": _fake_station("cor", enabled=False, verification="unverified")}
+        hd._attempt_live_fetch = lambda station_id, full_history=False: ({}, None)
+        results = hd.sync(["cor"])
+        self.assertEqual(results["cor"]["status"], "no_data_available")
 
     def test_no_data_available_reported_honestly(self):
         os.remove(os.path.join(hd.RAW_CACHE_DIR, "samedan_archive.json"))

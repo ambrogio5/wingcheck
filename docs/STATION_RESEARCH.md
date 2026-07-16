@@ -102,8 +102,12 @@ displays weather.
 
 ## What would change a candidate's status
 
-1. Run `python3 historical_data.py sync --station <id>` (or `sync` with no
-   argument to attempt every registered station).
+1. Run `python3 historical_data.py sync --station <id>` - explicitly
+   naming a not-yet-enabled candidate makes `sync()` probe it for real
+   (see the "sync() bootstrap fix" note below); `sync` with no argument
+   only ever touches already-enabled stations (sam/lug/sma today), never
+   an unconfirmed candidate - that's a deliberate safety property of the
+   routine/scheduled sync, not a way to attempt every registered station.
 2. Inspect the actual returned data - `python3 historical_data.py
    coverage --station <id>` shows record count and date range.
 3. If real data came back, a human edits `config/stations.json` by hand:
@@ -113,6 +117,22 @@ displays weather.
 4. Only then may `station_analysis.py` treat features derived from that
    station as anything more than a diagnostic-only "insufficient
    coverage" result.
+
+**`sync()` bootstrap fix**: `sync()` used to refuse to attempt a live
+fetch for ANY not-yet-`enabled` station, even when explicitly named via
+`--station <id>` - which made step 1 above impossible to actually carry
+out (there was no way to get real data back for a candidate to inspect,
+since fetching was gated behind the very flag inspecting the data was
+supposed to justify flipping). Fixed: an explicitly-named station now
+bypasses that gate and gets a real fetch attempt; the default,
+no-argument `sync()` (used by the scheduled `sync_historical_data` job)
+is unaffected and still only ever touches already-enabled stations. The
+`sync_historical_data` workflow's manual dispatch also gained an optional
+`probe_station` input that runs this explicit probe in CI (a real
+network-enabled environment, unlike the sandbox this branch was
+originally developed in) and commits only the resulting coverage
+manifest entry - never `enabled`/`verification` themselves, which still
+require a human to edit by hand after inspecting the result.
 
 ## Feature-promotion prohibition (this PR)
 
