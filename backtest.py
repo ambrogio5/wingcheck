@@ -23,8 +23,14 @@ Seasons covered: May-October, for 2024, 2025, and 2026 (up to today) -
 i.e. wingfoil season only, matching how you'd actually use this.
 
 Steps:
-  1. Fetch weather + SAM obs for each season.
-  2. Build one labeled sample per afternoon hour (15-18h) per day.
+  1. Fetch weather + SAM obs for each season - via historical_cache.py,
+     which persists the raw pulls under logs/raw_cache/ so a closed season
+     (2024, 2025) never needs re-fetching and the open season (2026) only
+     refetches once per calendar day. This step alone took ~14 minutes on
+     an empty cache (2026-07-16); it's the reason to always go through the
+     cache rather than calling features.fetch_raw_historical directly.
+  2. Build one labeled sample per afternoon hour (WINDOW_START_HOUR to
+     WINDOW_END_HOUR) per day.
   3. Chronological split: train on 2024+2025, hold out 2026 to see how the
      model would have done on data it never trained on.
   4. Train (multiple epochs of online gradient descent over the training set).
@@ -32,6 +38,15 @@ Steps:
      weights you deploy live use everything available.
   6. Write logs/backtest_dataset.jsonl (full sample set) and
      docs/dashboard_data.json (summary for the dashboard).
+
+NOTE on the window: WINDOW_START_HOUR was briefly narrowed to 15 (from 12)
+on the theory that hours 12-14 were just noise. The 2026-07-16 backtest
+disproved that empirically - full-model AUC on the 2026 holdout DROPPED
+from 0.750 (12-18h) to 0.683 (15-18h), because hours 12-14 have a low
+positive rate (~25-49%) and were easy, highly-separable true negatives
+that boosted overall discriminative power. Restricting to 15-18h left a
+smaller, more homogeneous, harder-to-classify population. Reverted back
+to 12-18h - don't re-narrow this without backtest evidence it actually helps.
 """
 
 import json
@@ -41,13 +56,13 @@ import sys
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from features import fetch_raw_historical, engineer_features
-from meteoswiss import fetch_sam_hourly_observations, SAM_PROXY_KT
+from features import engineer_features
+from historical_cache import get_season_raw, get_samedan_archive
+from meteoswiss import SAM_PROXY_KT
 from model import load_weights, save_weights, score
 
-WINDOW_START_HOUR = 15  # keep in sync with forecast_and_log.py - narrowed
-WINDOW_END_HOUR = 18    # from 12 since 12-14 sit near the base rate (thermal
-                        # hasn't kicked in) and add mostly noise, not signal
+WINDOW_START_HOUR = 12  # reverted from 15 - see the docstring note above
+WINDOW_END_HOUR = 18
 MARGINAL_KT = 10
 LEARNING_RATE = 0.05
 EPOCHS = 40
@@ -69,9 +84,8 @@ def kt(kmh: float) -> float:
     return kmh / 1.852
 
 
-def build_samples_for_season(start_date, end_date, year, sam_obs):
-    print(f"Fetching {start_date} to {end_date}...")
-    raw = fetch_raw_historical(start_date, end_date)
+def build_samples_for_season(start_date, end_date, year, sam_obs, is_closed):
+    raw = get_season_raw(start_date, end_date, year, is_closed)
     # fetch_raw_historical doesn't fetch Samedan itself (would re-download
     # the whole multi-year archive per season) - inject the copy we already
     # have, so engineer_features' samedan_morning_score can look it up.
@@ -169,16 +183,18 @@ def monthly_breakdown(samples):
 
 def main():
     print("Fetching MeteoSwiss Samedan ground truth (historical + recent)...")
-    sam_obs = fetch_sam_hourly_observations(include_historical=True)
+    sam_obs = get_samedan_archive()
     print(f"  -> {len(sam_obs)} hourly observations available")
 
+    today_str = datetime.now().strftime("%Y-%m-%d")
     all_samples = {}
     for start, end, year in SEASONS:
         if end < start:
             print(f"Skipping {year}: season hasn't started yet ({start} > {end}).")
             all_samples[year] = []
             continue
-        all_samples[year] = build_samples_for_season(start, end, year, sam_obs)
+        is_closed = end != today_str
+        all_samples[year] = build_samples_for_season(start, end, year, sam_obs, is_closed)
 
     os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)

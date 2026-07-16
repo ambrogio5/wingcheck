@@ -20,9 +20,9 @@ from datetime import datetime, timezone
 from features import fetch_raw, engineer_features, raw_snapshot
 from model import score, load_weights
 
-WINDOW_START_HOUR = 15  # narrowed from 12: hours 12-14 sit near the base
-WINDOW_END_HOUR = 18    # rate (thermal hasn't kicked in yet) and are barely
-                        # more predictable than a coin flip - see backtest.py
+WINDOW_START_HOUR = 12  # reverted from a brief narrowing to 15 - backtest.py's
+WINDOW_END_HOUR = 18    # docstring has the evidence: narrowing dropped
+                        # holdout AUC from 0.750 to 0.683, it didn't help
 MARGINAL_KT = 10
 GOOD_KT = 13
 
@@ -97,7 +97,7 @@ def format_message(results):
     marginal = [r for r in results if r["tier"] == "MARGINAL"]
 
     if not good and not marginal:
-        return "🌬️ *Silvaplana*: nessun segnale di Maloja wind nei prossimi giorni (finestra 15-18h)."
+        return "🌬️ *Silvaplana*: nessun segnale di Maloja wind nei prossimi giorni (finestra 12-18h)."
 
     lines = ["🪁 *Silvaplana - previsione Maloja wind*"]
     if good:

@@ -39,7 +39,7 @@ is genuinely adding signal.
 ### 5. Done
 From here it runs itself:
 - **07:00 & 10:00 CEST** — forecast + Telegram alert, predictions logged
-- **every 15 min, 14:00–18:59 CEST** — scrapes the kitesailing.ch Silvaplana
+- **every 15 min, 11:00–18:59 CEST** — scrapes the kitesailing.ch Silvaplana
   reading into `logs/kitesailing_observations.jsonl`
 - **20:00 CEST** — verifies past predictions against the real Silvaplana
   reading (Samedan as fallback), updates the model weights, refreshes the
@@ -69,10 +69,11 @@ From here it runs itself:
 | `forecast_and_log.py` | Daily forecast + Telegram + prediction log |
 | `verify_and_learn.py` | Checks predictions vs reality, updates weights |
 | `backtest.py` | One-shot historical training (2024–2026, Samedan-labeled) |
+| `historical_cache.py` | Caches backtest.py's raw fetches so retrains don't re-pull the same history |
 | `refresh_dashboard.py` | Nightly dashboard data rebuild |
 | `weights.json` | Current model weights (auto-updated) |
 | `docs/` | Dashboard (GitHub Pages) |
-| `logs/` | Prediction log, backtest dataset, kitesailing observations (auto-committed) |
+| `logs/` | Prediction log, backtest dataset, kitesailing observations, raw data cache (auto-committed) |
 
 ## Known limitations
 
