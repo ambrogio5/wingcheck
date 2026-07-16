@@ -283,11 +283,25 @@ def _normalize_for_station(station, obs, source_asset, retrieved_at):
 
 def sync(station_ids=None):
     """Refreshes the archive for the given (or all enabled) stations.
-    Idempotent: re-running with nothing new reports added=0. Returns a
-    per-station result dict."""
+    Idempotent: re-running with nothing new reports added=0.
+
+    An EXPLICITLY named station_id (station_ids not None, e.g. `--station
+    cov`) is probed even if it is not yet `enabled` - this is what makes
+    docs/STATION_RESEARCH.md's documented bootstrap process possible
+    ("run sync --station <id>, inspect the real data that comes back,
+    then a human edits config/stations.json to confirm/enable it"):
+    without this, that process was previously impossible, since a
+    not-yet-enabled station could never get real data pulled for
+    inspection in the first place. The DEFAULT sync (station_ids=None,
+    used by the scheduled daily job) is unaffected - it still only ever
+    touches already-enabled stations, so the routine automated sync can
+    never silently spend time/bandwidth probing every unconfirmed
+    candidate in the registry; only an operator explicitly naming a
+    candidate opts into that. Returns a per-station result dict."""
     os.makedirs(STATION_HOURLY_DIR, exist_ok=True)
     os.makedirs(MANIFEST_DIR, exist_ok=True)
     registry = station_registry.load_registry()
+    explicitly_requested = station_ids is not None
     ids = station_ids or station_registry.enabled_station_ids(registry)
 
     results = {}
@@ -297,7 +311,7 @@ def sync(station_ids=None):
         if station is None:
             results[station_id] = {"status": "unknown_station", "added": 0, "total": 0}
             continue
-        if not station.enabled:
+        if not station.enabled and not explicitly_requested:
             results[station_id] = {"status": "not_enabled", "added": 0, "total": 0}
             continue
 

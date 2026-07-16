@@ -196,6 +196,23 @@ class SyncHistoricalDataJobTests(unittest.TestCase):
         for forbidden in ("weights.json", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "backtest.py"):
             self.assertNotIn(forbidden, self.job)
 
+    def test_probe_station_step_runs_after_plain_sync_and_before_commit(self):
+        # The optional single-candidate probe (--station <id>) must run
+        # after the routine sync (so it doesn't change the routine sync's
+        # own behavior) and before the commit step (so its result, if any,
+        # is reflected in the committed coverage manifest).
+        plain_sync_pos = self.job.index("historical_data.py sync\n") \
+            if "historical_data.py sync\n" in self.job else self.job.index("run: python historical_data.py sync")
+        probe_pos = self.job.index("historical_data.py sync --station")
+        commit_pos = self.job.index("git add")
+        self.assertLess(plain_sync_pos, probe_pos)
+        self.assertLess(probe_pos, commit_pos)
+
+    def test_probe_station_step_gated_on_its_own_input(self):
+        probe_section = self.job[self.job.index("Probe one not-yet-enabled candidate station"):]
+        if_line = next(l for l in probe_section.splitlines() if l.strip().startswith("if:"))
+        self.assertIn("inputs.probe_station", if_line)
+
 
 class StationResearchJobTests(unittest.TestCase):
     """station_research runs station_analysis.py's fixed family comparisons

@@ -95,6 +95,10 @@ on:
         description: "Sync the historical station archive (historical_data.py sync)"
         type: boolean
         default: false
+      probe_station:
+        description: "Optional: also explicitly probe one not-yet-enabled candidate station (e.g. 'cov') for real data - requires sync_historical_data above to also be ticked. Read-only bootstrap check per docs/STATION_RESEARCH.md; never flips enabled/verification itself."
+        type: string
+        default: ""
       run_station_analysis:
         description: "Run station_analysis.py's fixed family comparisons and refresh docs/research.html (never touches weights.json, never promotes a feature)"
         type: boolean
@@ -215,6 +219,9 @@ jobs:
       - run: pip install requests
       - run: python -m unittest discover -s tests
       - run: python historical_data.py sync
+      - name: Probe one not-yet-enabled candidate station (optional, read-only bootstrap check)
+        if: inputs.probe_station != ''
+        run: python historical_data.py sync --station "${{ inputs.probe_station }}"
       - run: python historical_data.py validate || true  # diagnostic - flags issues, never blocks the commit
       - name: Commit historical archive manifests
         run: |
