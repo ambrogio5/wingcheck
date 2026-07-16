@@ -31,7 +31,7 @@ class LoadStationInputsTests(unittest.TestCase):
         orig = hd.STATION_HOURLY_DIR
         hd.STATION_HOURLY_DIR = "/nonexistent/station_hourly"
         try:
-            feats, ages = fal._load_station_inputs("2026-07-16", "07:00")
+            feats, ages, _records = fal._load_station_inputs("2026-07-16", "07:00")
             # every enabled station is attempted, but with no data on disk
             # each should report missing_indicator=1.0, not crash.
             for f in feats.values():
@@ -44,7 +44,7 @@ class LoadStationInputsTests(unittest.TestCase):
         orig = sr.load_registry
         sr.load_registry = lambda path=None: (_ for _ in ()).throw(RuntimeError("simulated failure"))
         try:
-            feats, ages = fal._load_station_inputs("2026-07-16", "07:00")
+            feats, ages, _records = fal._load_station_inputs("2026-07-16", "07:00")
             self.assertEqual(feats, {})
             self.assertEqual(ages, {})
         finally:
@@ -52,8 +52,12 @@ class LoadStationInputsTests(unittest.TestCase):
 
 
 class BuildDiagnosticsTests(unittest.TestCase):
+    def setUp(self):
+        import station_registry as sr
+        self.registry = sr.load_registry()
+
     def test_returns_all_seven_diagnostic_families(self):
-        diagnostics = fal._build_diagnostics({}, forecast_pressure_signal=0.1)
+        diagnostics = fal._build_diagnostics({}, self.registry, forecast_pressure_signal=0.1)
         expected = {"source_heating", "pass_activation", "summit_support", "radiation_support",
                     "pressure_support", "competing_flow", "data_health"}
         self.assertEqual(set(diagnostics.keys()), expected)
@@ -63,8 +67,18 @@ class BuildDiagnosticsTests(unittest.TestCase):
             "lug": {"missing_indicator": 0.0, "pressure_latest": 1018.0},
             "sma": {"missing_indicator": 0.0, "pressure_latest": 1013.0},
         }
-        diagnostics = fal._build_diagnostics(station_feats, forecast_pressure_signal=0.2)
+        diagnostics = fal._build_diagnostics(station_feats, self.registry, forecast_pressure_signal=0.2)
         self.assertFalse(diagnostics["pressure_support"]["missing"])
+
+    def test_summit_role_reaches_summit_support_when_cov_present(self):
+        station_feats = {"cov": {"missing_indicator": 0.0, "latest_wind_speed": 6.0, "wind_u": 3.2, "wind_v": 3.8}}
+        diagnostics = fal._build_diagnostics(station_feats, self.registry, forecast_pressure_signal=None)
+        self.assertNotEqual(diagnostics["summit_support"]["status"], "missing")
+        self.assertEqual(diagnostics["summit_support"]["source_station"], "cov")
+
+    def test_missing_summit_role_reports_missing(self):
+        diagnostics = fal._build_diagnostics({}, self.registry, forecast_pressure_signal=None)
+        self.assertEqual(diagnostics["summit_support"]["status"], "missing")
 
 
 class LogIssuanceTests(unittest.TestCase):

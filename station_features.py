@@ -207,3 +207,42 @@ def generate_all_station_features(records_by_station: dict, target_date: str, cu
         delay = station.reporting_delay_minutes if station else 0
         out[sid] = generate_station_features(records, target_date, cutoff, delay)
     return out
+
+
+# --- Role aggregation (replaces the old, never-populated "_source_region"/
+# "_pass"/"_summit" magic keys some diagnostics code used to look up) ---
+
+def group_station_features_by_role(station_features_by_id: dict, registry: dict) -> dict:
+    """Groups per-station feature dicts by the roles declared in
+    station_registry.py's config/stations.json (source_region, pass,
+    target_region, down_valley, summit, synoptic_pressure,
+    competing_flow, ground_truth). Each role maps to
+    {station_id: feature_dict} - individual station values and their
+    provenance are always retained; this NEVER blends different stations'
+    (or different physical quantities') values into one averaged number.
+    A role with no enabled station, or no usable features for the
+    stations it has, is simply absent from the returned dict - callers
+    must handle a missing key explicitly rather than assuming every role
+    is always present."""
+    grouped = {}
+    for sid, feats in station_features_by_id.items():
+        station = registry.get(sid)
+        if station is None:
+            continue
+        for role in station.roles:
+            grouped.setdefault(role, {})[sid] = feats
+    return grouped
+
+
+def first_station_in_role(role_group: dict):
+    """Convenience for diagnostics that today only ever see at most one
+    real station in a given role (e.g. summit currently means just cov):
+    returns (station_id, feats) for the alphabetically-first station in
+    the group, or (None, {}) if the role is missing/empty. Once a role
+    genuinely has multiple confirmed stations, a caller that cares about
+    all of them should iterate role_group.items() directly instead of
+    calling this."""
+    if not role_group:
+        return None, {}
+    sid = sorted(role_group)[0]
+    return sid, role_group[sid]

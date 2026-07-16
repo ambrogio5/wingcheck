@@ -122,6 +122,26 @@ def normalize_pressure_observations(station, obs: dict, source_asset: str, retri
     return records
 
 
+def normalize_generic_observations(station, obs: dict, source_asset: str, retrieved_at: str) -> list:
+    """obs: {datetime_utc: {normalized_field_name: value}} - already in
+    NORMALIZED_FIELDS units (meteoswiss.parse_generic_station_csv() does
+    the km/h->m/s conversion itself, unlike the role-specific parsers
+    which hand back raw km/h for normalize_wind_observations to convert).
+    Used for any station beyond the original sam/lug/sma (cov and any
+    future addition) via meteoswiss.fetch_station_observations()."""
+    records = []
+    for dt_utc, vals in obs.items():
+        rec = _blank_record(station, dt_utc, source_asset, retrieved_at)
+        for field, value in vals.items():
+            if field in rec:
+                rec[field] = value
+        if rec.get("wind_speed_ms") is not None and rec.get("wind_gust_ms") is not None \
+                and rec["wind_gust_ms"] < rec["wind_speed_ms"]:
+            rec["quality_flags"].append("gust_less_than_speed")
+        records.append(rec)
+    return records
+
+
 def _checksum(obj) -> str:
     blob = json.dumps(obj, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
@@ -177,17 +197,39 @@ def append_asset_manifest_entry(entry: dict):
         f.write(json.dumps(entry) + "\n")
 
 
+_ROLE_SPECIFIC_PARSER_STATIONS = ("sam", "lug", "sma")  # the three original role-specific parsers
+
+
+def _parser_kind_for(station_id: str) -> str:
+    """Which historical_data.py normalizer applies. 'sam' and 'lug'/'sma'
+    keep their original role-specific parsers (unchanged, still tested);
+    every other station (cov and any future addition) goes through the
+    generic multi-variable MeteoSwiss parser added in meteoswiss.py."""
+    if station_id == "sam":
+        return "wind"
+    if station_id in ("lug", "sma"):
+        return "pressure"
+    return "generic"
+
+
+def _generic_raw_cache_path(station_id: str) -> str:
+    return os.path.join(RAW_CACHE_DIR, f"generic_{station_id}.json")
+
+
 def _ingest_from_raw_cache(station_id: str):
     """Reads the already-committed logs/raw_cache/*.json files directly
-    (no network) - the same data backtest.py already trusts. Returns
+    (no network) - the same data backtest.py already trusts, or (for a
+    generic station like cov) a compact recent-sample fixture at
+    logs/raw_cache/generic_<station_id>.json. Returns
     (obs_dict, source_asset_description) or (None, None) if no cache file
     exists for this station."""
-    if station_id == "sam":
+    kind = _parser_kind_for(station_id)
+    if kind == "wind":
         path = os.path.join(RAW_CACHE_DIR, "samedan_archive.json")
-    elif station_id in ("lug", "sma"):
+    elif kind == "pressure":
         path = os.path.join(RAW_CACHE_DIR, f"pressure_{station_id}.json")
     else:
-        return None, None
+        path = _generic_raw_cache_path(station_id)
     if not os.path.exists(path):
         return None, None
     with open(path) as f:
@@ -196,29 +238,47 @@ def _ingest_from_raw_cache(station_id: str):
     return obs, f"logs/raw_cache/{os.path.basename(path)}"
 
 
-def _attempt_live_fetch(station_id: str):
-    """Best-effort real network fetch for the station's *recent* tail only
-    (fast path - full historical re-discovery is already covered by the
-    raw_cache ingestion above). Returns (obs_dict, source_asset) or
-    ({}, None) on ANY failure - never raises, since this repo must keep
-    working in network-restricted environments."""
+def _attempt_live_fetch(station_id: str, full_history: bool = False):
+    """Best-effort real network fetch. For 'wind'/'pressure' stations
+    (sam/lug/sma) this is always just the *recent* tail - their full
+    historical population comes from logs/raw_cache/ via
+    historical_cache.py/backtest.py, a separate mechanism. For a 'generic'
+    station (cov and any future addition) with NO existing local archive
+    yet, `full_history=True` triggers a genuine first-time STAC discovery
+    + fetch of every historical hourly file (mirrors what
+    meteoswiss._fetch_station_observations already does for sam/lug/sma
+    when include_historical=True) - this is what lets sync() "confirm the
+    actual archive start" rather than assuming it. Every later sync() call
+    for that same station passes full_history=False (fast recent-only
+    tail), since the expensive discovery only needs to happen once.
+    Returns (obs_dict, source_asset) or ({}, None) on ANY failure - never
+    raises, since this repo must keep working in network-restricted
+    environments."""
+    kind = _parser_kind_for(station_id)
     try:
         import meteoswiss
-        if station_id == "sam":
+        if kind == "wind":
             obs = meteoswiss.fetch_sam_hourly_observations(include_historical=False)
             return obs, "meteoswiss:sam:recent"
-        if station_id in ("lug", "sma"):
+        if kind == "pressure":
             obs = meteoswiss.fetch_pressure_observations(station_id, include_historical=False)
             return obs, f"meteoswiss:{station_id}:recent"
+        # generic path (cov and any future station)
+        result = meteoswiss.fetch_station_observations(station_id, include_historical=full_history)
+        source_label = f"meteoswiss:{station_id}:{'historical_discovery' if full_history else 'recent'}"
+        return result["observations"], source_label
     except Exception as e:
         print(f"  [live-fetch] {station_id}: best-effort fetch failed ({e}); continuing without it")
     return {}, None
 
 
 def _normalize_for_station(station, obs, source_asset, retrieved_at):
-    if "wind_speed_ms" in station.available_variables or station.station_id == "sam":
+    kind = _parser_kind_for(station.station_id)
+    if kind == "wind":
         return normalize_wind_observations(station, obs, source_asset, retrieved_at)
-    return normalize_pressure_observations(station, obs, source_asset, retrieved_at)
+    if kind == "pressure":
+        return normalize_pressure_observations(station, obs, source_asset, retrieved_at)
+    return normalize_generic_observations(station, obs, source_asset, retrieved_at)
 
 
 def sync(station_ids=None):
@@ -254,7 +314,15 @@ def sync(station_ids=None):
                 "retrieved_at": retrieved_at, "n_records": len(cache_obs),
             })
 
-        live_obs, live_source = _attempt_live_fetch(station_id)
+        # A generic station (cov, or any future addition) with no local
+        # archive AND no raw_cache fixture yet gets one genuine full
+        # historical discovery+fetch attempt here - this is what lets a
+        # first sync "confirm the actual archive start" for a brand-new
+        # station rather than assuming it. Every later sync is recent-only.
+        is_first_sync_for_generic_station = (
+            _parser_kind_for(station_id) == "generic" and not existing and not cache_obs
+        )
+        live_obs, live_source = _attempt_live_fetch(station_id, full_history=is_first_sync_for_generic_station)
         if live_obs:
             recs = _normalize_for_station(station, live_obs, live_source, retrieved_at)
             new_records.extend(recs)

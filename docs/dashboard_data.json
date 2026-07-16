@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T20:39:56.830600+00:00",
+  "generated_at": "2026-07-16T20:51:06.051937+00:00",
   "total_samples": 3111,
   "samples_per_year": {
     "2024": 1288,
@@ -22387,5 +22387,23 @@
   "session_forecast": {},
   "station_health": {},
   "model_agreement": {},
-  "data_provenance": {}
+  "data_provenance": {},
+  "lake_station_health": {
+    "last_attempt_at": "2026-07-16T20:15:05.269282+00:00",
+    "last_success_at": null,
+    "last_observation_at": "2026-07-16T20:14:47.744093+00:00",
+    "age_minutes": 36.3,
+    "observations_today": 2,
+    "successful_attempts_today": 0,
+    "failed_attempts_today": 1,
+    "coverage_12_18": 0.0,
+    "consecutive_failures": 1,
+    "status": "degraded"
+  },
+  "summit_station_health": {},
+  "verification_sources": {
+    "silvaplana_lake_count": 0,
+    "samedan_fallback_count": 0,
+    "lake_coverage_pct": null
+  }
 }

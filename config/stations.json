@@ -54,21 +54,21 @@
       "notes": "Northern term of the same pressure-gradient signal. pp0qffh0 confirmed against the live API."
     },
     {
-      "station_id": "cor",
-      "name": "Corvatsch (summit)",
+      "station_id": "cov",
+      "name": "Piz Corvatsch",
       "provider": "meteoswiss",
-      "latitude": 46.4145,
-      "longitude": 9.8215,
-      "elevation_m": 3315,
-      "roles": ["summit"],
-      "available_variables": ["wind_speed_ms", "wind_gust_ms", "wind_direction_deg", "temperature_c"],
+      "latitude": null,
+      "longitude": null,
+      "elevation_m": null,
+      "roles": ["summit", "competing_flow"],
+      "available_variables": [],
       "historical_available": null,
       "live_available": null,
-      "licence": "unknown - presumed MeteoSwiss Open Data if it is a full SwissMetNet member",
-      "reporting_delay_minutes": null,
+      "licence": "MeteoSwiss Open Data (opendata.swiss terms of use) - Piz Corvatsch (official abbreviation COV) is a confirmed official MeteoSwiss automatic station",
+      "reporting_delay_minutes": 15,
       "enabled": false,
       "verification": "unverified",
-      "notes": "Cable-car-served summit station used for avalanche/ski operations. Whether it is a full SwissMetNet station (vs. SLF/IMIS-only or ski-operator-only) is unconfirmed - proposed station code, not verified against a live fetch."
+      "notes": "IDENTITY CONFIRMED (unlike every other 'unverified' entry in this registry): Piz Corvatsch is an official MeteoSwiss automatic station, official abbreviation COV - this is given, authoritative information, not a guess. What remains unverified is the EXACT metadata (latitude/longitude/elevation/available_variables) and a real successful data fetch in THIS repo's own environment - both were attempted this session (meteoswiss.fetch_station_metadata('cov') and meteoswiss.fetch_station_observations('cov')) and blocked by the sandbox's network policy (same 403 ProxyError documented elsewhere in this file's history for sam/lug/sma). elevation_m is intentionally left null rather than filled with the task-supplied approximate range (~3294-3297m) - see docs/DATA_ARCHITECTURE.md's Corvatsch section for that approximate figure and why it's not written into this schema. reporting_delay_minutes=15 is a conservative (safety-direction) unmeasured default, slightly more cautious than sam/lug/sma's measured 10, pending real measurement. A network-enabled `historical_data.py sync --station cov` run must complete verification (real metadata + real data) before flipping verification to 'confirmed' and enabled to true - see docs/STATION_RESEARCH.md."
     },
     {
       "station_id": "piz_nair",

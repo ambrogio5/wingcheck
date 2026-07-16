@@ -276,6 +276,18 @@
     <div class="stat-row" id="stationHealthRow" style="margin-top:14px;"></div>
   </section>
 
+  <!-- ================= DATA INGESTION HEALTH (always shown - operational) ================= -->
+  <section class="card" aria-labelledby="ingestion-h">
+    <div class="section-head"><h2 id="ingestion-h">Station data health</h2>
+      <div class="hint">Operational - sampler and station ingestion status</div></div>
+    <div class="summary-day-head">Lake sampler (kitesailing.ch, primary ground truth)</div>
+    <div class="stat-row" id="lakeHealthRow"></div>
+    <div class="summary-day-head" style="margin-top:14px;">Summit stations</div>
+    <div id="summitHealthRow"><div class="empty-state">No summit station data yet.</div></div>
+    <div class="summary-day-head" style="margin-top:14px;">Ground-truth source mix (verified predictions)</div>
+    <div class="stat-row" id="verificationSourcesRow"></div>
+  </section>
+
   <!-- ================= LIVE PERFORMANCE ================= -->
   <section class="card" aria-labelledby="live-h">
     <div class="section-head">
@@ -619,6 +631,45 @@ function renderSessionOutlook(d){
   ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
 }
 
+function renderIngestionHealth(d){
+  const lake = d.lake_station_health || {};
+  const lakeRow = document.getElementById('lakeHealthRow');
+  const fmtAge = m => m==null ? '—' : (m < 60 ? Math.round(m)+' min' : (m/60).toFixed(1)+' h');
+  lakeRow.innerHTML = [
+    ['Status', lake.status || '—'],
+    ['Last observation', fmtAge(lake.age_minutes)+' ago'],
+    ['Observations today', lake.observations_today ?? '—'],
+    ['Failed attempts today', lake.failed_attempts_today ?? '—'],
+    ['12:00-18:00 coverage', lake.coverage_12_18!=null ? Math.round(lake.coverage_12_18*100)+'%' : '—'],
+    ['Consecutive failures', lake.consecutive_failures ?? '—'],
+  ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+
+  const summit = d.summit_station_health || {};
+  const summitEl = document.getElementById('summitHealthRow');
+  const summitIds = Object.keys(summit);
+  if (!summitIds.length){
+    summitEl.innerHTML = '<div class="empty-state">No summit station data yet.</div>';
+  } else {
+    summitEl.innerHTML = `<div class="table-wrap"><table class="metrics-table"><thead><tr><th>Station</th><th>Wind</th><th>Gust</th><th>Direction</th>
+      <th>Temp</th><th>Coverage</th><th>Age</th></tr></thead><tbody>` +
+      summitIds.map(sid=>{
+        const s = summit[sid];
+        return `<tr><td>${sid.toUpperCase()}</td><td>${s.wind_speed!=null?s.wind_speed.toFixed(1)+' m/s':'—'}</td>
+          <td>${s.gust!=null?s.gust.toFixed(1)+' m/s':'—'}</td><td>${s.direction!=null?Math.round(s.direction)+'°':'—'}</td>
+          <td>${s.temperature!=null?s.temperature.toFixed(1)+'°C':'—'}</td>
+          <td>${s.coverage!=null?Math.round(s.coverage*100)+'%':'—'}</td><td>${fmtAge(s.age_minutes)}</td></tr>`;
+      }).join('') + `</tbody></table></div>`;
+  }
+
+  const vs = d.verification_sources || {};
+  const vsRow = document.getElementById('verificationSourcesRow');
+  vsRow.innerHTML = [
+    ['Silvaplana lake readings', vs.silvaplana_lake_count ?? 0],
+    ['Samedan fallback readings', vs.samedan_fallback_count ?? 0],
+    ['Lake coverage', vs.lake_coverage_pct!=null ? Math.round(vs.lake_coverage_pct*100)+'%' : '—'],
+  ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+}
+
 function renderLivePerformance(d){
   const lv = d.live_metrics || {n:0};
   const el = document.getElementById('liveStatRow');
@@ -851,8 +902,8 @@ async function init(){
   // loading) must not blank out the others, especially today's forecast,
   // which is the page's actual headline answer.
   for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
-                     renderLivePerformance, renderFrozenEvaluation, renderOperationalAndRepro, renderAblation,
-                     renderTimeline, renderMonthly, renderWeights]){
+                     renderIngestionHealth, renderLivePerformance, renderFrozenEvaluation, renderOperationalAndRepro,
+                     renderAblation, renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
   }
   document.getElementById('genAt').textContent =
@@ -874,6 +925,7 @@ window.__FALLBACK__ = {
     freezing_level_score:.2,precip_penalty:.3}},
   monthly_breakdown:{}, timeline:[],
   daily_diagnostics:{}, session_forecast:{}, station_health:{}, model_agreement:{}, data_provenance:{},
+  lake_station_health:{}, summit_station_health:{}, verification_sources:{},
 };
 </script>
 </body>

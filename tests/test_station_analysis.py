@@ -79,6 +79,91 @@ class WeightsJsonIsolationTests(unittest.TestCase):
         self.assertEqual(mtime_before, mtime_after)
 
 
+class CorvatschFamilyDefinitionTests(unittest.TestCase):
+    """Part 11: the fixed, five-family Corvatsch comparison - pre-registered,
+    never an open-ended search, and never touching weights.json."""
+
+    def test_exactly_five_corvatsch_families_defined(self):
+        self.assertEqual(len(sa.CORVATSCH_FAMILY_DEFINITIONS), 5)
+
+    def test_family_names_match_the_task_specification(self):
+        expected = {
+            "current_production", "current_plus_cov_basic_wind", "current_plus_cov_directional",
+            "current_plus_cov_vertical_diff", "current_plus_cov_all_summit",
+        }
+        self.assertEqual(set(sa.CORVATSCH_FAMILY_DEFINITIONS.keys()), expected)
+
+    def test_current_production_matches_production_feature_names(self):
+        self.assertEqual(set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_production"]), set(FEATURE_NAMES))
+
+    def test_basic_wind_family_adds_exactly_its_five_features(self):
+        full = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_production"])
+        added = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_plus_cov_basic_wind"]) - full
+        self.assertEqual(added, set(sa.COV_BASIC_WIND_FEATURES))
+        self.assertEqual(len(sa.COV_BASIC_WIND_FEATURES), 5)
+
+    def test_directional_family_adds_exactly_its_five_features(self):
+        full = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_production"])
+        added = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_plus_cov_directional"]) - full
+        self.assertEqual(added, set(sa.COV_DIRECTIONAL_FEATURES))
+        self.assertEqual(len(sa.COV_DIRECTIONAL_FEATURES), 5)
+
+    def test_vertical_diff_family_adds_exactly_its_two_features(self):
+        full = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_production"])
+        added = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_plus_cov_vertical_diff"]) - full
+        self.assertEqual(added, set(sa.COV_VERTICAL_DIFF_FEATURES))
+        self.assertEqual(len(sa.COV_VERTICAL_DIFF_FEATURES), 2)
+
+    def test_all_summit_family_is_the_union_of_the_other_three(self):
+        full = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_production"])
+        added = set(sa.CORVATSCH_FAMILY_DEFINITIONS["current_plus_cov_all_summit"]) - full
+        expected_union = set(sa.COV_BASIC_WIND_FEATURES) | set(sa.COV_DIRECTIONAL_FEATURES) | set(sa.COV_VERTICAL_DIFF_FEATURES)
+        self.assertEqual(added, expected_union)
+        self.assertEqual(len(added), 12)  # 5 + 5 + 2 - the 14 raw values minus 2 non-feature entries
+
+    def test_two_cutoffs_defined_matching_issuance_schedule(self):
+        self.assertEqual(sa.CORVATSCH_CUTOFFS, ("07:00", "10:00"))
+
+    def test_no_cov_feature_name_added_to_production_feature_names(self):
+        # Part 11 explicitly forbids promoting any Corvatsch feature into
+        # the production model in this PR.
+        for name in sa.COV_ALL_SUMMIT_FEATURES:
+            self.assertNotIn(name, FEATURE_NAMES)
+
+
+class CorvatschAnalysisWeightsIsolationTests(unittest.TestCase):
+    """run_corvatsch_analysis (the --family corvatsch code path, minus the
+    report-writing wrapper) must never touch weights.json - it trains its
+    own throwaway models via new_weights(), exactly like the main 10-family
+    comparison above."""
+
+    def _samples(self):
+        samples = []
+        for year, month in [(2024, "05"), (2024, "08"), (2025, "06"), (2026, "07")]:
+            for day in (1, 2):
+                for hour in (12, 15):
+                    samples.append(_sample(f"{year}-{month}-{day:02d}T{hour:02d}:00", 1.0 if hour == 15 else 0.0,
+                                            model_wind=0.3 if hour == 15 else -0.2))
+        return samples
+
+    def test_run_corvatsch_analysis_never_touches_weights_json(self):
+        mtime_before = os.path.getmtime(WEIGHTS_PATH) if os.path.exists(WEIGHTS_PATH) else None
+        sa.run_corvatsch_analysis(self._samples(), archives={})
+        mtime_after = os.path.getmtime(WEIGHTS_PATH) if os.path.exists(WEIGHTS_PATH) else None
+        self.assertEqual(mtime_before, mtime_after)
+
+    def test_cov_coverage_note_reports_all_dates_missing_with_no_archive(self):
+        result = sa.run_corvatsch_analysis(self._samples(), archives={})
+        note = result["cov_coverage_note"]
+        self.assertEqual(note["missing_dates_07_00"], note["total_dates"])
+
+    def test_result_has_both_cutoffs_and_all_five_families(self):
+        result = sa.run_corvatsch_analysis(self._samples(), archives={})
+        for cutoff in sa.CORVATSCH_CUTOFFS:
+            self.assertIn(cutoff, result)
+            self.assertEqual(set(result[cutoff].keys()), set(sa.CORVATSCH_FAMILY_DEFINITIONS.keys()))
+
+
 class CorrelationAnalysisTests(unittest.TestCase):
     def test_handles_missing_feature_values(self):
         samples = [_sample("2024-05-01T12:00", 1.0, model_wind=0.5),

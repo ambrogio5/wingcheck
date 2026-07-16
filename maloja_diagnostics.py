@@ -133,6 +133,123 @@ def summit_support(summit_feats: dict) -> dict:
     return _result(score, "supportive", raw, ["summit"], SUMMIT_SUPPORT_KEYS["supportive"], False)
 
 
+# --- Corvatsch-style summit wind diagnosis (Part 6): a richer, 14-value
+# diagnostic specifically for a summit station with real wind direction
+# (today only cov, once it's enabled) - kept separate from the simpler
+# summit_support() above, which several other diagnostics/tests already
+# rely on unchanged. Never called from _build_diagnostics until a summit
+# station actually has usable data; when it does, this is what feeds the
+# richer "summit_support" entry in the issuance record. ---
+
+DEFAULT_SUMMIT_WIND_THRESHOLDS = {
+    "weak_max_ms": 3.0,          # below this, flow is too weak to matter either way
+    "supportive_min_ms": 3.0,
+    "supportive_max_ms": 12.0,   # within [supportive_min, supportive_max] AND SW-aligned -> supportive
+    "excessive_min_ms": 18.0,    # at/above this, disruptive regardless of direction
+    "sw_alignment_center_deg": 225.0,
+    "northerly_center_deg": 0.0,
+    "easterly_center_deg": 90.0,
+    "opposition_alignment_threshold": 0.5,  # cosine-similarity score above which a sector counts as "aligned"
+}
+# EXPLICITLY PROVISIONAL: these numbers are documented starting points, not
+# validated facts - station_analysis.py's fixed Corvatsch family comparison
+# (Part 11) is what would actually justify tuning or promoting them, and
+# even then only via a deliberate, separate, human-reviewed change (see
+# docs/STATION_RESEARCH.md's promotion-prohibition section).
+SUMMIT_WIND_DIAGNOSIS_KEYS = {
+    "supportive": "summit_wind_supportive",
+    "neutral": "summit_wind_neutral",
+    "opposing": "summit_wind_opposing",
+    "excessive": "summit_wind_excessive",
+    "missing": "summit_wind_missing_station_data",
+}
+
+
+def _alignment_score(direction_deg, center_deg):
+    """Cosine-similarity alignment in [0, 1] - 1.0 exactly at center_deg,
+    0.0 at 90 degrees or more off, never negative (clipped)."""
+    if direction_deg is None:
+        return None
+    return max(0.0, math.cos(math.radians(_angular_difference(direction_deg, center_deg))))
+
+
+def summit_wind_diagnosis(summit_feats: dict, samedan_feats: dict = None, station_id: str = "cov",
+                            observed_at: str = None, age_minutes: float = None,
+                            thresholds: dict = None) -> dict:
+    """The 14 Corvatsch/summit diagnostic values (Part 6), plus a
+    transparent nonlinear status derived from them. Every threshold used
+    is passed through (never hidden) in the returned 'thresholds' field,
+    defaulting to DEFAULT_SUMMIT_WIND_THRESHOLDS - both are meant to be
+    logged in the forecast issuance record so a future analysis can see
+    exactly what produced a given status, and can be overridden without
+    touching this function once station_analysis.py's Corvatsch research
+    (Part 11) suggests better values."""
+    th = dict(DEFAULT_SUMMIT_WIND_THRESHOLDS)
+    if thresholds:
+        th.update(thresholds)
+
+    from station_features import temperature_difference, wind_vector_shear
+
+    if not summit_feats or summit_feats.get("missing_indicator") == 1.0 or summit_feats.get("latest_wind_speed") is None:
+        return {
+            "status": "missing",
+            "raw_values": {},
+            "thresholds": th,
+            "explanation_key": SUMMIT_WIND_DIAGNOSIS_KEYS["missing"],
+            "source_station": station_id,
+            "observed_at": observed_at,
+            "age_minutes": age_minutes,
+        }
+
+    speed = summit_feats.get("latest_wind_speed")
+    direction = _direction_from_vector(summit_feats.get("wind_u"), summit_feats.get("wind_v"))
+    sw_score = _alignment_score(direction, th["sw_alignment_center_deg"])
+    n_score = _alignment_score(direction, th["northerly_center_deg"])
+    e_score = _alignment_score(direction, th["easterly_center_deg"])
+
+    samedan_feats = samedan_feats or {}
+    raw_values = {
+        "latest_wind_speed_ms": speed,
+        "morning_mean_wind_ms": summit_feats.get("mean_morning_wind"),
+        "morning_max_gust_ms": summit_feats.get("max_morning_gust"),
+        "wind_direction_deg": direction,
+        "wind_direction_sin": math.sin(math.radians(direction)) if direction is not None else None,
+        "wind_direction_cos": math.cos(math.radians(direction)) if direction is not None else None,
+        "sw_alignment_score": sw_score,
+        "northerly_opposition_score": n_score,
+        "easterly_opposition_score": e_score,
+        "wind_speed_trend_1h_ms": summit_feats.get("wind_speed_trend_1h"),
+        "wind_speed_trend_3h_ms": summit_feats.get("wind_speed_trend_3h"),
+        "temperature_c": summit_feats.get("temperature_latest"),
+        "samedan_temperature_diff_c": temperature_difference(summit_feats, samedan_feats),
+        "samedan_wind_vector_shear_ms": wind_vector_shear(summit_feats, samedan_feats),
+        "coverage": summit_feats.get("coverage"),
+        "missing_indicator": summit_feats.get("missing_indicator"),
+    }
+
+    opposition_threshold = th["opposition_alignment_threshold"]
+    if speed >= th["excessive_min_ms"]:
+        status, key = "excessive", SUMMIT_WIND_DIAGNOSIS_KEYS["excessive"]
+    elif speed < th["weak_max_ms"]:
+        status, key = "neutral", SUMMIT_WIND_DIAGNOSIS_KEYS["neutral"]
+    elif (n_score or 0.0) >= opposition_threshold or (e_score or 0.0) >= opposition_threshold:
+        status, key = "opposing", SUMMIT_WIND_DIAGNOSIS_KEYS["opposing"]
+    elif th["supportive_min_ms"] <= speed <= th["supportive_max_ms"] and (sw_score or 0.0) >= opposition_threshold:
+        status, key = "supportive", SUMMIT_WIND_DIAGNOSIS_KEYS["supportive"]
+    else:
+        status, key = "neutral", SUMMIT_WIND_DIAGNOSIS_KEYS["neutral"]
+
+    return {
+        "status": status,
+        "raw_values": raw_values,
+        "thresholds": th,
+        "explanation_key": key,
+        "source_station": station_id,
+        "observed_at": observed_at,
+        "age_minutes": age_minutes,
+    }
+
+
 # --- Radiation support ---
 
 RADIATION_SUPPORT_KEYS = {

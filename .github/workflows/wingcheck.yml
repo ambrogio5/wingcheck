@@ -1,6 +1,13 @@
 # Save as .github/workflows/wingcheck.yml
 #
-# Six jobs:
+# NOTE: the kitesailing.ch lake sampler lives in its OWN workflow file,
+# .github/workflows/kitesailing-sampler.yml, with its own `kitesailing-sampler`
+# concurrency group - deliberately separate from this file's
+# `wingcheck-operational-${{ github.ref }}` group, so a slow/queued research
+# or backtest run in THIS workflow can never delay or block a lake-station
+# sample (and vice versa). See that file's own header for details.
+#
+# Five jobs in this file:
 #  - forecast: runs the model, sends Telegram alert, logs predictions, then
 #    immediately runs refresh_dashboard.py and commits BOTH
 #    logs/predictions.jsonl and docs/dashboard_data.json - so the published
@@ -8,19 +15,15 @@
 #    10:00 run, instead of sitting stale until the evening learn job (a
 #    live-forecast-visibility bug fixed on 2026-07-16: predictions were
 #    logged all day but the dashboard only refreshed once, at 20:00 CEST).
-#    Also runs `historical_data.py sync` first (fresh station data for
-#    forecast_and_log.py's diagnostics), and commits the append-only
+#    Runs `station_nowcast.py` first (NOT `historical_data.py sync` - a
+#    lightweight, bounded recent-tail fetch for sam/lug/sma/cov, never a
+#    full historical discovery/backfill on every forecast run - see
+#    station_nowcast.py's own docstring), and commits the append-only
 #    forecast-vintage archive and issuance log that forecast_and_log.py
 #    itself writes internally (archiving the genuine forecast payload and
 #    the station inputs used - see forecast_vintages.py/station_features.py -
 #    is done from INSIDE forecast_and_log.py, not as separate workflow
 #    steps, so it can never be silently skipped by a workflow edit).
-#  - sample_kitesailing: every 15 min, sunrise-to-sundown (05:00-21:45 CEST,
-#    generous enough to cover the full May-Oct range), scrapes the
-#    kitesailing.ch Silvaplana lake station reading - this is the model's
-#    PRIMARY ground truth for the scored 12:00-18:00 window (see
-#    kitesailing_weather.py), and a full-day record for future analysis
-#    beyond it
 #  - learn: runs later each day, checks that day's predictions against real
 #    observations (kitesailing primary, Samedan fallback + secondary signal),
 #    updates weights.json, and refreshes the dashboard again (verified
@@ -80,7 +83,6 @@ name: wingfoil-check
 on:
   schedule:
     - cron: "0 5,8 * * *"      # forecast: 07:00 / 10:00 CEST
-    - cron: "*/15 3-19 * * *"  # sample_kitesailing: 05:00-21:45 CEST, sunrise to sundown
     - cron: "0 18 * * *"       # learn: 20:00 CEST, checks that day's window
     - cron: "30 1 * * *"       # sync_historical_data: 03:30 CEST, off-peak lightweight station sync
   workflow_dispatch:
@@ -100,7 +102,7 @@ on:
   pull_request:
 
 concurrency:
-  group: wingcheck-${{ github.ref }}
+  group: wingcheck-operational-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -159,7 +161,7 @@ jobs:
           python-version: "3.12"
       - run: pip install requests
       - run: python -m unittest discover -s tests
-      - run: python historical_data.py sync
+      - run: python station_nowcast.py
       - run: python forecast_and_log.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -170,35 +172,8 @@ jobs:
           git config user.name "wingcheck-bot"
           git config user.email "actions@users.noreply.github.com"
           git add logs/predictions.jsonl logs/forecast_issuances.jsonl docs/dashboard_data.json \
-                  logs/historical/forecast_vintages/ logs/historical/manifests/
+                  logs/historical/forecast_vintages/
           git diff --staged --quiet || git commit -m "log predictions and refresh dashboard $(date -u +%F)"
-          git pull --rebase origin main
-          git push
-
-  sample_kitesailing:
-    if: github.event_name == 'schedule' && github.event.schedule == '*/15 3-19 * * *'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install playwright==1.61.0
-      - name: Cache Playwright Chromium
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-1.61.0-${{ runner.os }}
-      - run: playwright install --with-deps chromium
-      - run: python kitesailing_weather.py
-      - name: Commit kitesailing observation
-        run: |
-          git config user.name "wingcheck-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add logs/kitesailing_observations.jsonl
-          git diff --staged --quiet || git commit -m "kitesailing observation $(date -u +%FT%H:%M)"
           git pull --rebase origin main
           git push
 

@@ -1,0 +1,95 @@
+# Save as .github/workflows/kitesailing-sampler.yml
+#
+# The kitesailing.ch lake-station sampler, deliberately split out of the
+# main wingcheck.yml workflow into its own file with its OWN concurrency
+# group (`kitesailing-sampler`) - separate from wingcheck.yml's
+# `wingcheck-operational-${{ github.ref }}` group. This means a slow or
+# queued research/backtest/sync run in the main workflow can never delay
+# or block a lake-station sample, and vice versa - the two workflows are
+# fully independent from GitHub Actions' point of view.
+#
+# Cron is a broad, UTC, every-30-minutes schedule that runs all day; the
+# ACTUAL collection window (09:00-19:00 Europe/Zurich) is enforced in
+# Python by kitesailing_weather.py's own is_within_collection_window() -
+# not by narrowing the cron itself - because GitHub Actions cron is
+# UTC-only and a fixed UTC cron window would silently drift by an hour
+# across the CET/CEST transition twice a year. Every firing outside the
+# real window exits immediately (`[skip] outside the ... window`) without
+# attempting a browser launch.
+#
+# `cancel-in-progress: true` (unlike the main workflow's `false`) is
+# deliberate here: if a previous 30-minute sample run is still in
+# progress (e.g. a slow page load) when the next one fires, the OLD run is
+# cancelled rather than queued - a stale, superseded sampling attempt has
+# no value once a newer one is due, and letting them queue up would only
+# ever get further behind. The main wingcheck workflow's jobs, by
+# contrast, must never be silently cancelled mid-commit (see that file's
+# own header for why cancel-in-progress stays false there).
+#
+# Every attempt (success or failure) writes one row to
+# logs/kitesailing_ingestion_health.jsonl (kitesailing_weather.py's
+# attempt_reading()) - committed here regardless of whether the sample
+# itself succeeded (`if: always()`), so a failing run still leaves a
+# visible, inspectable trail instead of silently vanishing. On failure, a
+# screenshot and a compact copy of the page HTML (saved under
+# logs/kitesailing_failure_artifacts/) are uploaded as a short-lived
+# (7-day) GitHub Actions artifact for manual inspection, and the job still
+# ends visibly failed (a real failure should show up as a failed workflow
+# run, not a silent no-op) - but only AFTER the health-row commit has
+# already happened.
+#
+# Required repo setting: Settings -> Actions -> General -> Workflow
+# permissions -> "Read and write permissions" (shared with wingcheck.yml).
+
+name: kitesailing-sampler
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"  # broad UTC, every 30 min, all day - see header above
+  workflow_dispatch:
+
+concurrency:
+  group: kitesailing-sampler
+  cancel-in-progress: true
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright==1.61.0
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.61.0-${{ runner.os }}
+      - run: playwright install --with-deps chromium
+      - name: Sample kitesailing.ch reading (skips itself outside 09:00-19:00 Europe/Zurich)
+        id: sample
+        run: python kitesailing_weather.py
+        continue-on-error: true
+      - name: Commit observation and health log (always - even on failure or skip)
+        if: always()
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/kitesailing_observations.jsonl logs/kitesailing_ingestion_health.jsonl
+          git diff --staged --quiet || git commit -m "kitesailing sample $(date -u +%FT%H:%M)"
+          git pull --rebase origin main
+          git push
+      - name: Upload failure artifacts (screenshot + compact HTML)
+        if: steps.sample.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitesailing-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/kitesailing_failure_artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Fail the job visibly if the sample step failed
+        if: steps.sample.outcome == 'failure'
+        run: exit 1

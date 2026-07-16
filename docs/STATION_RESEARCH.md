@@ -46,12 +46,38 @@ radiation/moisture) depends on a station role with zero confirmed
 stations, so those families are honestly reported as having zero real
 coverage rather than a fabricated result.
 
+## Corvatsch (COV) - identity confirmed, metadata pending a real fetch
+
+`cov` (Piz Corvatsch, official MeteoSwiss abbreviation **COV**) is different
+from every other entry below: its existence as a genuine, official
+MeteoSwiss automatic station is **confirmed** - given directly, not guessed
+(an earlier iteration of this registry used the wrong, invented abbreviation
+`cor` for the same physical station; that entry has been replaced). What
+remains unverified is the exact metadata (latitude/longitude/elevation,
+available variables) and a real successful fetch in this repo's own
+environment - both were attempted this session
+(`meteoswiss.fetch_station_metadata('cov')` against the official
+`ogd-smn_meta_stations.csv`, and `meteoswiss.fetch_station_observations('cov')`
+against the STAC catalog) and blocked by the sandbox's network policy (the
+same `403 ProxyError` documented elsewhere in this file's history for
+sam/lug/sma). See `docs/DATA_ARCHITECTURE.md`'s Corvatsch section for the
+approximate elevation given in the task specification (~3294-3297m, deliberately
+NOT written into `config/stations.json`'s `elevation_m` field until a real
+fetch confirms it) and `historical_data.py`'s generic-station sync path
+(`meteoswiss.fetch_station_metadata`/`fetch_station_observations`, added this
+session) that will complete this the moment it runs somewhere with real
+network access - see Part 15 of this PR's own verification steps.
+
+`config/stations.json`'s `cov` entry stays `verification: "unverified",
+enabled: false` until that real fetch succeeds and a human inspects the
+result - the same bar every other station in this registry must clear,
+despite COV's identity already being known.
+
 ## Unverified candidates
 
 | id | Name | Roles | Confidence note |
 |---|---|---|---|
-| `cor` | Corvatsch (summit) | `summit` | Cable-car-served summit station; unclear if it's a full SwissMetNet member vs. an SLF/IMIS-only or ski-operator-only sensor - a real sync must answer this. |
-| `piz_nair` | Piz Nair (St. Moritz) | `summit` | No station code could be proposed with any confidence at all. |
+| `piz_nair` | Piz Nair (St. Moritz) | `summit` | Investigated in this PR - see `docs/PIZ_NAIR_DATA_SOURCE.md`. Not a MeteoSwiss OGD station; no confirmed machine-readable feed found. |
 | `maloja` | Maloja | `pass`, `source_region` | One of Switzerland's oldest continuously operated climate stations - moderate confidence a MeteoSwiss station exists here, but the exact current API code was not confirmed. |
 | `sils` | Sils / Segl | `target_region` | The lake immediately upstream of Silvaplana - **the single highest-priority candidate for the next real sync attempt**, since it would be a genuinely new, non-redundant signal if it exists. |
 | `vicosoprano` | Vicosoprano | `source_region` | **Important**: these coordinates are already used in `features.py` as an Open-Meteo *forecast-model grid point*, not a real ground station - no evidence was found that Vicosoprano hosts an actual MeteoSwiss station. Do not conflate the two. |
@@ -105,3 +131,51 @@ a stable, non-trivial improvement across multiple folds (not just the
 repeatedly-inspected 2026 reference), and a deliberate, separate,
 human-reviewed source-code change - none of which this PR does or is
 scoped to do.
+
+## PR #5 overlap - not cherry-picked into this PR
+
+An earlier, separate research effort (PR #5, `agent/local-station-research`,
+still open as a draft) built infrastructure that substantially overlaps
+with what merged as PR #6 (`agent/maloja-data-and-diagnostics`'s base) -
+both added a station registry, a historical archive, and a
+`station_analysis.py`-style research driver, developed independently
+before either was merged. PR #6 was merged; **PR #5 was not, and this PR
+does not cherry-pick it wholesale** - its branch now conflicts with
+`main` (`mergeable_state: dirty`) and would need a real merge-conflict
+resolution pass, not a blind cherry-pick, to bring in cleanly.
+
+PR #5 does contain a few real, useful findings that are **not yet on
+`main`** and are explicitly out of scope for this PR (which is limited to
+pipeline hardening, Corvatsch ingestion, the bounded Piz Nair
+investigation, and the corresponding fixed Corvatsch analysis - see this
+PR's own description):
+
+- **Calibration research** (`calibration.py`/`calibration_analysis.py`
+  in PR #5): Platt scaling and isotonic regression compared against the
+  uncalibrated production model per rolling fold - ECE improved in 4/6
+  folds. `station_analysis.py` in this PR (via PR #6) already has a
+  lighter-weight reliability-table/ECE diagnostic, but not the actual
+  Platt/isotonic fitting PR #5 implemented.
+- **Northerly/easterly regime analysis** (`regimes.py`/`regime_analysis.py`
+  in PR #5): a rule-based weather-regime classifier showing
+  `northerly_suppression` (26.5% false-positive share) and
+  `easterly_suppression` (20.7%) as the two regimes driving most false
+  GOOD/MARGINAL alerts. This PR's own Part 11 Corvatsch analysis uses a
+  much smaller, bounded regime-proxy breakdown (`REGIME_PROXIES` in
+  `station_analysis.py`) precisely because it could not reconstruct PR
+  #5's richer regime taxonomy from stored historical features (raw wind
+  direction isn't retained) - PR #5's version, if ported forward
+  properly, would be a real improvement over the proxy used here.
+- **Continuous wind-target research** (`continuous_target_analysis.py`
+  in PR #5): a continuous wind-speed regression and daily-session-target
+  comparison, finding the existing max-hourly-probability aggregation
+  already matches or beats a dedicated daily model.
+
+**Recommendation**: handle each of these in its own later, focused PR -
+resolve PR #5's conflicts against current `main` deliberately (not via a
+blind cherry-pick, since several of its files, e.g. `stations.py` vs.
+this codebase's `station_registry.py`/`config/stations.json`, now
+diverge in both name and structure from what actually merged), re-verify
+its findings still hold against the current dataset, and then close PR
+#5 once its useful parts have been ported. This PR does not attempt that
+port.

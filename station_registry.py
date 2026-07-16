@@ -134,3 +134,20 @@ def stations_by_provider(provider: str, stations: dict = None) -> dict:
 def get_station(station_id: str, stations: dict = None) -> Station:
     stations = stations if stations is not None else load_registry()
     return stations[station_id]
+
+
+def merge_official_metadata(entry: Station, official_metadata: dict) -> Station:
+    """Applies a real fetch's official metadata (meteoswiss.fetch_station_metadata())
+    onto a provisional registry entry - official values ALWAYS override
+    whatever provisional placeholder was there before (typically None),
+    never the other way around. Does not flip `enabled`/`verification`
+    itself - a human still reviews the result and updates
+    config/stations.json by hand (see docs/STATION_RESEARCH.md's
+    promotion process); this only computes what the merged entry WOULD
+    look like."""
+    return entry._replace(
+        latitude=official_metadata.get("latitude", entry.latitude),
+        longitude=official_metadata.get("longitude", entry.longitude),
+        elevation_m=official_metadata.get("elevation_m", entry.elevation_m),
+        name=official_metadata.get("name") or entry.name,
+    )

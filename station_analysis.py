@@ -165,6 +165,21 @@ def _log_loss(labels, probs):
     return total / len(labels) if labels else None
 
 
+_GOOD_THRESHOLD_CACHE = None
+
+
+def _current_good_threshold() -> float:
+    """The production GOOD-tier threshold from weights.json, reused here
+    only to report how each research family's own probabilities would
+    look at today's real operational cutoff - never used to calibrate or
+    change anything in weights.json itself."""
+    global _GOOD_THRESHOLD_CACHE
+    if _GOOD_THRESHOLD_CACHE is None:
+        from model import load_weights
+        _GOOD_THRESHOLD_CACHE = load_weights().get("tier_thresholds", {}).get("good", 0.65)
+    return _GOOD_THRESHOLD_CACHE
+
+
 def _full_metrics(samples, probs) -> dict:
     labels = [s["outcome"] for s in samples]
     n = len(labels)
@@ -177,6 +192,8 @@ def _full_metrics(samples, probs) -> dict:
     report["coverage"] = 1.0  # production features always populated (best-effort neutral fallback, never null)
     report["missing_rate"] = 0.0
     report["n_unique_days"] = len({s["date"][:10] for s in samples})
+    good_report = classification_report(labels, probs, threshold=_current_good_threshold())
+    report["good_tier_precision"] = good_report.get("precision")
     return report
 
 
@@ -218,6 +235,161 @@ def run_rolling_origin_family_comparison(samples: list) -> dict:
         for name, feature_names in FAMILY_DEFINITIONS.items():
             results[name].append(evaluate_family_on_fold(name, feature_names, fold))
     return results
+
+
+# --- Corvatsch-specific fixed research analysis (Part 11 of the
+# "Corvatsch nowcast and pipeline hardening" task) - a SEPARATE, smaller,
+# fixed comparison from the 10-family one above, run only when
+# `station_analysis.py --family corvatsch` is passed. Same honesty caveat
+# as the rest of this module: cov has NO real historical archive (it is
+# not yet a confirmed+enabled station - see docs/STATION_RESEARCH.md), so
+# every cov-derived feature below is a constant "missing" value for every
+# historical sample, and the resulting metrics will correctly show zero
+# incremental value. This is a structural data-availability fact, not a
+# negative finding about Corvatsch's physical usefulness. ---
+
+COV_BASIC_WIND_FEATURES = (
+    "cov_latest_wind_speed", "cov_morning_mean_wind", "cov_morning_max_gust",
+    "cov_wind_trend_1h", "cov_wind_trend_3h",
+)
+COV_DIRECTIONAL_FEATURES = (
+    "cov_wind_direction_sin", "cov_wind_direction_cos", "cov_sw_alignment_score",
+    "cov_northerly_opposition_score", "cov_easterly_opposition_score",
+)
+COV_VERTICAL_DIFF_FEATURES = ("cov_samedan_temperature_diff", "cov_samedan_wind_vector_shear")
+COV_ALL_SUMMIT_FEATURES = COV_BASIC_WIND_FEATURES + COV_DIRECTIONAL_FEATURES + COV_VERTICAL_DIFF_FEATURES
+
+CORVATSCH_FAMILY_DEFINITIONS = {
+    "current_production": tuple(FEATURE_NAMES),
+    "current_plus_cov_basic_wind": tuple(FEATURE_NAMES) + COV_BASIC_WIND_FEATURES,
+    "current_plus_cov_directional": tuple(FEATURE_NAMES) + COV_DIRECTIONAL_FEATURES,
+    "current_plus_cov_vertical_diff": tuple(FEATURE_NAMES) + COV_VERTICAL_DIFF_FEATURES,
+    "current_plus_cov_all_summit": tuple(FEATURE_NAMES) + COV_ALL_SUMMIT_FEATURES,
+}
+
+CORVATSCH_CUTOFFS = ("07:00", "10:00")
+
+# Diagnostic-only false-positive "regime" proxies built from features
+# ALREADY stored in logs/backtest_dataset.jsonl (raw compass degrees are
+# NOT retained there - only engineered features are - so a genuine
+# northerly-vs-easterly split isn't reconstructable from historical
+# samples; surface_dir_alignment can only detect "poorly aligned",
+# not which side it's poorly aligned toward). See this function's
+# docstring in the saved report's 'limitations' list.
+REGIME_PROXIES = {
+    "poorly_aligned_flow": lambda feats: feats.get("surface_dir_alignment", 0.0) < -0.3,
+    "excessive_synoptic_wind": lambda feats: feats.get("ensemble_wind_score", 0.0) > 1.2,
+    "weak_thermal_development": lambda feats: feats.get("thermal_excess", 0.0) < -0.3,
+}
+
+
+def compute_cov_feature_scores_by_date(dates: list, cov_records_by_date: dict, sam_records_by_date: dict,
+                                         cutoff: str, cov_delay: float, sam_delay: float) -> dict:
+    scores = {}
+    for date in sorted(set(dates)):
+        cov_feats = sf.generate_station_features(cov_records_by_date.get(date, []), date, cutoff, cov_delay)
+        sam_feats = sf.generate_station_features(sam_records_by_date.get(date, []), date, cutoff, sam_delay)
+        diag = md.summit_wind_diagnosis(cov_feats, sam_feats, station_id="cov")
+        rv = diag["raw_values"]
+        scores[date] = {
+            "cov_latest_wind_speed": rv.get("latest_wind_speed_ms") or 0.0,
+            "cov_morning_mean_wind": rv.get("morning_mean_wind_ms") or 0.0,
+            "cov_morning_max_gust": rv.get("morning_max_gust_ms") or 0.0,
+            "cov_wind_trend_1h": rv.get("wind_speed_trend_1h_ms") or 0.0,
+            "cov_wind_trend_3h": rv.get("wind_speed_trend_3h_ms") or 0.0,
+            "cov_wind_direction_sin": rv.get("wind_direction_sin") or 0.0,
+            "cov_wind_direction_cos": rv.get("wind_direction_cos") or 0.0,
+            "cov_sw_alignment_score": rv.get("sw_alignment_score") or 0.0,
+            "cov_northerly_opposition_score": rv.get("northerly_opposition_score") or 0.0,
+            "cov_easterly_opposition_score": rv.get("easterly_opposition_score") or 0.0,
+            "cov_samedan_temperature_diff": rv.get("samedan_temperature_diff_c") or 0.0,
+            "cov_samedan_wind_vector_shear": rv.get("samedan_wind_vector_shear_ms") or 0.0,
+            "_missing": diag["status"] == "missing",
+        }
+    return scores
+
+
+def augment_samples_with_cov_scores(samples: list, scores_by_date: dict) -> list:
+    out = []
+    for s in samples:
+        date = s["date"][:10]
+        scores = scores_by_date.get(date, {})
+        feats = dict(s["features"])
+        for name in COV_ALL_SUMMIT_FEATURES:
+            feats[name] = scores.get(name, 0.0)
+        out.append({**s, "features": feats})
+    return out
+
+
+def regime_false_positive_breakdown(samples: list, probs: list, threshold: float = 0.5) -> dict:
+    breakdown = {}
+    for name, condition in REGIME_PROXIES.items():
+        idxs = [i for i, s in enumerate(samples) if condition(s["features"])]
+        labels = [samples[i]["outcome"] for i in idxs]
+        preds = [1.0 if probs[i] >= threshold else 0.0 for i in idxs]
+        n_actual_negative = sum(1 for y in labels if y == 0.0)
+        false_positives = sum(1 for y, p in zip(labels, preds) if p == 1.0 and y == 0.0)
+        breakdown[name] = {
+            "n": len(idxs),
+            "n_actual_negative": n_actual_negative,
+            "false_positives": false_positives,
+            "false_positive_rate": round(false_positives / n_actual_negative, 4) if n_actual_negative else None,
+        }
+    return breakdown
+
+
+def run_corvatsch_analysis(samples: list, archives: dict) -> dict:
+    """The Part 11 fixed, five-family Corvatsch comparison, evaluated
+    separately for the 07:00 and 10:00 issuance cutoffs. Returns
+    {"07:00": {family: [fold_results...]}, "10:00": {...},
+     "regime_false_positive_breakdown": {cutoff: {family: {...}}}}."""
+    cov_delay = archives.get("cov", {}).get("reporting_delay_minutes", 15)
+    sam_delay = archives.get("sam", {}).get("reporting_delay_minutes", 10)
+    cov_by_date = archives.get("cov", {}).get("records_by_date", {})
+    sam_by_date = archives.get("sam", {}).get("records_by_date", {})
+    dates = [s["date"][:10] for s in samples]
+
+    result = {}
+    regime_breakdown = {}
+    for cutoff in CORVATSCH_CUTOFFS:
+        scores_by_date = compute_cov_feature_scores_by_date(dates, cov_by_date, sam_by_date, cutoff, cov_delay, sam_delay)
+        augmented = augment_samples_with_cov_scores(samples, scores_by_date)
+        folds = rm.rolling_origin_splits(augmented)
+
+        family_results = {name: [] for name in CORVATSCH_FAMILY_DEFINITIONS}
+        for fold in folds:
+            for name, feature_names in CORVATSCH_FAMILY_DEFINITIONS.items():
+                family_results[name].append(evaluate_family_on_fold(name, feature_names, fold))
+        result[cutoff] = family_results
+
+        # Regime false-positive breakdown on the 2026 reference fold only,
+        # comparing the plain production baseline vs. the full-summit
+        # Corvatsch family (the two most informative endpoints) - kept
+        # small and fixed, not a search.
+        reference_fold = next((f for f in folds if f["kind"] == "reference"), None)
+        if reference_fold:
+            cutoff_breakdown = {}
+            for name in ("current_production", "current_plus_cov_all_summit"):
+                weights = new_weights(feature_names=CORVATSCH_FAMILY_DEFINITIONS[name])
+                train_epochs(weights, reference_fold["train"], EPOCHS)
+                validate = reference_fold["validate"]
+                probs = [model_score(s["features"], weights) for s in validate]
+                cutoff_breakdown[name] = regime_false_positive_breakdown(validate, probs)
+            regime_breakdown[cutoff] = cutoff_breakdown
+
+    result["regime_false_positive_breakdown"] = regime_breakdown
+    n_missing_dates = sum(1 for d in compute_cov_feature_scores_by_date(dates, cov_by_date, sam_by_date, "07:00", cov_delay, sam_delay).values() if d["_missing"])
+    result["cov_coverage_note"] = {
+        "missing_dates_07_00": n_missing_dates,
+        "total_dates": len(set(dates)),
+        "note": (
+            "cov has no real historical archive (not yet a confirmed+enabled station) - every "
+            "cov-derived feature is a constant 'missing' value across the full dataset, so any "
+            "family comparison above showing zero difference from current_production is expected, "
+            "not a negative finding about Corvatsch's physical usefulness."
+        ),
+    }
+    return result
 
 
 # --- Correlation report (section 9) ---
@@ -347,13 +519,66 @@ def _write_markdown_summary(report: dict, path: str):
         f.write("\n".join(lines) + "\n")
 
 
-def main():
+def _run_corvatsch_report(samples: list, archives: dict) -> int:
+    """The Part 11 standalone Corvatsch report - separate from the main
+    10-family report above so the two don't get conflated (see this
+    module's own docstring on why cov's family comparisons are expected
+    to show zero incremental value today)."""
     weights_mtime_before = os.path.getmtime(WEIGHTS_PATH) if os.path.exists(WEIGHTS_PATH) else None
+
+    print("Running Corvatsch fixed 5-family comparison (07:00 and 10:00 cutoffs)...")
+    cov_result = run_corvatsch_analysis(samples, archives)
+
+    report = research_report.new_report(
+        script_name="station_analysis_corvatsch",
+        config={"epochs": EPOCHS, "cutoffs": list(CORVATSCH_CUTOFFS), "families": list(CORVATSCH_FAMILY_DEFINITIONS)},
+        data_sources={"backtest_dataset": DATASET_PATH},
+        warnings=[
+            "2026 is a repeatedly-inspected reference fold, not a pristine holdout - see CLAUDE.md.",
+            "cov has no real historical archive (not yet a confirmed+enabled station) - every "
+            "cov-derived feature is a constant value across the full dataset, so any family "
+            "comparison here showing zero difference from current_production is an expected "
+            "data-availability fact, not a negative finding about Corvatsch's physical usefulness.",
+            "The northerly/easterly false-positive split requested by this analysis could not be "
+            "reconstructed from historical samples - raw compass degrees are not retained in "
+            "logs/backtest_dataset.jsonl, only engineered features are. regime_false_positive_breakdown "
+            "uses 'poorly_aligned_flow' (surface_dir_alignment) as the closest available proxy, which "
+            "cannot distinguish northerly from easterly misalignment.",
+        ],
+        limitations=[
+            "Rolling-origin folds are the primary evidence; the 2026 reference fold alone is not.",
+            "Not a substitute for the main 10-family report - run without --family for that.",
+        ],
+    )
+    report["corvatsch_family_comparison"] = {k: v for k, v in cov_result.items() if k in CORVATSCH_CUTOFFS}
+    report["regime_false_positive_breakdown"] = cov_result["regime_false_positive_breakdown"]
+    report["cov_coverage_note"] = cov_result["cov_coverage_note"]
+
+    json_path = research_report.save_report(report, "station_analysis_corvatsch")
+    print(f"Corvatsch report written to {json_path}")
+
+    weights_mtime_after = os.path.getmtime(WEIGHTS_PATH) if os.path.exists(WEIGHTS_PATH) else None
+    assert weights_mtime_before == weights_mtime_after, "station_analysis.py must never modify weights.json"
+    return 0
+
+
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(description="Fixed station-family research (never touches weights.json)")
+    parser.add_argument("--family", choices=["corvatsch"], default=None,
+                         help="Run only the Corvatsch-specific 5-family, dual-cutoff comparison (Part 11) "
+                              "instead of the main 10-family report")
+    args = parser.parse_args(argv)
 
     samples = load_dataset()
     print(f"Loaded {len(samples)} labeled hours from {DATASET_PATH}.")
-
     archives = load_station_archives()
+
+    if args.family == "corvatsch":
+        return _run_corvatsch_report(samples, archives)
+
+    weights_mtime_before = os.path.getmtime(WEIGHTS_PATH) if os.path.exists(WEIGHTS_PATH) else None
+
     dates = [s["date"][:10] for s in samples]
     print("Computing station family scores per calendar date...")
     scores_by_date = compute_family_scores_by_date(dates, archives)

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T18:54:27.151447+00:00",
+  "generated_at": "2026-07-16T20:12:23.144731+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -38,11 +38,12 @@
       "data_start": "2004-02-01T00:00:00+00:00",
       "data_end": "2026-07-16T12:00:00+00:00"
     },
-    "cor": {
-      "name": "Corvatsch (summit)",
+    "cov": {
+      "name": "Piz Corvatsch",
       "provider": "meteoswiss",
       "roles": [
-        "summit"
+        "summit",
+        "competing_flow"
       ],
       "enabled": false,
       "verification": "unverified",
