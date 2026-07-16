@@ -179,5 +179,77 @@ class GenerateAllStationFeaturesTests(unittest.TestCase):
         self.assertIsNotNone(result["sam"]["latest_wind_speed"])
 
 
+class GroupStationFeaturesByRoleTests(unittest.TestCase):
+    """group_station_features_by_role/first_station_in_role - the fix
+    replacing the old, never-populated '_source_region'/'_pass'/'_summit'
+    magic keys (Part 5)."""
+
+    def _registry(self):
+        import station_registry as sr
+        return {
+            "sam": sr.Station(
+                station_id="sam", name="Samedan", provider="meteoswiss", latitude=46.5, longitude=9.8,
+                elevation_m=1700, roles=("target_region", "ground_truth"), available_variables=("wind_speed_ms",),
+                historical_available=True, live_available=True, licence="test", reporting_delay_minutes=10,
+                enabled=True, verification="confirmed", notes="",
+            ),
+            "cov": sr.Station(
+                station_id="cov", name="Piz Corvatsch", provider="meteoswiss", latitude=None, longitude=None,
+                elevation_m=None, roles=("summit", "competing_flow"), available_variables=(),
+                historical_available=None, live_available=None, licence="test", reporting_delay_minutes=15,
+                enabled=False, verification="unverified", notes="",
+            ),
+        }
+
+    def test_groups_by_each_declared_role(self):
+        registry = self._registry()
+        feats = {"sam": {"latest_wind_speed": 5.0}, "cov": {"latest_wind_speed": 12.0}}
+        grouped = sf.group_station_features_by_role(feats, registry)
+        self.assertIn("target_region", grouped)
+        self.assertIn("ground_truth", grouped)
+        self.assertIn("summit", grouped)
+        self.assertIn("competing_flow", grouped)
+        self.assertEqual(grouped["summit"]["cov"]["latest_wind_speed"], 12.0)
+
+    def test_station_appears_in_every_role_it_has_never_blended(self):
+        registry = self._registry()
+        feats = {"cov": {"latest_wind_speed": 12.0}}
+        grouped = sf.group_station_features_by_role(feats, registry)
+        # cov's own feature dict object is retained identically in both roles -
+        # never averaged with anything else.
+        self.assertIs(grouped["summit"]["cov"], grouped["competing_flow"]["cov"])
+
+    def test_missing_role_is_absent_not_empty_placeholder(self):
+        registry = self._registry()
+        feats = {"sam": {"latest_wind_speed": 5.0}}  # no station in the "pass" role at all
+        grouped = sf.group_station_features_by_role(feats, registry)
+        self.assertNotIn("pass", grouped)
+
+    def test_unknown_station_id_skipped(self):
+        registry = self._registry()
+        feats = {"ghost": {"latest_wind_speed": 1.0}}
+        grouped = sf.group_station_features_by_role(feats, registry)
+        self.assertEqual(grouped, {})
+
+    def test_first_station_in_role_returns_alphabetically_first(self):
+        role_group = {"sma": {"pressure_latest": 950.0}, "lug": {"pressure_latest": 960.0}}
+        sid, feats = sf.first_station_in_role(role_group)
+        self.assertEqual(sid, "lug")
+        self.assertEqual(feats["pressure_latest"], 960.0)
+
+    def test_first_station_in_role_empty_group_returns_none(self):
+        sid, feats = sf.first_station_in_role({})
+        self.assertIsNone(sid)
+        self.assertEqual(feats, {})
+
+    def test_cov_reaches_summit_role_when_present(self):
+        registry = self._registry()
+        feats = {"cov": {"latest_wind_speed": 12.0}}
+        grouped = sf.group_station_features_by_role(feats, registry)
+        sid, cov_feats = sf.first_station_in_role(grouped.get("summit", {}))
+        self.assertEqual(sid, "cov")
+        self.assertEqual(cov_feats["latest_wind_speed"], 12.0)
+
+
 if __name__ == "__main__":
     unittest.main()
