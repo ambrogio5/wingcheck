@@ -82,12 +82,22 @@
   .fc-card.recommended .fc-wind{color:rgba(255,255,255,.9);}
   .empty-state{color:var(--ink-3);font-size:13.5px;padding:18px 4px;text-align:center;}
 
+  /* ---------- Day blocks (Today / Tomorrow) ---------- */
+  .day-block + .day-block{margin-top:24px;padding-top:22px;border-top:1px solid var(--line-soft);}
+  .day-block-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .day-block-head h3{font-size:14.5px;font-weight:600;color:var(--ink);}
+  .day-date{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);}
+
   /* ---------- Daily summary ---------- */
-  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:4px;}
+  .summary-columns{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  @media (max-width:680px){.summary-columns{grid-template-columns:1fr;}}
+  .summary-day-head{font-size:12px;font-weight:600;color:var(--ink-3);text-transform:uppercase;
+    letter-spacing:.04em;margin-bottom:10px;}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin-bottom:4px;}
   .summary-stat .s-label{font-size:12px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.03em;}
-  .summary-stat .s-value{font-family:var(--display);font-size:24px;font-weight:600;margin-top:4px;}
+  .summary-stat .s-value{font-family:var(--display);font-size:22px;font-weight:600;margin-top:4px;}
   .recommendation{margin-top:14px;padding:14px 16px;background:var(--blue-soft);border-radius:12px;
-    font-size:14px;color:var(--blue-deep);font-weight:500;line-height:1.5;}
+    font-size:13.5px;color:var(--blue-deep);font-weight:500;line-height:1.5;}
 
   /* ---------- Generic stat row (live performance) ---------- */
   .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;}
@@ -199,21 +209,46 @@
     </div>
   </header>
 
-  <!-- ================= TODAY'S FORECAST ================= -->
-  <section class="card" aria-labelledby="today-h">
+  <!-- ================= TODAY & TOMORROW FORECAST ================= -->
+  <section class="card" aria-labelledby="forecast-h">
     <div class="section-head">
-      <h2 id="today-h">Today's forecast</h2>
-      <div class="hint">14:00–18:00 local time</div>
+      <h2 id="forecast-h">Today &amp; tomorrow</h2>
+      <div class="hint">14:00–18:00 local time (Europe/Zurich)</div>
     </div>
     <p class="explain">Estimated likelihood is the model's own probability that each hour will be a rideable wingfoil session - not a guarantee, and not the same as the alert-tier cutoff.</p>
-    <div class="forecast-grid" id="forecastGrid" role="list"></div>
+
+    <div class="day-block" id="todayBlock">
+      <div class="day-block-head">
+        <h3 id="today-h">Today</h3>
+        <span class="day-date" id="todayDateLabel"></span>
+      </div>
+      <div class="forecast-grid" id="todayGrid" role="list" aria-labelledby="today-h"></div>
+    </div>
+
+    <div class="day-block" id="tomorrowBlock">
+      <div class="day-block-head">
+        <h3 id="tomorrow-h">Tomorrow</h3>
+        <span class="day-date" id="tomorrowDateLabel"></span>
+      </div>
+      <div class="forecast-grid" id="tomorrowGrid" role="list" aria-labelledby="tomorrow-h"></div>
+    </div>
   </section>
 
   <!-- ================= DAILY SUMMARY ================= -->
   <section class="card" id="summarySection" aria-labelledby="summary-h">
     <div class="section-head"><h2 id="summary-h">Daily summary</h2></div>
-    <div class="summary-grid" id="summaryGrid"></div>
-    <div class="recommendation" id="recommendation"></div>
+    <div class="summary-columns">
+      <div>
+        <div class="summary-day-head">Today</div>
+        <div class="summary-grid" id="todaySummaryGrid"></div>
+        <div class="recommendation" id="todayRecommendation"></div>
+      </div>
+      <div>
+        <div class="summary-day-head">Tomorrow</div>
+        <div class="summary-grid" id="tomorrowSummaryGrid"></div>
+        <div class="recommendation" id="tomorrowRecommendation"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ================= LIVE PERFORMANCE ================= -->
@@ -304,6 +339,7 @@
   </footer>
 </div>
 
+<script src="./dashboard-logic.js"></script>
 <script>
 const FEATURES = {
   thermal_excess:        {name:"Bregaglia heating",       desc:"How much warmer the source valley runs"},
@@ -353,15 +389,10 @@ const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
 const fmtNum = (x, d=2) => (x===null||x===undefined) ? "—" : Number(x).toFixed(d);
 const fmtInt = x => (x===null||x===undefined) ? "—" : Math.round(x);
 
-// target_time is a naive Europe/Zurich wall-clock string (no offset) - parse
-// its components directly via Date.UTC and always format with timeZone:'UTC'
-// so the displayed hour matches Zurich regardless of the viewer's own clock.
-function parseNaiveLocal(s){
-  const [datePart, timePart] = s.split('T');
-  const [y,m,d] = datePart.split('-').map(Number);
-  const [hh,mm] = timePart.split(':').map(Number);
-  return new Date(Date.UTC(y, m-1, d, hh, mm));
-}
+// parseNaiveLocal, zurichTodayDateString, zurichTomorrowDateString,
+// zurichNowPseudoUtc, groupForecastByWindow, filterRemaining, and
+// selectBestCard all come from dashboard-logic.js (loaded just before this
+// script) - see that file for why Zurich-specific date handling matters.
 
 function hoursAgo(isoString){
   if(!isoString) return null;
@@ -386,29 +417,32 @@ function renderStatus(d){
   el.innerHTML = chips.join('');
 }
 
-function getTodayCards(d){
-  const list = (d.upcoming_forecast || []).filter(p=>{
-    const h = parseNaiveLocal(p.target_time).getUTCHours();
-    return h >= 14 && h <= 18;
-  });
-  if (!list.length) return {day: null, cards: []};
-  list.sort((a,b)=>a.target_time.localeCompare(b.target_time));
-  const day = list[0].target_time.slice(0,10);
-  return {day, cards: list.filter(p=>p.target_time.slice(0,10)===day)};
+// getForecastByDay, groupForecastByWindow, filterRemaining, selectBestCard,
+// zurichTodayDateString/zurichTomorrowDateString all come from
+// dashboard-logic.js - splitting upcoming_forecast into today's remaining
+// 14:00-18:00 hours and tomorrow's full 14:00-18:00 hours, using
+// Europe/Zurich calendar dates, never the earliest forecast date in the
+// list (which would silently hide tomorrow whenever even one hour of
+// today was still left - the bug this rewrite fixes).
+
+function formatHourLabel(targetTime){
+  return parseNaiveLocal(targetTime).toLocaleTimeString('en',{hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'UTC'});
 }
 
-function renderTodayForecast(d){
-  const {cards} = getTodayCards(d);
-  const el = document.getElementById('forecastGrid');
-  if (!cards.length){
-    el.innerHTML = '<div class="empty-state">No forecast logged for today\'s 14:00–18:00 window yet — updates automatically at 07:00 &amp; 10:00 CEST.</div>';
-    return;
-  }
-  const bestProb = Math.max(...cards.map(c=>c.probability ?? 0));
+function formatDayLabel(dateStr){
+  // dateStr is "YYYY-MM-DD" - render as e.g. "Wed 16/07" without relying on
+  // the viewer's timezone shifting it to an adjacent day.
+  return new Date(dateStr + 'T12:00:00Z')
+    .toLocaleDateString('en', {weekday:'short', day:'2-digit', month:'2-digit', timeZone:'UTC'});
+}
+
+function renderForecastCards(containerId, cards){
+  const el = document.getElementById(containerId);
+  if (!cards.length) return false;
+  const best = selectBestCard(cards);
   el.innerHTML = cards.map(c=>{
-    const dt = parseNaiveLocal(c.target_time);
-    const time = dt.toLocaleTimeString('en',{hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'UTC'});
-    const isBest = c.probability === bestProb;
+    const time = formatHourLabel(c.target_time);
+    const isBest = best && c === best;
     const wind = c.model_wind_kt!==undefined ? `Wind ${fmtInt(c.model_wind_kt)} kt` : 'Wind —';
     const gust = c.model_gust_kt!==undefined ? `Gust ${fmtInt(c.model_gust_kt)} kt` : '';
     const dir = c.model_wind_dir ? ` · ${c.model_wind_dir}` : '';
@@ -421,29 +455,55 @@ function renderTodayForecast(d){
         <div class="fc-wind">${wind} · ${gust}${dir}</div>
       </div>`;
   }).join('');
+  return true;
 }
 
-function renderDailySummary(d){
-  const {cards} = getTodayCards(d);
-  const section = document.getElementById('summarySection');
-  const grid = document.getElementById('summaryGrid');
-  const rec = document.getElementById('recommendation');
+function renderTodayForecast(d){
+  const {todayStr, todayAllCards, todayRemaining} = getForecastByDay(d.upcoming_forecast);
+  document.getElementById('todayDateLabel').textContent = formatDayLabel(todayStr);
+  if (!renderForecastCards('todayGrid', todayRemaining)){
+    const message = todayAllCards.length
+      ? "Today's 14:00–18:00 forecast window is complete — check tomorrow below."
+      : "No forecast logged for today's 14:00–18:00 window yet — updates automatically at 07:00 &amp; 10:00 CEST.";
+    document.getElementById('todayGrid').innerHTML = `<div class="empty-state">${message}</div>`;
+  }
+}
+
+function renderTomorrowForecast(d){
+  const {tomorrowStr, tomorrowCards} = getForecastByDay(d.upcoming_forecast);
+  document.getElementById('tomorrowDateLabel').textContent = formatDayLabel(tomorrowStr);
+  if (!renderForecastCards('tomorrowGrid', tomorrowCards)){
+    document.getElementById('tomorrowGrid').innerHTML =
+      '<div class="empty-state">No forecast logged for tomorrow\'s 14:00–18:00 window yet.</div>';
+  }
+}
+
+function renderDaySummary(prefix, cards, emptyMessage){
+  const grid = document.getElementById(`${prefix}SummaryGrid`);
+  const rec = document.getElementById(`${prefix}Recommendation`);
   if (!cards.length){
-    section.style.display = 'none';
+    grid.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
+    rec.textContent = '';
     return;
   }
-  section.style.display = '';
-  const best = cards.reduce((a,b)=> (b.probability ?? 0) > (a.probability ?? 0) ? b : a);
+  const best = selectBestCard(cards);
   const peakWind = Math.max(...cards.map(c=>c.model_wind_kt ?? 0));
-  const bestTime = parseNaiveLocal(best.target_time).toLocaleTimeString('en',{hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'UTC'});
+  const bestTime = formatHourLabel(best.target_time);
 
   grid.innerHTML = `
     <div class="summary-stat"><div class="s-label">Best hour</div><div class="s-value">${bestTime}</div></div>
-    <div class="summary-stat"><div class="s-label">Max estimated likelihood</div><div class="s-value">${fmtPct(best.probability)}</div></div>
-    <div class="summary-stat"><div class="s-label">Expected peak wind</div><div class="s-value">${fmtInt(peakWind)} kt</div></div>`;
+    <div class="summary-stat"><div class="s-label">Max est. likelihood</div><div class="s-value">${fmtPct(best.probability)}</div></div>
+    <div class="summary-stat"><div class="s-label">Peak wind</div><div class="s-value">${fmtInt(peakWind)} kt</div></div>`;
 
   const interp = TIER_INTERPRETATION[best.tier] || 'Check the forecast closer to time';
   rec.textContent = `${interp} — best odds around ${bestTime} (${fmtPct(best.probability)} estimated likelihood, model likelihood, not a guarantee).`;
+}
+
+function renderDailySummary(d){
+  const {todayAllCards, todayRemaining, tomorrowCards} = getForecastByDay(d.upcoming_forecast);
+  renderDaySummary('today', todayRemaining,
+    todayAllCards.length ? "Today's window is complete." : 'No forecast data for today yet.');
+  renderDaySummary('tomorrow', tomorrowCards, 'No forecast data for tomorrow yet.');
 }
 
 function renderLivePerformance(d){
@@ -657,7 +717,18 @@ function renderWeights(d){
 async function init(){
   let d;
   try{
-    const r = await fetch('./dashboard_data.json');
+    // GitHub Pages serves dashboard_data.json with a caching CDN in front of
+    // it, and some browsers/proxies will happily serve a stale copy for
+    // minutes after a fresh forecast/learn/backtest commit updates the
+    // file. The forecast job now regenerates this file up to several times
+    // a day (see wingcheck.yml), so a stale cached copy is a real, regular
+    // risk here, not a hypothetical one - the query-string cache-buster
+    // plus `cache: 'no-store'` makes sure every page load asks for the
+    // actual current file. (A <meta> Cache-Control tag was considered
+    // instead, but GitHub Pages has no way to set real HTTP response
+    // headers per file without a hosting platform that supports a
+    // `_headers`-style config, so it wouldn't reliably affect this fetch.)
+    const r = await fetch(`./dashboard_data.json?v=${Date.now()}`, {cache: 'no-store'});
     if(!r.ok) throw 0;
     d = await r.json();
   }catch(e){
@@ -666,7 +737,7 @@ async function init(){
   // Each section renders independently - one failing (e.g. Chart.js not
   // loading) must not blank out the others, especially today's forecast,
   // which is the page's actual headline answer.
-  for (const fn of [renderStatus, renderTodayForecast, renderDailySummary, renderLivePerformance,
+  for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderLivePerformance,
                      renderFrozenEvaluation, renderOperationalAndRepro, renderAblation,
                      renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }

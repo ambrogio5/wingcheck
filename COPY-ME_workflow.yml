@@ -1,7 +1,13 @@
 # Save as .github/workflows/wingcheck.yml
 #
 # Four jobs:
-#  - forecast: runs the model, sends Telegram alert, logs predictions
+#  - forecast: runs the model, sends Telegram alert, logs predictions, then
+#    immediately runs refresh_dashboard.py and commits BOTH
+#    logs/predictions.jsonl and docs/dashboard_data.json - so the published
+#    dashboard shows today's/tomorrow's forecast right after each 07:00 and
+#    10:00 run, instead of sitting stale until the evening learn job (a
+#    live-forecast-visibility bug fixed on 2026-07-16: predictions were
+#    logged all day but the dashboard only refreshed once, at 20:00 CEST).
 #  - sample_kitesailing: every 15 min, sunrise-to-sundown (05:00-21:45 CEST,
 #    generous enough to cover the full May-Oct range), scrapes the
 #    kitesailing.ch Silvaplana lake station reading - this is the model's
@@ -10,7 +16,8 @@
 #    beyond it
 #  - learn: runs later each day, checks that day's predictions against real
 #    observations (kitesailing primary, Samedan fallback + secondary signal),
-#    updates weights.json
+#    updates weights.json, and refreshes the dashboard again (verified
+#    outcomes + live_metrics only change here, not in the forecast job)
 #  - backtest: MANUAL ONLY (workflow_dispatch). Retrains from 2024-2026
 #    history (Samedan-labeled - kitesailing has no historical archive) and
 #    regenerates the dashboard. Run this once to start, and again any time
@@ -109,12 +116,13 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      - name: Commit prediction log
+      - run: python refresh_dashboard.py
+      - name: Commit prediction log and refreshed dashboard data
         run: |
           git config user.name "wingcheck-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add logs/predictions.jsonl
-          git diff --staged --quiet || git commit -m "log predictions $(date -u +%F)"
+          git add logs/predictions.jsonl docs/dashboard_data.json
+          git diff --staged --quiet || git commit -m "log predictions and refresh dashboard $(date -u +%F)"
           git pull --rebase origin main
           git push
 
