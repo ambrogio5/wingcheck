@@ -81,10 +81,15 @@ positive rate (~25-49%) and were easy, highly-separable true negatives
 that boosted overall discriminative power. Restricting to 15-18h left a
 smaller, more homogeneous, harder-to-classify population. Reverted back
 to 12-18h - don't re-narrow this without backtest evidence it actually
-helps. The 15:00-18:00 "prime window" reports below are a diagnostic
-SLICE of the same 12-18h-trained model's holdout predictions, not a
-different training window - they do not change WINDOW_START_HOUR/
-WINDOW_END_HOUR, which remain what forecast_and_log.py schedules against.
+helps.
+
+The "prime window" reports below are a diagnostic SLICE of the same
+12-18h-trained model's holdout predictions, not a different training
+window - they do not change WINDOW_START_HOUR/WINDOW_END_HOUR, which
+remain what forecast_and_log.py schedules against. It was originally
+15:00-18:00, then changed to 14:00-18:00 on 2026-07-16 (a separate,
+later change from the WINDOW_START_HOUR revert described above) - see
+PRIME_WINDOW_START_HOUR/PRIME_WINDOW_END_HOUR.
 """
 
 import json
@@ -110,7 +115,7 @@ WINDOW_END_HOUR = 18
 
 # Diagnostic-only slice of the same holdout predictions (see docstring) -
 # NOT a second training window, purely a reporting split.
-PRIME_WINDOW_START_HOUR = 15
+PRIME_WINDOW_START_HOUR = 14
 PRIME_WINDOW_END_HOUR = 18
 
 MARGINAL_KT = 10
@@ -294,11 +299,20 @@ def main():
             "these numbers - it is never saved to weights.json and never trained "
             "further on 2026."
         ),
+        # Written ONLY here, by backtest.py - refresh_dashboard.py carries this
+        # timestamp forward unchanged along with the rest of this section, so
+        # the dashboard can show "this frozen evaluation was generated on X"
+        # distinctly from the top-level generated_at (which changes on every
+        # refresh_dashboard.py run and reflects the live/deployment data, not
+        # this frozen holdout experiment).
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "trained_on_years": [2024, 2025],
         "holdout_years": [2026],
         "n_training_samples": eval_weights["trained_samples"],
         "n_holdout_samples": len(holdout_set),
         "thresholds": eval_thresholds,
+        "prime_window_hours": [PRIME_WINDOW_START_HOUR, PRIME_WINDOW_END_HOUR],
+        "full_window_hours": [WINDOW_START_HOUR, WINDOW_END_HOUR],
         "hourly": {
             "full_window": hourly_reports(eval_weights, holdout_set, eval_thresholds),
             "prime_window": hourly_reports(eval_weights, prime_holdout, eval_thresholds),

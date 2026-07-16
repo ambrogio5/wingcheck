@@ -34,11 +34,28 @@ def _toy_samples(n, start_seed=0):
 
 
 class FilterHoursTests(unittest.TestCase):
+    def test_prime_window_constants_are_14_to_18(self):
+        self.assertEqual(backtest.PRIME_WINDOW_START_HOUR, 14)
+        self.assertEqual(backtest.PRIME_WINDOW_END_HOUR, 18)
+
     def test_filters_to_prime_window(self):
-        samples = _toy_samples(21)
-        prime = backtest._filter_hours(samples, 15, 18)
-        self.assertTrue(all(15 <= backtest._hour_of(s) <= 18 for s in prime))
-        self.assertTrue(any(backtest._hour_of(s) < 15 for s in samples))  # sanity: fixture has hours outside prime
+        samples = _toy_samples(21)  # hours cycle 12..18
+        prime = backtest._filter_hours(
+            samples, backtest.PRIME_WINDOW_START_HOUR, backtest.PRIME_WINDOW_END_HOUR)
+        self.assertTrue(all(14 <= backtest._hour_of(s) <= 18 for s in prime))
+        self.assertTrue(any(backtest._hour_of(s) < 14 for s in samples))  # sanity: fixture has hours outside prime
+
+    def test_prime_window_includes_14_and_excludes_earlier_hours(self):
+        samples = [
+            {"date": "2026-07-01T12:00"},
+            {"date": "2026-07-01T13:00"},
+            {"date": "2026-07-01T14:00"},
+            {"date": "2026-07-01T18:00"},
+        ]
+        prime = backtest._filter_hours(
+            samples, backtest.PRIME_WINDOW_START_HOUR, backtest.PRIME_WINDOW_END_HOUR)
+        prime_hours = sorted(backtest._hour_of(s) for s in prime)
+        self.assertEqual(prime_hours, [14, 18])
 
 
 class CalibrateThresholdsTests(unittest.TestCase):
