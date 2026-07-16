@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Malojawind: a self-improving forecast for the Maloja wind at Lake Silvaplana.
-A logistic-regression-style model scores 21 engineered features (from 20+ raw
+A logistic-regression-style model scores 22 engineered features (from 20+ raw
 data points, including a multi-model wind ensemble) to predict whether a
 given afternoon hour (12:00-18:00) will be a good wingfoil session, sends
 Telegram alerts, verifies its own predictions against the real kitesailing.ch
@@ -76,32 +76,38 @@ for exactly this reason. Don't hoist it back to module level.
    historical-archive API) across three locations (Silvaplana target spot,
    Bregaglia source valley, Maloja Pass upper air) plus Lugano/Zürich
    pressure, a multi-model wind ensemble (`icon_seamless`, `gfs_seamless`,
-   `ecmwf_ifs025` via the `models=` param), and Samedan's own recent
-   observations (via `meteoswiss.py`), and engineers them into 21 named
-   features (`engineer_features`) — including an ensemble mean/agreement
-   pair, a lag-based persistence feature, two interaction terms, and
-   `samedan_morning_score` (Samedan's real measured wind around 07:00 local
-   the same day — a genuine upstream nowcast, now that Samedan is no longer
-   the ground truth, just a correlated secondary signal). Two fetch paths:
-   `fetch_raw` (live, ~3 day forecast) and `fetch_raw_historical`
-   (date-range archive, used only by `backtest.py`) — they must stay
-   feature-compatible since the same `engineer_features` function scores
-   both. `fetch_raw` fetches its own Samedan "recent" data for the nowcast
-   feature; `fetch_raw_historical` does NOT (`backtest.py` already fetches
-   the full multi-year Samedan archive once for labeling and injects it into
-   `raw["samedan_obs"]` itself, rather than re-fetching that large archive
-   per season). Both the ensemble fetch and the Samedan nowcast fetch are
-   best-effort: on failure `engineer_features` falls back to a neutral value
-   (0.5 agreement, 0.0 nowcast score) so a flaky extra API call can't take
-   down the whole pipeline. `raw_snapshot(raw, idx)` is a companion function
-   that returns every raw physical value, unnormalized - logged into
-   `logs/predictions.jsonl` alongside the engineered features, since
-   Open-Meteo's live API only serves ~3 months of history and even
-   `backtest.py`'s archive fetch doesn't reproduce a genuine multi-day-lead
-   forecast (see its own docstring). Once a live prediction ages out, this
-   is the only remaining record of what the forecast actually said -
-   without it, that data would be permanently unrecoverable for future
-   feature engineering.
+   `ecmwf_ifs025` via the `models=` param), and real MeteoSwiss station
+   observations (via `meteoswiss.py`: Samedan wind, plus Lugano/Zürich
+   pressure), and engineers them into 22 named features (`engineer_features`)
+   — including an ensemble mean/agreement pair, a lag-based persistence
+   feature, two interaction terms, `samedan_morning_score` (Samedan's real
+   measured wind around 07:00 local the same day — a genuine upstream
+   nowcast, now that Samedan is no longer the ground truth, just a
+   correlated secondary signal), and `pressure_nowcast_score` (the same
+   Lugano-Zürich gradient as `pressure_signal`, but from real station
+   observations this morning rather than the forecast model — see
+   `meteoswiss.py`'s docstring for why `pressure_signal` itself has to stay
+   forecast-based: it scores a 1-3 day-ahead target hour a real observation
+   can't exist for yet, unlike the ground-truth role Samedan could hand off
+   to kitesailing.ch). Two fetch paths: `fetch_raw` (live, ~3 day forecast)
+   and `fetch_raw_historical` (date-range archive, used only by
+   `backtest.py`) — they must stay feature-compatible since the same
+   `engineer_features` function scores both. `fetch_raw` fetches its own
+   Samedan/Lugano/Zürich "recent" data for the nowcast features;
+   `fetch_raw_historical` does NOT (`backtest.py` already fetches the full
+   multi-year archives once for labeling and injects them into `raw` itself,
+   rather than re-fetching per season). All three nowcast fetches (ensemble,
+   Samedan, pressure) are best-effort: on failure `engineer_features` falls
+   back to a neutral value (0.5 agreement, 0.0 nowcast score) so a flaky
+   extra API call can't take down the whole pipeline. `raw_snapshot(raw,
+   idx)` is a companion function that returns every raw physical value,
+   unnormalized - logged into `logs/predictions.jsonl` alongside the
+   engineered features, since Open-Meteo's live API only serves ~3 months of
+   history and even `backtest.py`'s archive fetch doesn't reproduce a
+   genuine multi-day-lead forecast (see its own docstring). Once a live
+   prediction ages out, this is the only remaining record of what the
+   forecast actually said - without it, that data would be permanently
+   unrecoverable for future feature engineering.
 2. **`model.py`** — a from-scratch logistic unit: `score()` (sigmoid of
    `bias + Σ weight_i * feature_i`) and `update()` (one online
    gradient-descent step given an actual 0/1 outcome). No ML framework;
@@ -123,14 +129,21 @@ for exactly this reason. Don't hoist it back to module level.
    scraping started.
 4. **`meteoswiss.py`** — SECONDARY ground truth (fallback when
    `kitesailing_weather.py` has no reading close enough to a target hour)
-   and, via `features.py`, a live nowcast feature. Pulls real Samedan (SAM)
-   station observations from MeteoSwiss's open STAC catalog (not another
-   model run). `SAM_PROXY_KT` (default 8.0) is the calibration knob
-   converting "wind at Samedan" into "rideable at the lake" for the fallback
-   path only — tune it after real sessions, then re-run the backtest so
-   labels regenerate consistently. It's also still the ONLY source with a
-   multi-year historical archive, so `backtest.py` has to keep using it as
-   the sole (not just fallback) ground truth for historical retraining.
+   and, via `features.py`, two live nowcast features. Pulls real station
+   observations from MeteoSwiss's open STAC catalog (not another model
+   run): Samedan (SAM) wind, and Lugano (`LUGANO_STATION`)/Zürich-Fluntern
+   (`ZURICH_STATION`) sea-level pressure. Station codes and column names
+   (`fu3010h0`/`fu3010h1` for wind, `pp0qffh0` for pressure) were confirmed
+   against the live API on 2026-07-16 — a prior version of this docstring
+   guessed wrong values (`fu3010z0`/`z1`, `pp0qffs0`) that were never
+   actually used/tested; don't reintroduce guessed column names, verify
+   against a real fetch. `SAM_PROXY_KT` (default 8.0) is the calibration
+   knob converting "wind at Samedan" into "rideable at the lake" for the
+   fallback path only — tune it after real sessions, then re-run the
+   backtest so labels regenerate consistently. Samedan is also still the
+   ONLY source with a multi-year historical archive, so `backtest.py` has
+   to keep using it as the sole (not just fallback) ground truth for
+   historical retraining.
 5. **`forecast_and_log.py`** (scheduled 07:00 & 10:00 CEST) — runs
    `features.py` + `model.py` over the live forecast, tiers each hour in the
    12:00-18:00 window into GOOD/MARGINAL/UNLIKELY via thresholds in
@@ -192,9 +205,11 @@ for exactly this reason. Don't hoist it back to module level.
     `backtest.py` - so a future window change (like the revert above) is
     served entirely from cache too, no re-fetch needed. Closed seasons
     (any date range not ending today) are cached forever; the open season
-    is refetched at most once per calendar day. The Samedan archive's
-    expensive part (STAC catalog discovery + downloading every historical
-    CSV) runs once ever; later calls just merge in the cheap "recent" file.
+    is refetched at most once per calendar day. Each MeteoSwiss station
+    archive's (Samedan, Lugano, Zürich) expensive part - STAC catalog
+    discovery + downloading every historical CSV - runs once ever per
+    station; later calls just merge in the cheap "recent" file
+    (`get_samedan_archive()` / `get_pressure_archive(station)`).
 
 **Orchestration**: `.github/workflows/wingcheck.yml` defines four jobs
 (`forecast`, `sample_kitesailing`, `learn`, `backtest`) gated by cron
@@ -224,13 +239,13 @@ just a single `index.html` with inline CSS/JS and Chart.js from a CDN.
   never hand-edit these files.
 - `weights.json` is treated as a live, auto-updated artifact. Only hand-edit
   it to force a deliberate reset, and back it up first — any job run
-  afterward will keep learning from wherever you leave it. It was reset to
-  version 2 (all-zero weights, `trained_samples: 0`) on 2026-07-16, first
-  after a feature-schema change (dropped `cloud_score`, added
-  ensemble/persistence/interaction features), then again the same day after
-  adding `samedan_morning_score` — **do not let `forecast_and_log.py` run
-  against this until `backtest.py` has been re-run**, or it'll alert on a
-  flat, untrained probability for every hour.
+  afterward will keep learning from wherever you leave it. It went through
+  several feature-schema resets on 2026-07-16 (dropped `cloud_score`; added
+  ensemble/persistence/interaction features, then `samedan_morning_score`,
+  then `pressure_nowcast_score`) plus a window revert (15-18h back to
+  12-18h) — **do not let `forecast_and_log.py` run against this until
+  `backtest.py` has been re-run**, or it'll alert on a flat, untrained
+  probability for every hour.
 - Two ground-truth sources, two different roles — don't conflate them.
   `kitesailing_weather.py` (the real Silvaplana lake reading) is the
   PRIMARY label for the live loop (`verify_and_learn.py`), with `meteoswiss.py`
@@ -248,7 +263,8 @@ just a single `index.html` with inline CSS/JS and Chart.js from a CDN.
   observations store `observed_at` as UTC ISO strings (`datetime.now
   (timezone.utc).isoformat()`). Conversions happen explicitly at the
   boundary in `verify_and_learn.py`, `backtest.py`, and `features.py`'s
-  `samedan_morning_score` lookup — match that pattern rather than comparing
+  `_lookup_morning_obs()` (shared by `samedan_morning_score` and
+  `pressure_nowcast_score`) — match that pattern rather than comparing
   naive and aware datetimes directly.
 - Both `verify_and_learn.py` and `backtest.py` independently derive the
   outcome label and train with the same gradient-descent math as

@@ -57,8 +57,8 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from features import engineer_features
-from historical_cache import get_season_raw, get_samedan_archive
-from meteoswiss import SAM_PROXY_KT
+from historical_cache import get_season_raw, get_samedan_archive, get_pressure_archive
+from meteoswiss import LUGANO_STATION, ZURICH_STATION, SAM_PROXY_KT
 from model import load_weights, save_weights, score
 
 WINDOW_START_HOUR = 12  # reverted from 15 - see the docstring note above
@@ -84,12 +84,15 @@ def kt(kmh: float) -> float:
     return kmh / 1.852
 
 
-def build_samples_for_season(start_date, end_date, year, sam_obs, is_closed):
+def build_samples_for_season(start_date, end_date, year, sam_obs, lugano_obs, zurich_obs, is_closed):
     raw = get_season_raw(start_date, end_date, year, is_closed)
-    # fetch_raw_historical doesn't fetch Samedan itself (would re-download
-    # the whole multi-year archive per season) - inject the copy we already
-    # have, so engineer_features' samedan_morning_score can look it up.
+    # fetch_raw_historical doesn't fetch these itself (would re-download
+    # the whole multi-year archives per season) - inject the copies we
+    # already have, so engineer_features' samedan_morning_score /
+    # pressure_nowcast_score can look them up.
     raw["samedan_obs"] = sam_obs
+    raw["lugano_obs"] = lugano_obs
+    raw["zurich_obs"] = zurich_obs
     times = raw["silvaplana"]["time"]
 
     samples = []
@@ -186,6 +189,11 @@ def main():
     sam_obs = get_samedan_archive()
     print(f"  -> {len(sam_obs)} hourly observations available")
 
+    print("Fetching MeteoSwiss Lugano/Zurich pressure (for pressure_nowcast_score)...")
+    lugano_obs = get_pressure_archive(LUGANO_STATION)
+    zurich_obs = get_pressure_archive(ZURICH_STATION)
+    print(f"  -> {len(lugano_obs)} Lugano / {len(zurich_obs)} Zurich hourly observations available")
+
     today_str = datetime.now().strftime("%Y-%m-%d")
     all_samples = {}
     for start, end, year in SEASONS:
@@ -194,7 +202,8 @@ def main():
             all_samples[year] = []
             continue
         is_closed = end != today_str
-        all_samples[year] = build_samples_for_season(start, end, year, sam_obs, is_closed)
+        all_samples[year] = build_samples_for_season(
+            start, end, year, sam_obs, lugano_obs, zurich_obs, is_closed)
 
     os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)

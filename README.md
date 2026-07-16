@@ -1,7 +1,7 @@
 # Malojawind — Silvaplana wingfoil forecast
 
 Self-improving forecast for the Maloja wind at Lake Silvaplana.
-Scores 21 engineered features (Bregaglia thermal contrast, Lugano–Zürich
+Scores 22 engineered features (Bregaglia thermal contrast, Lugano–Zürich
 pressure gradient, 700hPa wind, CAPE, a multi-model wind ensemble, and more)
 from 20+ raw data points, sends Telegram alerts, verifies itself against the
 real kitesailing.ch Silvaplana lake reading (MeteoSwiss's Samedan station as
@@ -64,9 +64,9 @@ From here it runs itself:
 
 | File | Role |
 |---|---|
-| `features.py` | Fetches 20+ raw data points, engineers 21 signals |
+| `features.py` | Fetches 20+ raw data points, engineers 22 signals |
 | `model.py` | Logistic scorer + online learning step |
-| `meteoswiss.py` | Real Samedan station data (fallback ground truth + nowcast feature) |
+| `meteoswiss.py` | Real Samedan wind + Lugano/Zürich pressure (fallback ground truth + nowcast features) |
 | `kitesailing_weather.py` | Scrapes the real Silvaplana lake reading (primary ground truth) |
 | `forecast_and_log.py` | Daily forecast + Telegram + prediction log |
 | `verify_and_learn.py` | Checks predictions vs reality, updates weights |
