@@ -465,11 +465,33 @@ def main(argv=None):
     elif args.command == "validate":
         problems = validate_archive()
         if problems:
-            print(f"{len(problems)} problem(s) found:")
+            print(f"{len(problems)} schema-level problem(s) found:")
             for p in problems:
                 print(f"  - {p}")
-            return 1
-        print("Archive validation: no problems found.")
+        else:
+            print("Archive schema validation: no problems found.")
+
+        import data_quality
+        exit_code = 1 if problems else 0
+        for sid in STATIONS:
+            path = station_hourly_path(sid)
+            if not os.path.exists(path):
+                continue
+            records = _read_jsonl(path)
+            report = data_quality.validate_station_records(records)
+            if report["n_duplicate_timestamps"] or report["n_flagged_records"] or report["n_gaps"]:
+                exit_code = 1
+                print(f"\n{sid}: {report['n_flagged_records']} flagged record(s), "
+                      f"{report['n_duplicate_timestamps']} duplicate(s), {report['n_gaps']} gap(s)")
+
+        if os.path.exists(STATIONS_MANIFEST_PATH):
+            with open(STATIONS_MANIFEST_PATH) as f:
+                manifest = json.load(f)
+            health = data_quality.validate_sync_health(manifest)
+            if health:
+                exit_code = 1
+                print(f"\nSync health issues: {json.dumps(health, indent=2)}")
+        return exit_code
     elif args.command == "export-training":
         out_path, n = export_training(args.station, args.out)
         print(f"Exported {n} records to {out_path}")
