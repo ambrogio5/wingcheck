@@ -209,6 +209,55 @@ on GitHub Actions `ubuntu-latest` runners) rather than reimplementing its
 date-handling logic in Python; they skip cleanly if `node` isn't on PATH,
 so the core Python suite never depends on it.
 
+## Historical data archive and station research
+
+Beyond the operational pipeline above, `logs/historical/` holds a durable,
+provenance-tracked archive built for long-term retraining and for
+evaluating whether additional local weather stations would improve the
+forecast. Full detail lives in two dedicated documents:
+
+- **`docs/DATA_ARCHITECTURE.md`** — the archive's directory layout, the
+  canonical normalized hourly schema, what's committed vs. regenerable and
+  why, the manifest format, data-quality validation, forecast-vintage
+  archiving, and disaster-recovery/rebuild instructions.
+- **`docs/STATION_RESEARCH.md`** — every candidate weather station around
+  Silvaplana/Maloja/Upper Engadin/Bregaglia that's been investigated (not
+  just the ones that panned out), each with an honest verification status
+  and rejection reasons where applicable.
+
+In short:
+```bash
+python historical_data.py sync              # incrementally refresh the station archive (idempotent)
+python historical_data.py list-stations     # see every registered station and its status
+python historical_data.py coverage          # per-station record counts / date ranges
+python historical_data.py validate          # data-quality + gap/staleness checks
+python historical_data.py export-training   # export a combined dataset for research scripts
+python station_analysis.py                  # correlation + rolling-origin station-family comparison
+python calibration_analysis.py              # Platt/isotonic calibration comparison
+python regime_analysis.py                   # weather-regime false-positive breakdown
+python continuous_target_analysis.py        # continuous wind-target + daily-session-target research
+```
+
+All of the above are **research-only**: none of them ever writes
+`weights.json` or the operational `docs/dashboard_data.json` — see
+`docs/research.html` (a separate, explicitly-labeled-exploratory dashboard,
+fed by `refresh_research_dashboard.py`) for their output. Promoting a
+research finding into the production model is a deliberate, human-driven
+process — see `feature_candidates.py`'s `PROMOTION_PROCESS` and the
+"Feature promotion" note under "Known limitations" below.
+
+**Evaluation-integrity note**: station research inevitably involves
+inspecting the 2026 season repeatedly while comparing candidate features —
+this makes 2026 no longer a pristine, single-use holdout for that
+purpose (though it remains valid for `backtest.py`'s own evaluation/
+deployment split, which only ever looks at it once per run). To keep
+comparisons honest anyway, `station_analysis.py` and friends use
+**rolling-origin (expanding-window) evaluation** — training on 2024,
+validating each subsequent month/season in turn — with 2026 reported
+separately as a labeled **"reference"** result, not a "holdout": treat it
+as one more data point, not the final word, and expect it to keep being
+inspected as research continues. See `research_metrics.rolling_origin_splits()`.
+
 ## Files
 
 | File | Role |
@@ -228,6 +277,20 @@ so the core Python suite never depends on it.
 | `weights.json` | Current DEPLOYMENT model weights (auto-updated live, replaced wholesale by each `backtest.py` run) |
 | `docs/` | Dashboard (GitHub Pages): `index.html` + `dashboard-logic.js` (date-handling helpers) + `dashboard_data.json` |
 | `logs/` | Prediction log, backtest dataset, kitesailing observations, raw data cache (auto-committed) |
+| `stations.py` | Station metadata registry (id, coordinates, provider, roles, honest verification status) — see `docs/STATION_RESEARCH.md` |
+| `historical_data.py` | Durable historical-archive CLI (`sync`/`list-stations`/`coverage`/`validate`/`export-training`) — see `docs/DATA_ARCHITECTURE.md` |
+| `forecast_vintages.py` | Archives genuine forecast-model payloads (issue time, target time, lead time) before scoring, gzip-compressed and deduped by checksum |
+| `data_quality.py` | Implausible-value/gap/staleness validation for the historical archive — flags, never silently discards |
+| `research_metrics.py` | Rolling-origin (expanding-window) splits, day-level bootstrap CIs, Benjamini-Hochberg FDR correction |
+| `research_report.py` | Provenance envelope (commit SHA, data checksums, config, warnings) for every research script's saved report |
+| `station_analysis.py` | Correlation screen + rolling-origin station-family incremental-value comparison (research-only, never touches `weights.json`) |
+| `model_regularized.py` | Research-only L2-regularized logistic regression, isolated from the production model |
+| `calibration.py` / `calibration_analysis.py` | Reliability tables, ECE/MCE, Platt scaling, isotonic regression (research-only) |
+| `regimes.py` / `regime_analysis.py` | Rule-based weather-regime classification and per-regime false-positive analysis |
+| `continuous_target_analysis.py` | Research-only continuous wind-target and daily-session-target modeling |
+| `feature_candidates.py` | Explicit candidate-feature promotion registry and the 9-step `PROMOTION_PROCESS` checklist |
+| `refresh_research_dashboard.py` | Rebuilds `docs/research/research_data.json` from the latest research reports (never touches the main dashboard) |
+| `docs/research.html` | Secondary, explicitly-labeled-exploratory research dashboard — separate from the main operational dashboard |
 
 ## Known limitations
 
@@ -249,5 +312,25 @@ so the core Python suite never depends on it.
   ablation table). ~31% of hours land within ±2kt of the rideable
   threshold, an inherent noise floor no amount of feature/model tuning
   removes on its own; see CLAUDE.md's "Accuracy ceiling" note.
+- **Feature promotion is deliberately manual.** No research script — not
+  `station_analysis.py`, not any future station-derived feature — can
+  auto-add itself to `features.FEATURE_NAMES` or retrain `weights.json`.
+  A candidate feature must clear all of `feature_candidates.PROMOTION_PROCESS`
+  (coverage validation, rolling-origin validation across multiple folds,
+  a calibration check, an operational-reliability check, and manual human
+  approval) before a source-code change adds it and a fresh `backtest.py`
+  run deploys it. This is intentional friction: the accuracy-ceiling note
+  above already shows how easy it is for a feature to look useful on one
+  inspection of 2026 and add nothing real (`samedan_morning_score` and
+  `pressure_nowcast_score` are themselves now flagged, post-hoc, as
+  `validated_unstable` — see `feature_candidates.py`).
+- **Most candidate weather stations remain unverified.** The station
+  registry (`stations.py`) proposes over 20 candidates around Silvaplana/
+  Maloja/Upper Engadin/Bregaglia, but only 3 (Samedan, Lugano, Zürich) have
+  been confirmed against a live source and have real historical data in
+  this repo. See `docs/STATION_RESEARCH.md` for every candidate's status
+  and why — most were blocked by a sandboxed research environment with no
+  outbound network access to `data.geo.admin.ch`, not by a negative
+  finding about the station itself.
 
 Data: Open-Meteo (CC BY 4.0) · MeteoSwiss Open Data (Source: MeteoSwiss)

@@ -157,5 +157,51 @@ class StationCoverageReportTests(unittest.TestCase):
         self.assertEqual(result["sam"]["status"], "insufficient_coverage")
 
 
+class RealDatasetRollingOriginSplitTests(unittest.TestCase):
+    """Cross-checks rolling_origin_splits() against the actual, real
+    logs/backtest_dataset.jsonl dates (not a synthetic fixture) - the
+    day-grouped, no-leakage property must hold for the real data the
+    production backtest and every research script actually consume, not
+    just for a small hand-built example."""
+
+    DATASET_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                 "logs", "backtest_dataset.jsonl")
+
+    def setUp(self):
+        if not os.path.exists(self.DATASET_PATH):
+            self.skipTest("logs/backtest_dataset.jsonl not present in this checkout")
+        with open(self.DATASET_PATH) as f:
+            self.samples = [json.loads(line) for line in f if line.strip()]
+
+    def test_no_real_day_appears_in_both_train_and_validate_within_any_fold(self):
+        from research_metrics import rolling_origin_splits
+        folds = rolling_origin_splits(self.samples)
+        self.assertTrue(folds, "expected at least one fold from the real dataset")
+        for fold in folds:
+            train_days = {s["date"][:10] for s in fold["train"]}
+            validate_days = {s["date"][:10] for s in fold["validate"]}
+            overlap = train_days & validate_days
+            self.assertFalse(overlap, f"fold {fold['name']!r} leaks real day(s) {overlap} across train/validate")
+
+    def test_folds_are_chronological_train_before_validate(self):
+        from research_metrics import rolling_origin_splits
+        folds = rolling_origin_splits(self.samples)
+        for fold in folds:
+            if not fold["train"] or not fold["validate"]:
+                continue
+            max_train_date = max(s["date"][:10] for s in fold["train"])
+            min_validate_date = min(s["date"][:10] for s in fold["validate"])
+            self.assertLess(max_train_date, min_validate_date,
+                             f"fold {fold['name']!r} has a train date not strictly before its validate dates")
+
+    def test_2026_fold_is_labeled_reference_not_holdout(self):
+        from research_metrics import rolling_origin_splits
+        folds = rolling_origin_splits(self.samples)
+        reference_folds = [f for f in folds if f["kind"] == "reference"]
+        self.assertTrue(reference_folds, "expected a 2026 reference fold in the real dataset")
+        for fold in reference_folds:
+            self.assertNotIn("holdout", fold["name"].lower())
+
+
 if __name__ == "__main__":
     unittest.main()
