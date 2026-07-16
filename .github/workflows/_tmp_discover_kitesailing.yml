@@ -1,0 +1,23 @@
+# TEMPORARY, one-off diagnostic workflow - manual trigger only.
+# Runs _tmp_discover_kitesailing_endpoint.py on a GitHub-hosted runner (which
+# has normal internet access, unlike the dev sandbox that authored this) to
+# find the live-weather data source behind kitesailing.ch/en/spot/webcam.
+# Delete this file and _tmp_discover_kitesailing_endpoint.py once the
+# endpoint has been identified from the job log.
+
+name: tmp-discover-kitesailing
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright
+      - run: playwright install --with-deps chromium
+      - run: python _tmp_discover_kitesailing_endpoint.py
