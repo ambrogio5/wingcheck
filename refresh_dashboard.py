@@ -8,7 +8,8 @@ from the two local logs.
 Data sources:
   - logs/backtest_dataset.jsonl   historical training samples (from backtest.py)
   - logs/predictions.jsonl        live predictions; the verified ones carry
-                                  real observed outcomes
+                                  real observed outcomes, the unverified
+                                  future ones are the upcoming forecast
   - weights.json                  the CURRENT weights (which keep evolving)
 
 What it computes:
@@ -22,12 +23,18 @@ What it computes:
   - A merged timeline: historical samples + live verified hours, all
     re-scored with current weights so the probability trace reflects the
     model you have today.
+  - The upcoming forecast: the latest logged prediction for each future
+    target hour (deduplicated the same way verify_and_learn.py dedupes for
+    training - same hour gets forecast repeatedly across the 3-day rolling
+    window) - this actually answers the dashboard's own headline question
+    ("will it blow today?"), which nothing else here does.
 """
 
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from model import load_weights, score
 
@@ -35,6 +42,7 @@ BASE_DIR = os.path.dirname(__file__)
 DATASET_PATH = os.path.join(BASE_DIR, "logs", "backtest_dataset.jsonl")
 PREDICTIONS_PATH = os.path.join(BASE_DIR, "logs", "predictions.jsonl")
 DASHBOARD_DATA_PATH = os.path.join(BASE_DIR, "docs", "dashboard_data.json")
+ZURICH_TZ = ZoneInfo("Europe/Zurich")
 
 
 def read_jsonl(path):
@@ -52,6 +60,30 @@ def dedupe_latest_per_hour(records):
         if k not in latest or r.get("logged_at", "") > latest[k].get("logged_at", ""):
             latest[k] = r
     return list(latest.values())
+
+
+def upcoming_forecast(predictions):
+    """The latest logged prediction for each future target hour, soonest
+    first - deduplicated the same way verify_and_learn.py dedupes for
+    training, since the same hour gets forecast repeatedly across the
+    3-day rolling window."""
+    now_local = datetime.now(ZURICH_TZ)
+    future = [
+        p for p in predictions
+        if datetime.fromisoformat(p["target_time"]).replace(tzinfo=ZURICH_TZ) > now_local
+    ]
+    upcoming = dedupe_latest_per_hour(future)
+    upcoming.sort(key=lambda r: r["target_time"])
+    return [
+        {
+            "target_time": r["target_time"],
+            "probability": r["probability"],
+            "tier": r["tier"],
+            "model_wind_kt": r["model_wind_kt"],
+            "model_gust_kt": r["model_gust_kt"],
+        }
+        for r in upcoming
+    ]
 
 
 def live_metrics(verified):
@@ -150,6 +182,7 @@ def main():
         "samples_per_year": per_year,
         "holdout_metrics_2026": holdout_metrics or {"n": 0},
         "live_metrics": live_metrics(verified),
+        "upcoming_forecast": upcoming_forecast(predictions),
         "final_weights": weights,
         "monthly_breakdown": monthly_breakdown(entries),
         "timeline": [
@@ -166,7 +199,8 @@ def main():
     lm = dashboard_data["live_metrics"]
     print(f"Dashboard refreshed: {len(entries)} entries "
           f"({len(backtest_samples)} backtest + {len(verified)} live verified). "
-          f"Live accuracy so far: {lm.get('accuracy', '—')} on n={lm['n']}.")
+          f"Live accuracy so far: {lm.get('accuracy', '—')} on n={lm['n']}. "
+          f"Upcoming forecast: {len(dashboard_data['upcoming_forecast'])} hours.")
 
 
 if __name__ == "__main__":

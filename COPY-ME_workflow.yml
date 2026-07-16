@@ -1,12 +1,17 @@
 # Save as .github/workflows/wingcheck.yml
 #
-# Three jobs:
+# Four jobs:
 #  - forecast: runs the model, sends Telegram alert, logs predictions
-#  - learn: runs later each day, checks yesterday's predictions against real
-#    Samedan station data, updates weights.json
+#  - sample_kitesailing: every 15 min during the forecast window, scrapes the
+#    kitesailing.ch Silvaplana lake station reading - this is now the
+#    model's PRIMARY ground truth (see kitesailing_weather.py)
+#  - learn: runs later each day, checks that day's predictions against real
+#    observations (kitesailing primary, Samedan fallback + secondary signal),
+#    updates weights.json
 #  - backtest: MANUAL ONLY (workflow_dispatch). Retrains from 2024-2026
-#    history and regenerates the dashboard. Run this once to start, and
-#    again any time you want a from-scratch retrain.
+#    history (Samedan-labeled - kitesailing has no historical archive) and
+#    regenerates the dashboard. Run this once to start, and again any time
+#    you want a from-scratch retrain.
 #
 # Required repo secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 # Required repo setting: Settings -> Actions -> General -> Workflow permissions
@@ -20,8 +25,9 @@ name: wingfoil-check
 
 on:
   schedule:
-    - cron: "0 5,8 * * *"    # forecast: 07:00 / 10:00 CEST
-    - cron: "0 18 * * *"     # learn: 20:00 CEST, checks that day's window
+    - cron: "0 5,8 * * *"      # forecast: 07:00 / 10:00 CEST
+    - cron: "*/15 12-16 * * *" # sample_kitesailing: 14:00-18:59 CEST, brackets the 15-18h window
+    - cron: "0 18 * * *"       # learn: 20:00 CEST, checks that day's window
   workflow_dispatch:
     inputs:
       run_backtest:
@@ -72,6 +78,33 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/predictions.jsonl
           git diff --staged --quiet || git commit -m "log predictions $(date -u +%F)"
+          git pull --rebase origin main
+          git push
+
+  sample_kitesailing:
+    if: github.event_name == 'schedule' && github.event.schedule == '*/15 12-16 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright==1.61.0
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.61.0-${{ runner.os }}
+      - run: playwright install --with-deps chromium
+      - run: python kitesailing_weather.py
+      - name: Commit kitesailing observation
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/kitesailing_observations.jsonl
+          git diff --staged --quiet || git commit -m "kitesailing observation $(date -u +%FT%H:%M)"
           git pull --rebase origin main
           git push
 

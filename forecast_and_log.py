@@ -1,11 +1,15 @@
 """
 forecast_and_log.py - run this on a schedule (e.g. twice daily).
 
-1. Pulls the 20 raw data points (features.py).
+1. Pulls the raw data points (features.py).
 2. Scores each hour in the afternoon window with the current model (model.py).
 3. Sends a Telegram summary.
-4. Logs every scored hour to logs/predictions.jsonl - this is the record
-   verify_and_learn.py will later check against reality.
+4. Logs every scored hour to logs/predictions.jsonl - engineered features
+   (for verify_and_learn.py to later check against reality) AND the full
+   unnormalized raw snapshot (features.raw_snapshot) - Open-Meteo's live API
+   only serves ~3 months of history, so this is the only lasting record of
+   what a given live forecast actually said, useful for building new
+   features later even on hours that are long since verified.
 """
 
 import os
@@ -13,11 +17,12 @@ import sys
 import json
 from datetime import datetime, timezone
 
-from features import fetch_raw, engineer_features
+from features import fetch_raw, engineer_features, raw_snapshot
 from model import score, load_weights
 
-WINDOW_START_HOUR = 12
-WINDOW_END_HOUR = 18
+WINDOW_START_HOUR = 15  # narrowed from 12: hours 12-14 sit near the base
+WINDOW_END_HOUR = 18    # rate (thermal hasn't kicked in yet) and are barely
+                        # more predictable than a coin flip - see backtest.py
 MARGINAL_KT = 10
 GOOD_KT = 13
 
@@ -72,6 +77,12 @@ def build_and_log():
                 "model_wind_kt": round(model_kt, 1),
                 "model_gust_kt": round(gust_kt, 1),
                 "features": feats,
+                # Full unnormalized snapshot of what the live forecast said,
+                # kept even though only `feats` is used for scoring - once
+                # this ages past Open-Meteo's ~3 month live-data window it
+                # can never be pulled again (see raw_snapshot's docstring),
+                # so future feature engineering needs it logged now.
+                "raw": raw_snapshot(raw, idx),
                 "weights_version": weights.get("version", 1),
                 "verified": False,
             }
@@ -86,7 +97,7 @@ def format_message(results):
     marginal = [r for r in results if r["tier"] == "MARGINAL"]
 
     if not good and not marginal:
-        return "🌬️ *Silvaplana*: nessun segnale di Maloja wind nei prossimi giorni (finestra 12-18h)."
+        return "🌬️ *Silvaplana*: nessun segnale di Maloja wind nei prossimi giorni (finestra 15-18h)."
 
     lines = ["🪁 *Silvaplana - previsione Maloja wind*"]
     if good:

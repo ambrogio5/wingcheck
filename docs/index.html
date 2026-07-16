@@ -88,6 +88,19 @@
   footer{margin-top:56px;text-align:center;font-size:12.5px;color:var(--ink-3);line-height:1.8;}
   footer .mono{font-family:var(--mono);font-size:11.5px;}
   ::selection{background:var(--blue-soft);}
+
+  /* ---------- Upcoming forecast ---------- */
+  .upcoming-list{display:flex;flex-direction:column;gap:10px;}
+  .upcoming-row{display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding:14px 16px;border-radius:12px;background:var(--ice);border:1px solid var(--line-soft);}
+  .upcoming-when{font-weight:600;font-size:14.5px;}
+  .upcoming-wind{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-top:2px;}
+  .tier-badge{font-family:var(--mono);font-size:12px;font-weight:600;padding:7px 14px;
+    border-radius:100px;white-space:nowrap;}
+  .tier-badge.good{background:var(--good-soft);color:#0b7a54;}
+  .tier-badge.marginal{background:var(--warn-soft);color:#8a5c05;}
+  .tier-badge.unlikely{background:var(--line-soft);color:var(--ink-3);}
+  .upcoming-empty{color:var(--ink-3);font-size:13.5px;padding:4px 0;}
 </style>
 </head>
 <body>
@@ -106,6 +119,15 @@
     <div class="status-line" id="statusLine"></div>
   </header>
 
+  <!-- ================= Upcoming forecast ================= -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Next sessions</h2>
+      <div class="hint">15:00–18:00, updated after every forecast run</div>
+    </div>
+    <div class="upcoming-list" id="upcomingList"></div>
+  </section>
+
   <!-- ================= KPIs ================= -->
   <div class="kpis" id="kpiRow"></div>
 
@@ -113,7 +135,7 @@
   <section class="card">
     <div class="card-head">
       <h2>Wind history &amp; model confidence</h2>
-      <div class="hint" id="timelineHint">Afternoon window, 12:00–18:00</div>
+      <div class="hint" id="timelineHint">Afternoon window, 15:00–18:00</div>
     </div>
     <p class="explain">The grey area is the wind that actually blew. The blue line is how confident the model was (or would have been, for past seasons) that it would be a rideable day. When blue rises before grey does, the model is doing its job.</p>
     <div class="chart-box tall"><canvas id="timelineChart"></canvas></div>
@@ -143,7 +165,7 @@
   <footer>
     <div id="genAt">—</div>
     <div class="mono" id="sampleCount">—</div>
-    <div class="mono">Data: Open-Meteo · Source: MeteoSwiss</div>
+    <div class="mono">Data: Open-Meteo · Ground truth: kitesailing.ch · Source: MeteoSwiss</div>
   </footer>
 </div>
 
@@ -153,7 +175,6 @@ const FEATURES = {
   pressure_signal:       {name:"North–south pressure",    desc:"Lugano–Zürich gradient near its sweet spot"},
   upper_wind_alignment:  {name:"Wind aloft, direction",   desc:"SW flow at 3000 m reinforces the Maloja"},
   upper_wind_speed_score:{name:"Wind aloft, strength",    desc:"Enough to help, not enough to overwhelm"},
-  cloud_score:           {name:"Sun over Bregaglia",      desc:"Clear slopes heat faster"},
   dewpoint_score:        {name:"Dry air",                 desc:"Dry valleys warm more quickly"},
   cape_penalty:          {name:"Storm risk",              desc:"Instability that breaks the thermal cycle"},
   freezing_level_score:  {name:"Airmass warmth",          desc:"Freezing-level height as airmass character"},
@@ -165,9 +186,48 @@ const FEATURES = {
   hour_cos:              {name:"Time of day (ii)",         desc:"Second half of the daily-cycle encoding"},
   doy_sin:               {name:"Season (i)",               desc:"The wind's yearly rhythm"},
   doy_cos:               {name:"Season (ii)",              desc:"Second half of the seasonal encoding"},
+  ensemble_wind_score:   {name:"Model ensemble wind",      desc:"Mean forecast wind across ICON/GFS/ECMWF"},
+  ensemble_agreement_score:{name:"Model ensemble agreement", desc:"How closely the models agree with each other"},
+  persistence_wind:      {name:"Wind trend",               desc:"Is the forecast wind already building?"},
+  upper_wind_dewpoint_interaction:{name:"Aloft wind × dry air", desc:"Combined effect of upper wind and dryness"},
+  thermal_seasonal_interaction:{name:"Heating × season",   desc:"How the thermal effect shifts through the year"},
+  samedan_morning_score: {name:"Samedan this morning",     desc:"Real upstream wind already measured today"},
 };
 
 const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
+
+// target_time is a naive Europe/Zurich wall-clock string (no offset) - parse
+// its components directly via Date.UTC and always format with timeZone:'UTC'
+// so the displayed hour matches Zurich regardless of the viewer's own clock.
+function parseNaiveLocal(s){
+  const [datePart, timePart] = s.split('T');
+  const [y,m,d] = datePart.split('-').map(Number);
+  const [hh,mm] = timePart.split(':').map(Number);
+  return new Date(Date.UTC(y, m-1, d, hh, mm));
+}
+
+function renderUpcoming(d){
+  const list = d.upcoming_forecast || [];
+  const el = document.getElementById('upcomingList');
+  if (!list.length){
+    el.innerHTML = '<div class="upcoming-empty">No forecast logged yet — runs automatically at 07:00 &amp; 10:00 CEST.</div>';
+    return;
+  }
+  const tierClass = t => t==='GOOD' ? 'good' : t==='MARGINAL' ? 'marginal' : 'unlikely';
+  el.innerHTML = list.map(p=>{
+    const dt = parseNaiveLocal(p.target_time);
+    const when = dt.toLocaleDateString('en',{weekday:'short', day:'2-digit', month:'2-digit', timeZone:'UTC'})
+      + ' ' + dt.toLocaleTimeString('en',{hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'UTC'});
+    return `
+      <div class="upcoming-row">
+        <div>
+          <div class="upcoming-when">${when}</div>
+          <div class="upcoming-wind">model ${p.model_wind_kt}kt (gust ${p.model_gust_kt}kt) · confidence ${fmtPct(p.probability)}</div>
+        </div>
+        <div class="tier-badge ${tierClass(p.tier)}">${p.tier}</div>
+      </div>`;
+  }).join('');
+}
 
 function renderStatus(d){
   const el = document.getElementById('statusLine');
@@ -301,7 +361,12 @@ async function init(){
   }catch(e){
     d = window.__FALLBACK__; d.is_sample_data = true;
   }
-  renderStatus(d); renderKpis(d); renderTimeline(d); renderMonthly(d); renderWeights(d);
+  // Each section renders independently - one failing (e.g. Chart.js not
+  // loading) must not blank out the others, especially the upcoming
+  // forecast, which is the page's actual headline answer.
+  for (const fn of [renderStatus, renderUpcoming, renderKpis, renderTimeline, renderMonthly, renderWeights]){
+    try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
+  }
   document.getElementById('genAt').textContent =
     'Updated ' + (d.generated_at||'').slice(0,16).replace('T',' ') + ' UTC';
   document.getElementById('sampleCount').textContent =
@@ -315,8 +380,9 @@ init();
 window.__FALLBACK__ = {
   generated_at:new Date().toISOString(), total_samples:0,
   samples_per_year:{}, holdout_metrics_2026:{}, live_metrics:{n:0},
+  upcoming_forecast:[],
   final_weights:{weights:{thermal_excess:.9,pressure_signal:.8,upper_wind_alignment:.8,
-    upper_wind_speed_score:.5,cloud_score:.5,dewpoint_score:.3,cape_penalty:.4,
+    upper_wind_speed_score:.5,dewpoint_score:.3,cape_penalty:.4,
     freezing_level_score:.2,precip_penalty:.3}},
   monthly_breakdown:{}, timeline:[],
 };

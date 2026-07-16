@@ -8,13 +8,23 @@ builds the training set directly from history:
     same variables/format as the live forecast - not a coarser reanalysis,
     so training data matches what the live model will actually see.
   - Ground truth: MeteoSwiss's real Samedan (SAM) station observations.
+    This is a DIFFERENT source than verify_and_learn.py now uses live (the
+    kitesailing.ch Silvaplana lake reading) - there's no historical archive
+    for that station, only Samedan has multi-year history, so this is the
+    only ground truth a full historical retrain can use. That means the
+    weights this script produces are labeled on the SAM_PROXY_KT criterion,
+    while the live loop's online updates are labeled on the real lake
+    threshold (SILVAPLANA_MARGINAL_KT in verify_and_learn.py) - a real
+    labeling-criterion mismatch to be aware of until enough live
+    kitesailing history accumulates to backtest against directly. See
+    CLAUDE.md.
 
 Seasons covered: May-October, for 2024, 2025, and 2026 (up to today) -
 i.e. wingfoil season only, matching how you'd actually use this.
 
 Steps:
   1. Fetch weather + SAM obs for each season.
-  2. Build one labeled sample per afternoon hour (12-18h) per day.
+  2. Build one labeled sample per afternoon hour (15-18h) per day.
   3. Chronological split: train on 2024+2025, hold out 2026 to see how the
      model would have done on data it never trained on.
   4. Train (multiple epochs of online gradient descent over the training set).
@@ -35,8 +45,9 @@ from features import fetch_raw_historical, engineer_features
 from meteoswiss import fetch_sam_hourly_observations, SAM_PROXY_KT
 from model import load_weights, save_weights, score
 
-WINDOW_START_HOUR = 12
-WINDOW_END_HOUR = 18
+WINDOW_START_HOUR = 15  # keep in sync with forecast_and_log.py - narrowed
+WINDOW_END_HOUR = 18    # from 12 since 12-14 sit near the base rate (thermal
+                        # hasn't kicked in) and add mostly noise, not signal
 MARGINAL_KT = 10
 LEARNING_RATE = 0.05
 EPOCHS = 40
@@ -61,6 +72,10 @@ def kt(kmh: float) -> float:
 def build_samples_for_season(start_date, end_date, year, sam_obs):
     print(f"Fetching {start_date} to {end_date}...")
     raw = fetch_raw_historical(start_date, end_date)
+    # fetch_raw_historical doesn't fetch Samedan itself (would re-download
+    # the whole multi-year archive per season) - inject the copy we already
+    # have, so engineer_features' samedan_morning_score can look it up.
+    raw["samedan_obs"] = sam_obs
     times = raw["silvaplana"]["time"]
 
     samples = []

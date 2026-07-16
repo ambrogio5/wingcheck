@@ -17,30 +17,40 @@ Open-Meteo forecast model (api.open-meteo.com) - free, no key:
   Vicosoprano / Val Bregaglia (46.3603N 9.6398E) - the source valley:
     9. temperature_2m
     10. dew_point_2m
-    11. cloud_cover
-    12. shortwave_radiation
-    13. precipitation
+    11. shortwave_radiation
+    12. precipitation
   Upper air near Maloja Pass (46.4030N 9.6880E), pressure-level data:
-    14. wind_speed_700hPa
-    15. wind_direction_700hPa
-    16. wind_speed_850hPa
-    17. wind_direction_850hPa
+    13. wind_speed_700hPa
+    14. wind_direction_700hPa
+    15. wind_speed_850hPa
+    16. wind_direction_850hPa
   Airmass / instability, at Silvaplana coordinates:
-    18. freezing_level_height
-    19. cape
-    20. snow_depth
+    17. freezing_level_height
+    18. cape
+    19. snow_depth
+  Multi-model ensemble wind_speed_10m at Silvaplana (icon_seamless,
+  gfs_seamless, ecmwf_ifs025), fetched separately via the `models=` param:
+    20. wind_speed_10m (per model) - averaged + spread into two features;
+        best-effort, the pipeline runs fine if this fetch fails.
 
-MeteoSwiss official open data (data.geo.admin.ch) - real station observations,
-used ONLY for ground-truth verification (ground truth needs to be real, not
-another model run):
+MeteoSwiss official open data (data.geo.admin.ch) - real station observations:
     Samedan (SAM) - fu3010z0 (wind speed), fu3010z1 (gust), dkl010z0 (dir)
     Lugano (LUG) / Chur (CHU) - pp0qffs0 (sea-level pressure, real obs)
+
+  Samedan now serves two purposes: verify_and_learn.py's ground truth
+  fallback (see kitesailing_weather.py for the primary one), and, here,
+  21. a real-time nowcast feature (samedan_morning_score) - its own
+      measured wind ~10km up-valley around 07:00 local the same day, a
+      genuine upstream precursor signal rather than another model forecast.
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
+
+from meteoswiss import fetch_sam_hourly_observations
 
 TIMEZONE = "Europe/Zurich"
 
@@ -49,12 +59,14 @@ BREGAGLIA = (46.3603, 9.6398)     # Vicosoprano
 MALOJA_PASS = (46.4030, 9.6880)
 
 
-def _get(lat, lon, hourly_vars, forecast_days=None, start_date=None, end_date=None):
+def _get(lat, lon, hourly_vars, forecast_days=None, start_date=None, end_date=None, models=None):
     params = (
         f"latitude={lat}&longitude={lon}"
         f"&hourly={','.join(hourly_vars)}"
         f"&timezone={TIMEZONE}&wind_speed_unit=kmh"
     )
+    if models:
+        params += f"&models={','.join(models)}"
     if start_date and end_date:
         # Historical Forecast API: separate host from the live endpoint, but
         # same variables (pressure levels / cape / freezing level included)
@@ -89,13 +101,41 @@ _SILVAPLANA_VARS = [
     "freezing_level_height", "cape", "snow_depth",
 ]
 _BREGAGLIA_VARS = [
-    "temperature_2m", "dew_point_2m", "cloud_cover",
+    "temperature_2m", "dew_point_2m",
     "shortwave_radiation", "precipitation",
 ]
 _UPPER_VARS = [
     "wind_speed_700hPa", "wind_direction_700hPa",
     "wind_speed_850hPa", "wind_direction_850hPa",
 ]
+
+# Independent NWP models for the Silvaplana surface wind, fetched alongside
+# the main "best_match" forecast. Averaging them damps single-model error,
+# and their spread is itself a signal (models agreeing -> more trustworthy
+# forecast). Best-effort: a fetch failure here must not break the whole
+# pipeline, since the deterministic forecast alone is still enough to run on.
+_ENSEMBLE_MODELS = ["icon_seamless", "gfs_seamless", "ecmwf_ifs025"]
+
+
+def _fetch_ensemble_wind(lat, lon, forecast_days=None, start_date=None, end_date=None):
+    try:
+        return _get(lat, lon, ["wind_speed_10m"], forecast_days=forecast_days,
+                     start_date=start_date, end_date=end_date, models=_ENSEMBLE_MODELS)
+    except RuntimeError as e:
+        print(f"[warn] multi-model ensemble fetch failed, continuing without it: {e}")
+        return None
+
+
+def _fetch_samedan_recent():
+    """Best-effort: real-time Samedan conditions as of right now, used as
+    the samedan_morning_score nowcast feature. Not the ground-truth fetch -
+    verify_and_learn.py fetches its own copy for labeling; this one just
+    feeds the model. A failure here must not break the forecast pipeline."""
+    try:
+        return fetch_sam_hourly_observations(include_historical=False)
+    except Exception as e:
+        print(f"[warn] Samedan nowcast fetch failed, continuing without it: {e}")
+        return None
 
 
 def fetch_raw(forecast_days=3):
@@ -106,13 +146,20 @@ def fetch_raw(forecast_days=3):
         "upper": _get(*MALOJA_PASS, _UPPER_VARS, forecast_days=forecast_days),
         "lugano": _get(46.0037, 8.9511, ["pressure_msl"], forecast_days=forecast_days),
         "zurich": _get(47.3769, 8.5417, ["pressure_msl"], forecast_days=forecast_days),
+        "ensemble": _fetch_ensemble_wind(*SILVAPLANA, forecast_days=forecast_days),
+        "samedan_obs": _fetch_samedan_recent(),
     }
 
 
 def fetch_raw_historical(start_date: str, end_date: str):
     """Same shape as fetch_raw, but for a past date range (YYYY-MM-DD),
     used by backtest.py. Pulled from the Historical Forecast API archive.
-    A short pause between the five requests keeps us under burst limits."""
+    A short pause between requests keeps us under burst limits.
+
+    Does NOT set "samedan_obs" - backtest.py already fetches the full
+    multi-year Samedan archive once for ground-truth labeling and injects
+    it into raw["samedan_obs"] itself, rather than this function fetching
+    the same (large, rate-limited) archive again per season."""
     out = {}
     specs = [
         ("silvaplana", SILVAPLANA, _SILVAPLANA_VARS),
@@ -124,6 +171,8 @@ def fetch_raw_historical(start_date: str, end_date: str):
     for key, (lat, lon), hourly_vars in specs:
         out[key] = _get(lat, lon, hourly_vars, start_date=start_date, end_date=end_date)
         time.sleep(3)
+    out["ensemble"] = _fetch_ensemble_wind(*SILVAPLANA, start_date=start_date, end_date=end_date)
+    time.sleep(3)
     return out
 
 
@@ -131,6 +180,20 @@ def _angle_diff_score(angle, ideal, half_width):
     """1.0 at `ideal` degrees, decaying to 0 at +/- half_width. Handles wraparound."""
     d = abs((angle - ideal + 180) % 360 - 180)
     return max(0.0, 1.0 - d / half_width)
+
+
+def _lookup_samedan_morning(samedan_obs, date):
+    """The Samedan observation nearest 07:00 local on `date` (a naive
+    midnight datetime), within +/-90 min, or None. Shared by
+    engineer_features (samedan_morning_score) and raw_snapshot (the
+    unnormalized reading), so the two can never quietly disagree."""
+    morning_local = date.replace(hour=7, tzinfo=ZoneInfo("Europe/Zurich"))
+    morning_utc = morning_local.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    for offset_min in (0, 60, -60, 90, -90):
+        cand = morning_utc + timedelta(minutes=offset_min)
+        if cand in samedan_obs:
+            return samedan_obs[cand]
+    return None
 
 
 def engineer_features(raw, idx):
@@ -160,9 +223,6 @@ def engineer_features(raw, idx):
         upper_wind_speed_score = min(1.0, spd700 / 25)
     else:
         upper_wind_speed_score = max(0.0, 1.0 - (spd700 - 40) / 30)
-
-    # 5. Cloud cover over Bregaglia (need sun on the slopes)
-    cloud_score = 1.0 - (bre["cloud_cover"][idx] / 100.0)
 
     # 6. Dew point spread at Bregaglia (drier air heats faster)
     dp_spread = bre["temperature_2m"][idx] - bre["dew_point_2m"][idx]
@@ -204,12 +264,60 @@ def engineer_features(raw, idx):
     doy_sin = _math.sin(2 * _math.pi * doy / 365)
     doy_cos = _math.cos(2 * _math.pi * doy / 365)
 
+    # 17. Multi-model ensemble mean + agreement for the surface wind. Falls
+    # back to the single deterministic forecast (neutral 0.5 agreement) if
+    # the ensemble fetch failed or didn't cover this hour - see
+    # _fetch_ensemble_wind's best-effort contract.
+    ens = raw.get("ensemble")
+    ens_vals = []
+    if ens:
+        for key, series in ens.items():
+            if key.startswith("wind_speed_10m") and idx < len(series) and series[idx] is not None:
+                ens_vals.append(series[idx])
+    if ens_vals:
+        ensemble_wind_score = (sum(ens_vals) / len(ens_vals)) / 20.0
+        ensemble_agreement_score = 1.0 - min(1.0, (max(ens_vals) - min(ens_vals)) / 20.0)
+    else:
+        ensemble_wind_score = model_wind
+        ensemble_agreement_score = 0.5
+
+    # 18. Persistence - wind already forecast/observed in the hours leading
+    # up to idx, capturing whether it's building. An instantaneous snapshot
+    # misses this trend.
+    lag_idxs = [i for i in (idx - 1, idx - 2, idx - 3) if i >= 0]
+    if lag_idxs:
+        persistence_wind = (sum(sil["wind_speed_10m"][i] for i in lag_idxs) / len(lag_idxs)) / 20.0
+    else:
+        persistence_wind = model_wind
+
+    # 19-20. Interaction terms - out of every pairwise product tested against
+    # logs/backtest_dataset.jsonl, these two gave the largest correlation gain
+    # over their individual components.
+    upper_wind_dewpoint_interaction = upper_wind_speed_score * dewpoint_score
+    thermal_seasonal_interaction = thermal_excess * doy_cos
+
+    # 21. Samedan "morning nowcast" - Samedan is no longer the ground truth
+    # (see verify_and_learn.py, which now labels against the real
+    # kitesailing.ch Silvaplana reading), but it's real, measured, current
+    # wind ~10km up-valley, which the model has never gotten to use as a
+    # live precursor signal before. This is its actual observed wind at (or
+    # near) 07:00 local the same day - the first forecast run of the day -
+    # a genuine upstream nowcast, distinct from the NWP-model-based
+    # persistence/ensemble features above. Falls back to a neutral 0.0 if
+    # Samedan data isn't available for that morning (best-effort fetch, or
+    # historical archive gap).
+    samedan_obs = raw.get("samedan_obs")
+    samedan_morning_score = 0.0
+    if samedan_obs:
+        morning_obs = _lookup_samedan_morning(samedan_obs, date)
+        if morning_obs is not None:
+            samedan_morning_score = morning_obs["speed_kmh"] / 20.0
+
     return {
         "thermal_excess": thermal_excess,
         "pressure_signal": pressure_signal,
         "upper_wind_alignment": upper_wind_alignment,
         "upper_wind_speed_score": upper_wind_speed_score,
-        "cloud_score": cloud_score,
         "dewpoint_score": dewpoint_score,
         "cape_penalty": cape_penalty,
         "freezing_level_score": freezing_level_score,
@@ -221,4 +329,58 @@ def engineer_features(raw, idx):
         "hour_cos": hour_cos,
         "doy_sin": doy_sin,
         "doy_cos": doy_cos,
+        "ensemble_wind_score": ensemble_wind_score,
+        "ensemble_agreement_score": ensemble_agreement_score,
+        "persistence_wind": persistence_wind,
+        "upper_wind_dewpoint_interaction": upper_wind_dewpoint_interaction,
+        "thermal_seasonal_interaction": thermal_seasonal_interaction,
+        "samedan_morning_score": samedan_morning_score,
     }
+
+
+_SILVAPLANA_RAW_KEYS = (
+    "temperature_2m", "dew_point_2m", "relative_humidity_2m", "pressure_msl",
+    "cloud_cover", "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m",
+    "freezing_level_height", "cape", "snow_depth",
+)
+_BREGAGLIA_RAW_KEYS = ("temperature_2m", "dew_point_2m", "shortwave_radiation", "precipitation")
+_UPPER_RAW_KEYS = (
+    "wind_speed_700hPa", "wind_direction_700hPa",
+    "wind_speed_850hPa", "wind_direction_850hPa",
+)
+
+
+def raw_snapshot(raw, idx):
+    """Every raw physical value behind raw[...][idx], unnormalized - logged
+    alongside engineer_features' output so today's live-forecast snapshot
+    isn't lost. Open-Meteo's live API only serves ~3 months of history, and
+    even backtest.py's historical-archive fetch doesn't reproduce a genuine
+    multi-day-lead forecast (see its own docstring) - so once a live
+    prediction ages past that window, this is the only remaining record of
+    exactly what the forecast said at the time. Useful for building new
+    features later without needing data that no API can hand back."""
+    sil, bre, up = raw["silvaplana"], raw["bregaglia"], raw["upper"]
+
+    snapshot = {
+        "silvaplana": {k: sil[k][idx] for k in _SILVAPLANA_RAW_KEYS},
+        "bregaglia": {k: bre[k][idx] for k in _BREGAGLIA_RAW_KEYS},
+        "upper": {k: up[k][idx] for k in _UPPER_RAW_KEYS},
+        "lugano_pressure_msl": raw["lugano"]["pressure_msl"][idx],
+        "zurich_pressure_msl": raw["zurich"]["pressure_msl"][idx],
+    }
+
+    ens = raw.get("ensemble")
+    if ens:
+        snapshot["ensemble_wind_speed_10m"] = {
+            key: series[idx] for key, series in ens.items()
+            if key.startswith("wind_speed_10m") and idx < len(series) and series[idx] is not None
+        }
+
+    samedan_obs = raw.get("samedan_obs")
+    if samedan_obs:
+        date = datetime.fromisoformat(sil["time"][idx][:10])
+        morning_obs = _lookup_samedan_morning(samedan_obs, date)
+        if morning_obs is not None:
+            snapshot["samedan_morning"] = morning_obs
+
+    return snapshot
