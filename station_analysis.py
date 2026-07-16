@@ -76,7 +76,7 @@ def hour_of(sample):
     return int(sample["date"][11:13])
 
 
-def _train_fresh(feature_subset, samples, seed=RESEARCH_SEED, epochs=EPOCHS):
+def train_fresh(feature_subset, samples, seed=RESEARCH_SEED, epochs=EPOCHS):
     w = new_weights(feature_subset)
     validate_schema(w, feature_subset)
     train_samples = [{"features": {k: s["features"][k] for k in feature_subset}, "outcome": s["outcome"]}
@@ -84,7 +84,7 @@ def _train_fresh(feature_subset, samples, seed=RESEARCH_SEED, epochs=EPOCHS):
     return train_epochs(w, train_samples, epochs=epochs, seed=seed)
 
 
-def _score_group(weights, feature_subset, samples):
+def score_group(weights, feature_subset, samples):
     labels = [s["outcome"] for s in samples]
     probs = [score({k: s["features"][k] for k in feature_subset}, weights) for s in samples]
     return labels, probs
@@ -168,8 +168,8 @@ def evaluate_group_on_fold(feature_subset, train_samples, validate_samples):
         if feature_subset is None:
             probs = majority_class_probs(_window_filter(train_samples, window) or train_samples, len(val_slice))
         else:
-            weights = _train_fresh(feature_subset, _window_filter(train_samples, FULL_WINDOW) or train_samples)
-            _, probs = _score_group(weights, feature_subset, val_slice)
+            weights = train_fresh(feature_subset, _window_filter(train_samples, FULL_WINDOW) or train_samples)
+            _, probs = score_group(weights, feature_subset, val_slice)
         out[window_name] = classification_report(labels, probs, threshold=0.5)
 
     # Daily session outcome (any rideable hour in the full window)
@@ -180,8 +180,8 @@ def evaluate_group_on_fold(feature_subset, train_samples, validate_samples):
         if feature_subset is None:
             probs = majority_class_probs(_window_filter(train_samples, FULL_WINDOW) or train_samples, len(full_val))
         else:
-            weights = _train_fresh(feature_subset, _window_filter(train_samples, FULL_WINDOW) or train_samples)
-            _, probs = _score_group(weights, feature_subset, full_val)
+            weights = train_fresh(feature_subset, _window_filter(train_samples, FULL_WINDOW) or train_samples)
+            _, probs = score_group(weights, feature_subset, full_val)
         session_outcomes, session_probs, _ = build_session_samples(dates, outcomes, probs, *FULL_WINDOW)
         out["session"] = classification_report(session_outcomes, session_probs, threshold=0.5)
     else:
