@@ -220,5 +220,132 @@ class OptionalIssuanceFieldsTests(unittest.TestCase):
                     orig_dataset, orig_predictions, orig_dashboard, orig_issuance)
 
 
+class LakeStationHealthTests(unittest.TestCase):
+    """Part 10: lake_station_health() built purely from the local
+    kitesailing health/observation logs - degrades to 'no_data' with
+    neither, and never combines lake vs. Samedan accuracy without counts
+    (that's verification_sources()'s job, tested separately below)."""
+
+    def setUp(self):
+        self._orig_health = rd.KITESAILING_HEALTH_PATH
+        self._orig_obs = rd.KITESAILING_OBSERVATIONS_PATH
+        self._tmpdir = tempfile.mkdtemp()
+        rd.KITESAILING_HEALTH_PATH = os.path.join(self._tmpdir, "health.jsonl")
+        rd.KITESAILING_OBSERVATIONS_PATH = os.path.join(self._tmpdir, "obs.jsonl")
+
+    def tearDown(self):
+        rd.KITESAILING_HEALTH_PATH = self._orig_health
+        rd.KITESAILING_OBSERVATIONS_PATH = self._orig_obs
+
+    def _write(self, path, rows):
+        with open(path, "w") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+
+    def test_no_data_when_neither_log_exists(self):
+        health = rd.lake_station_health()
+        self.assertEqual(health["status"], "no_data")
+        self.assertEqual(health["observations_today"], 0)
+
+    def test_healthy_with_recent_success_and_no_failures(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        recent = (now).isoformat()
+        self._write(rd.KITESAILING_HEALTH_PATH, [
+            {"attempted_at": recent, "success": True},
+        ])
+        self._write(rd.KITESAILING_OBSERVATIONS_PATH, [
+            {"observed_at": recent},
+        ])
+        health = rd.lake_station_health()
+        self.assertEqual(health["status"], "healthy")
+        self.assertEqual(health["consecutive_failures"], 0)
+        self.assertEqual(health["last_observation_at"], recent)
+
+    def test_critical_after_three_consecutive_failures(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        rows = [
+            {"attempted_at": (now - timedelta(minutes=90)).isoformat(), "success": False},
+            {"attempted_at": (now - timedelta(minutes=60)).isoformat(), "success": False},
+            {"attempted_at": (now - timedelta(minutes=30)).isoformat(), "success": False},
+        ]
+        self._write(rd.KITESAILING_HEALTH_PATH, rows)
+        health = rd.lake_station_health()
+        self.assertEqual(health["consecutive_failures"], 3)
+        self.assertEqual(health["status"], "critical")
+
+    def test_degraded_when_last_observation_is_stale(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        stale = (now - timedelta(minutes=90)).isoformat()
+        self._write(rd.KITESAILING_HEALTH_PATH, [{"attempted_at": stale, "success": True}])
+        self._write(rd.KITESAILING_OBSERVATIONS_PATH, [{"observed_at": stale}])
+        health = rd.lake_station_health()
+        self.assertEqual(health["status"], "degraded")
+        self.assertGreater(health["age_minutes"], 60)
+
+
+class SummitStationHealthTests(unittest.TestCase):
+    def test_empty_when_no_issuance(self):
+        self.assertEqual(rd.summit_station_health(None), {})
+        self.assertEqual(rd.summit_station_health({}), {})
+
+    def test_empty_when_no_summit_station_in_inputs(self):
+        issuance = {"station_inputs": {}, "diagnostics": {"summit_support": {"source_station": "cov"}}}
+        self.assertEqual(rd.summit_station_health(issuance), {})
+
+    def test_populates_from_issuance_when_summit_station_present(self):
+        issuance = {
+            "station_inputs": {"cov": {"coverage": 1.0, "latest_wind_speed": 8.0,
+                                        "max_morning_gust": 10.0, "temperature_latest": -2.0}},
+            "station_input_age": {"cov": 12.5},
+            "diagnostics": {"summit_support": {
+                "source_station": "cov", "observed_at": "2026-07-16T10:00:00+00:00",
+                "status": "supportive", "explanation_key": "summit_wind_supportive",
+                "raw_values": {"wind_direction_deg": 225.0},
+            }},
+        }
+        health = rd.summit_station_health(issuance)
+        self.assertIn("cov", health)
+        self.assertEqual(health["cov"]["age_minutes"], 12.5)
+        self.assertEqual(health["cov"]["wind_speed"], 8.0)
+        self.assertEqual(health["cov"]["direction"], 225.0)
+        self.assertEqual(health["cov"]["quality_flags"], [])
+
+    def test_quality_flags_populated_when_missing_status(self):
+        issuance = {
+            "station_inputs": {"cov": {}},
+            "station_input_age": {"cov": None},
+            "diagnostics": {"summit_support": {
+                "source_station": "cov", "status": "missing",
+                "explanation_key": "summit_wind_missing_station_data", "raw_values": {},
+            }},
+        }
+        health = rd.summit_station_health(issuance)
+        self.assertEqual(health["cov"]["quality_flags"], ["summit_wind_missing_station_data"])
+
+
+class VerificationSourcesTests(unittest.TestCase):
+    """Part 10's explicit rule: never combine lake-labelled and
+    Samedan-proxy accuracy without their source counts alongside."""
+
+    def test_counts_by_ground_truth_source(self):
+        verified = [
+            {"ground_truth_source": "kitesailing"},
+            {"ground_truth_source": "kitesailing"},
+            {"ground_truth_source": "samedan_fallback"},
+        ]
+        result = rd.verification_sources(verified)
+        self.assertEqual(result["silvaplana_lake_count"], 2)
+        self.assertEqual(result["samedan_fallback_count"], 1)
+        self.assertAlmostEqual(result["lake_coverage_pct"], 2 / 3, places=3)
+
+    def test_none_pct_when_no_verified_predictions(self):
+        result = rd.verification_sources([])
+        self.assertIsNone(result["lake_coverage_pct"])
+        self.assertEqual(result["silvaplana_lake_count"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

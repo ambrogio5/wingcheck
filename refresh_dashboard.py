@@ -47,6 +47,9 @@ from model import load_weights, score
 BASE_DIR = os.path.dirname(__file__)
 DATASET_PATH = os.path.join(BASE_DIR, "logs", "backtest_dataset.jsonl")
 PREDICTIONS_PATH = os.path.join(BASE_DIR, "logs", "predictions.jsonl")
+KITESAILING_OBSERVATIONS_PATH = os.path.join(BASE_DIR, "logs", "kitesailing_observations.jsonl")
+KITESAILING_HEALTH_PATH = os.path.join(BASE_DIR, "logs", "kitesailing_ingestion_health.jsonl")
+ZURICH_TZ = ZoneInfo("Europe/Zurich")
 DASHBOARD_DATA_PATH = os.path.join(BASE_DIR, "docs", "dashboard_data.json")
 ISSUANCE_LOG_PATH = os.path.join(BASE_DIR, "logs", "forecast_issuances.jsonl")
 ZURICH_TZ = ZoneInfo("Europe/Zurich")
@@ -213,6 +216,127 @@ def optional_issuance_fields(issuance: dict) -> dict:
     }
 
 
+def _local_date(iso_ts: str) -> str:
+    return datetime.fromisoformat(iso_ts).astimezone(ZURICH_TZ).strftime("%Y-%m-%d")
+
+
+def lake_station_health() -> dict:
+    """Section 10: operational health of the kitesailing.ch lake sampler,
+    built entirely from the local health log + observation log (no
+    network) - degrades to a 'no_data' status when neither exists yet."""
+    health_rows = read_jsonl(KITESAILING_HEALTH_PATH)
+    observations = read_jsonl(KITESAILING_OBSERVATIONS_PATH)
+    now = datetime.now(timezone.utc)
+    today = now.astimezone(ZURICH_TZ).strftime("%Y-%m-%d")
+
+    if not health_rows and not observations:
+        return {
+            "last_attempt_at": None, "last_success_at": None, "last_observation_at": None,
+            "age_minutes": None, "observations_today": 0, "successful_attempts_today": 0,
+            "failed_attempts_today": 0, "coverage_12_18": 0.0, "consecutive_failures": 0,
+            "status": "no_data",
+        }
+
+    health_rows.sort(key=lambda r: r["attempted_at"])
+    observations.sort(key=lambda o: o["observed_at"])
+
+    last_attempt_at = health_rows[-1]["attempted_at"] if health_rows else None
+    successful_rows = [r for r in health_rows if r.get("success")]
+    last_success_at = successful_rows[-1]["attempted_at"] if successful_rows else None
+    last_observation_at = observations[-1]["observed_at"] if observations else None
+    age_minutes = None
+    if last_observation_at:
+        age_minutes = round((now - datetime.fromisoformat(last_observation_at)).total_seconds() / 60.0, 1)
+
+    todays_rows = [r for r in health_rows if _local_date(r["attempted_at"]) == today]
+    observations_today = sum(1 for o in observations if _local_date(o["observed_at"]) == today)
+    successful_attempts_today = sum(1 for r in todays_rows if r.get("success"))
+    failed_attempts_today = sum(1 for r in todays_rows if not r.get("success"))
+
+    consecutive_failures = 0
+    for r in reversed(health_rows):
+        if r.get("success"):
+            break
+        consecutive_failures += 1
+
+    # Coverage of this project's actually-scored 12:00-18:00 window today:
+    # fraction of the 13 half-hourly slots (12:00, 12:30, ..., 18:00) with
+    # an observation within 20 minutes of that slot.
+    today_local = now.astimezone(ZURICH_TZ).date()
+    slot_count = 13
+    covered = 0
+    todays_obs_dt = [datetime.fromisoformat(o["observed_at"]) for o in observations
+                     if _local_date(o["observed_at"]) == today]
+    for i in range(slot_count):
+        slot_minutes = 12 * 60 + i * 30
+        slot_local = datetime(today_local.year, today_local.month, today_local.day,
+                               slot_minutes // 60, slot_minutes % 60, tzinfo=ZURICH_TZ)
+        slot_utc = slot_local.astimezone(timezone.utc)
+        if any(abs((obs_dt - slot_utc).total_seconds()) <= 20 * 60 for obs_dt in todays_obs_dt):
+            covered += 1
+    coverage_12_18 = round(covered / slot_count, 3)
+
+    if consecutive_failures >= 3 or (age_minutes is not None and age_minutes > 180):
+        status = "critical"
+    elif consecutive_failures > 0 or (age_minutes is not None and age_minutes > 60):
+        status = "degraded"
+    else:
+        status = "healthy"
+
+    return {
+        "last_attempt_at": last_attempt_at, "last_success_at": last_success_at,
+        "last_observation_at": last_observation_at, "age_minutes": age_minutes,
+        "observations_today": observations_today,
+        "successful_attempts_today": successful_attempts_today,
+        "failed_attempts_today": failed_attempts_today,
+        "coverage_12_18": coverage_12_18,
+        "consecutive_failures": consecutive_failures,
+        "status": status,
+    }
+
+
+def summit_station_health(issuance: dict) -> dict:
+    """Section 10: per-summit-station health (today only cov, once
+    enabled) from the latest forecast issuance record - {} when no
+    issuance exists yet, or when no summit-role station reported data."""
+    if not issuance:
+        return {}
+    station_inputs = issuance.get("station_inputs", {})
+    station_input_age = issuance.get("station_input_age", {})
+    diagnostics = issuance.get("diagnostics", {})
+    summit = diagnostics.get("summit_support", {})
+    sid = summit.get("source_station")
+    if not sid or sid not in station_inputs:
+        return {}
+    feats = station_inputs[sid]
+    return {
+        sid: {
+            "last_observation_at": summit.get("observed_at"),
+            "age_minutes": station_input_age.get(sid),
+            "coverage": feats.get("coverage"),
+            "quality_flags": [summit["explanation_key"]] if summit.get("status") == "missing" else [],
+            "wind_speed": feats.get("latest_wind_speed"),
+            "gust": feats.get("max_morning_gust"),
+            "direction": summit.get("raw_values", {}).get("wind_direction_deg"),
+            "temperature": feats.get("temperature_latest"),
+        }
+    }
+
+
+def verification_sources(verified: list) -> dict:
+    """Section 10: how many verified predictions used the real lake
+    reading vs. the Samedan fallback - never blended into one accuracy
+    number without these counts alongside it (see docs/DATA_ARCHITECTURE.md)."""
+    silvaplana_lake_count = sum(1 for r in verified if r.get("ground_truth_source") == "kitesailing")
+    samedan_fallback_count = sum(1 for r in verified if r.get("ground_truth_source") == "samedan_fallback")
+    total = silvaplana_lake_count + samedan_fallback_count
+    return {
+        "silvaplana_lake_count": silvaplana_lake_count,
+        "samedan_fallback_count": samedan_fallback_count,
+        "lake_coverage_pct": round(silvaplana_lake_count / total, 3) if total else None,
+    }
+
+
 def main():
     weights = load_weights()
     backtest_samples = read_jsonl(DATASET_PATH)
@@ -265,6 +389,8 @@ def main():
     for e in entries:
         per_year[str(e["year"])] = per_year.get(str(e["year"]), 0) + 1
 
+    latest_issuance = _latest_issuance()
+
     dashboard_data = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_samples": len(entries),
@@ -284,7 +410,10 @@ def main():
         # Optional fields (section 10) - {} when no issuance record exists
         # yet (fresh checkout / older repo state). docs/index.html must
         # keep working whether these keys are present or absent/empty.
-        **optional_issuance_fields(_latest_issuance()),
+        **optional_issuance_fields(latest_issuance),
+        "lake_station_health": lake_station_health(),
+        "summit_station_health": summit_station_health(latest_issuance),
+        "verification_sources": verification_sources(verified),
     }
 
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)
