@@ -86,7 +86,15 @@ for exactly this reason. Don't hoist it back to module level.
    per season). Both the ensemble fetch and the Samedan nowcast fetch are
    best-effort: on failure `engineer_features` falls back to a neutral value
    (0.5 agreement, 0.0 nowcast score) so a flaky extra API call can't take
-   down the whole pipeline.
+   down the whole pipeline. `raw_snapshot(raw, idx)` is a companion function
+   that returns every raw physical value, unnormalized - logged into
+   `logs/predictions.jsonl` alongside the engineered features, since
+   Open-Meteo's live API only serves ~3 months of history and even
+   `backtest.py`'s archive fetch doesn't reproduce a genuine multi-day-lead
+   forecast (see its own docstring). Once a live prediction ages out, this
+   is the only remaining record of what the forecast actually said -
+   without it, that data would be permanently unrecoverable for future
+   feature engineering.
 2. **`model.py`** — a from-scratch logistic unit: `score()` (sigmoid of
    `bias + Σ weight_i * feature_i`) and `update()` (one online
    gradient-descent step given an actual 0/1 outcome). No ML framework;
@@ -148,7 +156,12 @@ for exactly this reason. Don't hoist it back to module level.
    weights so the dashboard's probability trace always reflects today's
    model. The frozen 2026 holdout metrics from the original backtest are
    carried over unchanged, not recomputed (recomputing would let holdout
-   data leak into "training" through the deployed weights).
+   data leak into "training" through the deployed weights). Also builds
+   `upcoming_forecast` — the latest logged prediction per *future* target
+   hour (`upcoming_forecast()`, deduped the same way as training) — this is
+   what `docs/index.html` renders as "Next sessions"; it's the only part of
+   the dashboard that answers the page's own headline question rather than
+   reporting on past performance.
 9. **`backtest.py`** (manual only, `workflow_dispatch`) — the only way to
    retrain from scratch. Builds a labeled dataset for May–Oct 2024/2025/2026
    from Open-Meteo's historical archive + real SAM obs (still the only

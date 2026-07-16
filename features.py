@@ -182,6 +182,20 @@ def _angle_diff_score(angle, ideal, half_width):
     return max(0.0, 1.0 - d / half_width)
 
 
+def _lookup_samedan_morning(samedan_obs, date):
+    """The Samedan observation nearest 07:00 local on `date` (a naive
+    midnight datetime), within +/-90 min, or None. Shared by
+    engineer_features (samedan_morning_score) and raw_snapshot (the
+    unnormalized reading), so the two can never quietly disagree."""
+    morning_local = date.replace(hour=7, tzinfo=ZoneInfo("Europe/Zurich"))
+    morning_utc = morning_local.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    for offset_min in (0, 60, -60, 90, -90):
+        cand = morning_utc + timedelta(minutes=offset_min)
+        if cand in samedan_obs:
+            return samedan_obs[cand]
+    return None
+
+
 def engineer_features(raw, idx):
     """Turn raw[idx] into the named feature dict the model scores on."""
     sil = raw["silvaplana"]
@@ -295,13 +309,9 @@ def engineer_features(raw, idx):
     samedan_obs = raw.get("samedan_obs")
     samedan_morning_score = 0.0
     if samedan_obs:
-        morning_local = date.replace(hour=7, tzinfo=ZoneInfo("Europe/Zurich"))
-        morning_utc = morning_local.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
-        for offset_min in (0, 60, -60, 90, -90):
-            cand = morning_utc + timedelta(minutes=offset_min)
-            if cand in samedan_obs:
-                samedan_morning_score = samedan_obs[cand]["speed_kmh"] / 20.0
-                break
+        morning_obs = _lookup_samedan_morning(samedan_obs, date)
+        if morning_obs is not None:
+            samedan_morning_score = morning_obs["speed_kmh"] / 20.0
 
     return {
         "thermal_excess": thermal_excess,
@@ -326,3 +336,51 @@ def engineer_features(raw, idx):
         "thermal_seasonal_interaction": thermal_seasonal_interaction,
         "samedan_morning_score": samedan_morning_score,
     }
+
+
+_SILVAPLANA_RAW_KEYS = (
+    "temperature_2m", "dew_point_2m", "relative_humidity_2m", "pressure_msl",
+    "cloud_cover", "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m",
+    "freezing_level_height", "cape", "snow_depth",
+)
+_BREGAGLIA_RAW_KEYS = ("temperature_2m", "dew_point_2m", "shortwave_radiation", "precipitation")
+_UPPER_RAW_KEYS = (
+    "wind_speed_700hPa", "wind_direction_700hPa",
+    "wind_speed_850hPa", "wind_direction_850hPa",
+)
+
+
+def raw_snapshot(raw, idx):
+    """Every raw physical value behind raw[...][idx], unnormalized - logged
+    alongside engineer_features' output so today's live-forecast snapshot
+    isn't lost. Open-Meteo's live API only serves ~3 months of history, and
+    even backtest.py's historical-archive fetch doesn't reproduce a genuine
+    multi-day-lead forecast (see its own docstring) - so once a live
+    prediction ages past that window, this is the only remaining record of
+    exactly what the forecast said at the time. Useful for building new
+    features later without needing data that no API can hand back."""
+    sil, bre, up = raw["silvaplana"], raw["bregaglia"], raw["upper"]
+
+    snapshot = {
+        "silvaplana": {k: sil[k][idx] for k in _SILVAPLANA_RAW_KEYS},
+        "bregaglia": {k: bre[k][idx] for k in _BREGAGLIA_RAW_KEYS},
+        "upper": {k: up[k][idx] for k in _UPPER_RAW_KEYS},
+        "lugano_pressure_msl": raw["lugano"]["pressure_msl"][idx],
+        "zurich_pressure_msl": raw["zurich"]["pressure_msl"][idx],
+    }
+
+    ens = raw.get("ensemble")
+    if ens:
+        snapshot["ensemble_wind_speed_10m"] = {
+            key: series[idx] for key, series in ens.items()
+            if key.startswith("wind_speed_10m") and idx < len(series) and series[idx] is not None
+        }
+
+    samedan_obs = raw.get("samedan_obs")
+    if samedan_obs:
+        date = datetime.fromisoformat(sil["time"][idx][:10])
+        morning_obs = _lookup_samedan_morning(samedan_obs, date)
+        if morning_obs is not None:
+            snapshot["samedan_morning"] = morning_obs
+
+    return snapshot
