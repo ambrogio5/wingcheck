@@ -6,7 +6,10 @@ builds the training set directly from history:
 
   - Weather: Open-Meteo's Historical Forecast API (archive from ~2021),
     same variables/format as the live forecast - not a coarser reanalysis,
-    so training data matches what the live model will actually see.
+    so training data matches what the live model will actually see. Note
+    this is still 0-hour archive data, not a genuine multi-day-ahead
+    forecast with real lead-time error - see the "Known limitations"
+    section of README.md.
   - Ground truth: MeteoSwiss's real Samedan (SAM) station observations.
     This is a DIFFERENT source than verify_and_learn.py now uses live (the
     kitesailing.ch Silvaplana lake reading) - there's no historical archive
@@ -22,22 +25,53 @@ builds the training set directly from history:
 Seasons covered: May-October, for 2024, 2025, and 2026 (up to today) -
 i.e. wingfoil season only, matching how you'd actually use this.
 
+EVALUATION vs. DEPLOYMENT - the core fix this module implements
+-----------------------------------------------------------------
+Earlier versions of this script loaded the ALREADY-TRAINED weights.json,
+reset only the bias, then trained on 2024+2025 and "evaluated" on 2026.
+Since weights.json was itself the product of a PREVIOUS retrain that had
+already folded 2026 into training, that "holdout" evaluation was
+contaminated by prior exposure to the very data it was supposed to be
+untouched by - the per-feature weights already knew things about 2026.
+
+This is fixed by training two entirely separate models, each built from
+model.new_weights() (never from weights.json):
+
+  1. An EVALUATION model, trained ONLY on 2024+2025 via model.train_epochs,
+     with its own thresholds calibrated ONLY on 2024+2025. It is then
+     scored ONCE against the untouched 2026 holdout and never touched
+     again - not reused, not further trained. Those holdout numbers are
+     the only honest answer to "how would this have done on data it never
+     saw."
+  2. A DEPLOYMENT model, ALSO built fresh from model.new_weights() (not by
+     continuing to train the evaluation model further - that would still
+     leave 2026 partially represented in weights that started life having
+     already learned from 2024+2025 in a specific order/seed tied to the
+     evaluation run), trained on 2024+2025+2026, with thresholds
+     calibrated on all three years. This is the only model saved to
+     weights.json.
+
+The evaluation model is discarded after producing its metrics - it must
+never be saved to weights.json or reused for anything else.
+
 Steps:
   1. Fetch weather + SAM obs for each season - via historical_cache.py,
      which persists the raw pulls under logs/raw_cache/ so a closed season
      (2024, 2025) never needs re-fetching and the open season (2026) only
-     refetches once per calendar day. This step alone took ~14 minutes on
-     an empty cache (2026-07-16); it's the reason to always go through the
-     cache rather than calling features.fetch_raw_historical directly.
+     refetches once per calendar day.
   2. Build one labeled sample per afternoon hour (WINDOW_START_HOUR to
      WINDOW_END_HOUR) per day.
-  3. Chronological split: train on 2024+2025, hold out 2026 to see how the
-     model would have done on data it never trained on.
-  4. Train (multiple epochs of online gradient descent over the training set).
-  5. Evaluate on the 2026 holdout, then fold 2026 into training too, so the
-     weights you deploy live use everything available.
+  3. Chronological split: 2024+2025 for evaluation-training, 2026 as the
+     untouched holdout.
+  4. Train the evaluation model, calibrate its thresholds on 2024+2025
+     only, score it once against 2026 (hourly full+prime window, session
+     full+prime window, operational threshold performance, and a feature
+     ablation comparison - see metrics.py/ablation.py).
+  5. Train a separate, fresh deployment model on all three years, calibrate
+     its thresholds on all three years, save it to weights.json.
   6. Write logs/backtest_dataset.jsonl (full sample set) and
-     docs/dashboard_data.json (summary for the dashboard).
+     docs/dashboard_data.json (evaluation + deployment summary for the
+     dashboard).
 
 NOTE on the window: WINDOW_START_HOUR was briefly narrowed to 15 (from 12)
 on the theory that hours 12-14 were just noise. The 2026-07-16 backtest
@@ -46,25 +80,40 @@ from 0.750 (12-18h) to 0.683 (15-18h), because hours 12-14 have a low
 positive rate (~25-49%) and were easy, highly-separable true negatives
 that boosted overall discriminative power. Restricting to 15-18h left a
 smaller, more homogeneous, harder-to-classify population. Reverted back
-to 12-18h - don't re-narrow this without backtest evidence it actually helps.
+to 12-18h - don't re-narrow this without backtest evidence it actually
+helps. The 15:00-18:00 "prime window" reports below are a diagnostic
+SLICE of the same 12-18h-trained model's holdout predictions, not a
+different training window - they do not change WINDOW_START_HOUR/
+WINDOW_END_HOUR, which remain what forecast_and_log.py schedules against.
 """
 
 import json
 import os
-import random
 import sys
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+from ablation import run_ablation
 from features import engineer_features
 from historical_cache import get_season_raw, get_samedan_archive, get_pressure_archive
 from meteoswiss import LUGANO_STATION, ZURICH_STATION, SAM_PROXY_KT
-from model import load_weights, save_weights, score
+from metrics import (
+    build_session_samples,
+    calibrate_good_threshold,
+    calibrate_marginal_threshold,
+    classification_report,
+)
+from model import DEFAULT_TRAIN_SEED, new_weights, save_weights, score, train_epochs, validate_schema
 
-WINDOW_START_HOUR = 12  # reverted from 15 - see the docstring note above
+WINDOW_START_HOUR = 12  # reverted from 15 - see the docstring note above. Live forecast window - do not change without backtest evidence.
 WINDOW_END_HOUR = 18
+
+# Diagnostic-only slice of the same holdout predictions (see docstring) -
+# NOT a second training window, purely a reporting split.
+PRIME_WINDOW_START_HOUR = 15
+PRIME_WINDOW_END_HOUR = 18
+
 MARGINAL_KT = 10
-LEARNING_RATE = 0.05
 EPOCHS = 40
 
 ZURICH_TZ = ZoneInfo("Europe/Zurich")
@@ -124,46 +173,52 @@ def build_samples_for_season(start_date, end_date, year, sam_obs, lugano_obs, zu
     return samples
 
 
-def train(weights, samples, epochs=EPOCHS):
-    for epoch in range(epochs):
-        random.shuffle(samples)
-        for s in samples:
-            predicted = score(s["features"], weights)
-            error = s["outcome"] - predicted
-            weights["bias"] += LEARNING_RATE * error
-            for name, value in s["features"].items():
-                if name in weights["weights"]:
-                    weights["weights"][name] += LEARNING_RATE * error * value
-    weights["trained_samples"] = weights.get("trained_samples", 0) + len(samples)
-    return weights
+def _hour_of(sample):
+    return int(sample["date"][11:13])
 
 
-def evaluate(weights, samples):
-    if not samples:
-        return {"n": 0}
-    tp = fp = tn = fn = 0
-    for s in samples:
-        p = score(s["features"], weights)
-        predicted = 1.0 if p >= 0.5 else 0.0
-        actual = s["outcome"]
-        if predicted == 1.0 and actual == 1.0:
-            tp += 1
-        elif predicted == 1.0 and actual == 0.0:
-            fp += 1
-        elif predicted == 0.0 and actual == 0.0:
-            tn += 1
-        else:
-            fn += 1
-    n = len(samples)
-    accuracy = (tp + tn) / n
-    precision = tp / (tp + fp) if (tp + fp) else None
-    recall = tp / (tp + fn) if (tp + fn) else None
+def _filter_hours(samples, start_hour, end_hour):
+    return [s for s in samples if start_hour <= _hour_of(s) <= end_hour]
+
+
+def hourly_reports(weights, samples, thresholds):
+    """Threshold-swept classification reports for one flat list of hourly
+    samples: the plain 0.5 cutoff (an unbiased read of the raw model) plus
+    the two OPERATIONAL cutoffs actually used to tier live alerts - a 0.5
+    cutoff alone does not tell you how the MARGINAL/GOOD tiers perform."""
+    labels = [s["outcome"] for s in samples]
+    probs = [score(s["features"], weights) for s in samples]
     return {
-        "n": n, "accuracy": round(accuracy, 3),
-        "precision": round(precision, 3) if precision is not None else None,
-        "recall": round(recall, 3) if recall is not None else None,
-        "true_positive": tp, "false_positive": fp, "true_negative": tn, "false_negative": fn,
+        "n": len(samples),
+        "cutoff_0.5": classification_report(labels, probs, threshold=0.5),
+        "cutoff_marginal": classification_report(labels, probs, threshold=thresholds["marginal"]),
+        "cutoff_good": classification_report(labels, probs, threshold=thresholds["good"]),
     }
+
+
+def session_reports(weights, samples, thresholds, start_hour, end_hour):
+    """Same three cutoffs as hourly_reports, but aggregated to one row per
+    local calendar day first (see metrics.build_session_samples for the
+    max-probability / any-positive-hour aggregation rule)."""
+    dates = [s["date"] for s in samples]
+    outcomes = [s["outcome"] for s in samples]
+    probs = [score(s["features"], weights) for s in samples]
+    session_outcomes, session_probs, days = build_session_samples(
+        dates, outcomes, probs, start_hour, end_hour)
+    return {
+        "n_days": len(days),
+        "cutoff_0.5": classification_report(session_outcomes, session_probs, threshold=0.5),
+        "cutoff_marginal": classification_report(session_outcomes, session_probs, threshold=thresholds["marginal"]),
+        "cutoff_good": classification_report(session_outcomes, session_probs, threshold=thresholds["good"]),
+    }
+
+
+def calibrate_thresholds(weights, samples):
+    labels = [s["outcome"] for s in samples]
+    probs = [score(s["features"], weights) for s in samples]
+    marginal = calibrate_marginal_threshold(labels, probs)
+    good = calibrate_good_threshold(labels, probs, marginal_threshold=marginal)
+    return {"good": round(good, 2), "marginal": round(marginal, 2)}
 
 
 def monthly_breakdown(samples):
@@ -215,74 +270,112 @@ def main():
 
     train_set = all_samples[2024] + all_samples[2025]
     holdout_set = all_samples[2026]
-
-    weights = load_weights()
-    weights["bias"] = -0.5
-
-    print(f"\nTraining on {len(train_set)} samples (2024+2025), {EPOCHS} epochs...")
-    weights = train(weights, list(train_set), epochs=EPOCHS)
-
-    print(f"Evaluating on {len(holdout_set)} held-out 2026 samples (never trained on)...")
-    holdout_metrics = evaluate(weights, holdout_set)
-    # Class-balance baseline: the accuracy a trivial "never windy" model would
-    # get. If our accuracy isn't clearly above this, the model isn't adding value.
-    if holdout_set:
-        positive_rate = sum(s["outcome"] for s in holdout_set) / len(holdout_set)
-        baseline = max(positive_rate, 1 - positive_rate)
-        holdout_metrics["positive_rate"] = round(positive_rate, 3)
-        holdout_metrics["trivial_baseline_accuracy"] = round(baseline, 3)
-        print(f"  Windy-hour rate in holdout: {positive_rate:.1%} "
-              f"(trivial always-no baseline accuracy: {baseline:.1%})")
-    print(f"  Holdout accuracy: {holdout_metrics.get('accuracy')}, "
-          f"precision: {holdout_metrics.get('precision')}, recall: {holdout_metrics.get('recall')}")
-
-    # Fold 2026 into training too, so deployed weights use all available data
-    if holdout_set:
-        print(f"Folding {len(holdout_set)} 2026 samples into training for the deployed model...")
-        weights = train(weights, list(holdout_set), epochs=EPOCHS)
-
-    # Calibrate the alert thresholds on the full training data. First run
-    # shipped with guessed cutoffs (0.65/0.40) and a heavily conservative
-    # model: precision was fine but recall was 25% - it missed 3 of 4 real
-    # sessions. MARGINAL cutoff maximizes balanced accuracy (catch sessions
-    # without flooding false alarms); GOOD is the lowest cutoff that keeps
-    # precision >= 0.75 (a green light you can trust 3 times out of 4).
-    all_train = train_set + holdout_set
-    probs = [(score(s["features"], weights), s["outcome"]) for s in all_train]
-    best_marginal, best_bal = 0.4, -1.0
-    best_good = None
-    for i in range(20, 81):
-        th = i / 100.0
-        tp = sum(1 for p, o in probs if p >= th and o == 1.0)
-        fp = sum(1 for p, o in probs if p >= th and o == 0.0)
-        fn = sum(1 for p, o in probs if p < th and o == 1.0)
-        tn = sum(1 for p, o in probs if p < th and o == 0.0)
-        rec = tp / (tp + fn) if (tp + fn) else 0.0
-        spec = tn / (tn + fp) if (tn + fp) else 0.0
-        prec = tp / (tp + fp) if (tp + fp) else 0.0
-        bal = (rec + spec) / 2
-        if bal > best_bal:
-            best_bal, best_marginal = bal, th
-        if best_good is None and prec >= 0.75 and (tp + fp) >= 20:
-            best_good = th
-    if best_good is None or best_good <= best_marginal:
-        best_good = min(0.9, best_marginal + 0.15)
-    weights["tier_thresholds"] = {"good": round(best_good, 2), "marginal": round(best_marginal, 2)}
-    print(f"Calibrated thresholds -> MARGINAL >= {best_marginal:.2f}, GOOD >= {best_good:.2f}")
-
-    save_weights(weights)
-
     all_flat = train_set + holdout_set
+
+    # ---- 1. EVALUATION model: fresh, trained ONLY on 2024+2025 ----
+    print(f"\n[evaluation] Training a FRESH model on {len(train_set)} samples "
+          f"(2024+2025 only), {EPOCHS} epochs, seed={DEFAULT_TRAIN_SEED}...")
+    eval_weights = new_weights()
+    validate_schema(eval_weights)
+    eval_weights = train_epochs(eval_weights, train_set, epochs=EPOCHS, seed=DEFAULT_TRAIN_SEED)
+
+    eval_thresholds = calibrate_thresholds(eval_weights, train_set)
+    print(f"[evaluation] Thresholds calibrated on 2024+2025 only -> "
+          f"MARGINAL >= {eval_thresholds['marginal']}, GOOD >= {eval_thresholds['good']}")
+
+    print(f"[evaluation] Scoring the UNTOUCHED {len(holdout_set)}-sample 2026 holdout "
+          "(this model has never seen 2026 in any form)...")
+    prime_holdout = _filter_hours(holdout_set, PRIME_WINDOW_START_HOUR, PRIME_WINDOW_END_HOUR)
+
+    evaluation = {
+        "description": (
+            "Honest 2026 holdout metrics from a model built via model.new_weights() "
+            "and trained ONLY on 2024+2025. This model is discarded after producing "
+            "these numbers - it is never saved to weights.json and never trained "
+            "further on 2026."
+        ),
+        "trained_on_years": [2024, 2025],
+        "holdout_years": [2026],
+        "n_training_samples": eval_weights["trained_samples"],
+        "n_holdout_samples": len(holdout_set),
+        "thresholds": eval_thresholds,
+        "hourly": {
+            "full_window": hourly_reports(eval_weights, holdout_set, eval_thresholds),
+            "prime_window": hourly_reports(eval_weights, prime_holdout, eval_thresholds),
+        },
+        "session": {
+            "full_window": session_reports(
+                eval_weights, holdout_set, eval_thresholds, WINDOW_START_HOUR, WINDOW_END_HOUR),
+            "prime_window": session_reports(
+                eval_weights, holdout_set, eval_thresholds, PRIME_WINDOW_START_HOUR, PRIME_WINDOW_END_HOUR),
+        },
+        "ablation": {
+            "description": (
+                "DIAGNOSTIC comparison only, not model selection - every group below is "
+                "scored once against the same 2026 holdout used above, each trained fresh "
+                "on 2024+2025. Picking the best-looking row here and reporting its holdout "
+                "number as 'the' model's accuracy would itself be a form of holdout leakage. "
+                "The deployed model (see the top-level 'deployment' section) always uses the "
+                "full feature set, trained independently of this comparison."
+            ),
+            "groups": run_ablation(train_set, holdout_set, epochs=EPOCHS, seed=DEFAULT_TRAIN_SEED),
+        },
+    }
+
+    full_acc = evaluation["hourly"]["full_window"]["cutoff_0.5"].get("accuracy")
+    baseline = evaluation["hourly"]["full_window"]["cutoff_0.5"].get("majority_baseline_accuracy")
+    print(f"[evaluation] Full-window hourly holdout accuracy @0.5: {full_acc} "
+          f"(majority-class baseline: {baseline})")
+
+    # ---- 2. DEPLOYMENT model: fresh, trained on 2024+2025+2026 ----
+    print(f"\n[deployment] Training a SEPARATE fresh model on all {len(all_flat)} samples "
+          f"(2024+2025+2026), {EPOCHS} epochs, seed={DEFAULT_TRAIN_SEED}...")
+    deploy_weights = new_weights()
+    validate_schema(deploy_weights)
+    deploy_weights = train_epochs(deploy_weights, all_flat, epochs=EPOCHS, seed=DEFAULT_TRAIN_SEED)
+
+    deploy_thresholds = calibrate_thresholds(deploy_weights, all_flat)
+    deploy_weights["tier_thresholds"] = deploy_thresholds
+    print(f"[deployment] Thresholds calibrated on all data -> "
+          f"MARGINAL >= {deploy_thresholds['marginal']}, GOOD >= {deploy_thresholds['good']}")
+
+    save_weights(deploy_weights)
+
+    deployment = {
+        "description": (
+            "This is the model saved to weights.json and used live. Trained fresh "
+            "(via model.new_weights(), never continued from the evaluation model above) "
+            "on all three years, so it has seen 2026 - its own performance on 2026 is "
+            "NOT a valid holdout number and is intentionally not reported here; see "
+            "'evaluation' for the honest holdout metrics."
+        ),
+        "trained_on_years": [2024, 2025, 2026],
+        "n_training_samples": deploy_weights["trained_samples"],
+        "thresholds": deploy_thresholds,
+    }
+
+    # ---- Dashboard data ----
     dashboard_data = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_samples": len(all_flat),
         "samples_per_year": {y: len(s) for y, s in all_samples.items()},
-        "holdout_metrics_2026": holdout_metrics,
-        "final_weights": weights,
+        "reproducibility": {
+            "seed": DEFAULT_TRAIN_SEED,
+            "epochs": EPOCHS,
+            "note": (
+                "train_epochs() uses a locally-scoped random.Random(seed) instance "
+                "(not the global random module), so re-running this script against "
+                "identical cached raw data (logs/raw_cache/) reproduces identical "
+                "weights and metrics."
+            ),
+        },
+        "evaluation": evaluation,
+        "deployment": deployment,
+        "final_weights": deploy_weights,
         "monthly_breakdown": monthly_breakdown(all_flat),
         "timeline": [
             {"date": s["date"], "actual_kt": s["actual_wind_kt"],
-             "probability": round(score(s["features"], weights), 3), "year": s["year"]}
+             "probability": round(score(s["features"], deploy_weights), 3), "year": s["year"]}
             for s in sorted(all_flat, key=lambda x: x["date"])
         ],
     }
