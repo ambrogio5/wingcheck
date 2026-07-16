@@ -138,11 +138,14 @@ for exactly this reason. Don't hoist it back to module level.
    `logs/predictions.jsonl` with `verified: false`. `WINDOW_START_HOUR` /
    `WINDOW_END_HOUR` here must match `backtest.py`'s — the model is trained
    on exactly the hours it's later scored on in production.
-6. **`sample_kitesailing`** job (scheduled every 15 min, 11:00-18:59 CEST -
-   bracketing the 12:00-18:00 window with an hour of buffer each side,
-   defined directly in the workflow file, no dedicated `.py` entry point
-   beyond `kitesailing_weather.py`'s own `main()`) — the source of
-   ground-truth data for step 7 below.
+6. **`sample_kitesailing`** job (scheduled every 15 min, 05:00-21:45 CEST -
+   sunrise to sundown across the full May-Oct season, well beyond the
+   12:00-18:00 scored window, defined directly in the workflow file, no
+   dedicated `.py` entry point beyond `kitesailing_weather.py`'s own
+   `main()`) — the source of ground-truth data for step 7 below, and a
+   full-day record for future analysis (e.g. morning thermal onset, evening
+   drop-off) that nothing currently consumes but is cheap to keep now and
+   impossible to recover later.
 7. **`verify_and_learn.py`** (scheduled 20:00 CEST) — reads unverified
    predictions at least `MIN_AGE_HOURS` (20h) old. For each, looks for a
    `kitesailing_weather.py` reading within `OBSERVATION_TOLERANCE_MINUTES`

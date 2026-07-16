@@ -39,8 +39,10 @@ is genuinely adding signal.
 ### 5. Done
 From here it runs itself:
 - **07:00 & 10:00 CEST** — forecast + Telegram alert, predictions logged
-- **every 15 min, 11:00–18:59 CEST** — scrapes the kitesailing.ch Silvaplana
-  reading into `logs/kitesailing_observations.jsonl`
+- **every 15 min, 05:00–21:45 CEST (sunrise to sundown)** — scrapes the
+  kitesailing.ch Silvaplana reading into `logs/kitesailing_observations.jsonl`
+  - well beyond the scored 12:00-18:00 window, so there's a full-day
+  record available for future analysis
 - **20:00 CEST** — verifies past predictions against the real Silvaplana
   reading (Samedan as fallback), updates the model weights, refreshes the
   dashboard
