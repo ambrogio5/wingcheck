@@ -33,15 +33,26 @@ Open-Meteo forecast model (api.open-meteo.com) - free, no key:
     20. wind_speed_10m (per model) - averaged + spread into two features;
         best-effort, the pipeline runs fine if this fetch fails.
 
-MeteoSwiss official open data (data.geo.admin.ch) - real station observations:
-    Samedan (SAM) - fu3010z0 (wind speed), fu3010z1 (gust), dkl010z0 (dir)
-    Lugano (LUG) / Chur (CHU) - pp0qffs0 (sea-level pressure, real obs)
+MeteoSwiss official open data (data.geo.admin.ch) - real station observations,
+confirmed against the live API on 2026-07-16 (station codes and column names
+below were previously guessed and wrong in this docstring - fu3010z0/z1 and
+pp0qffs0 don't exist; the real columns are h0/h1-suffixed):
+    Samedan (SAM) - fu3010h0 (wind speed), fu3010h1 (gust). Direction
+      (dkl010h0) is available in the data but not currently parsed/used.
+    Lugano (LUG) / Zurich-Fluntern (SMA) - pp0qffh0 (sea-level pressure)
 
   Samedan now serves two purposes: verify_and_learn.py's ground truth
   fallback (see kitesailing_weather.py for the primary one), and, here,
   21. a real-time nowcast feature (samedan_morning_score) - its own
       measured wind ~10km up-valley around 07:00 local the same day, a
       genuine upstream precursor signal rather than another model forecast.
+  Lugano/Zurich real pressure similarly feeds
+  22. pressure_nowcast_score - the ACTUAL measured pressure gradient this
+      morning, distinct from pressure_signal (feature 2 below), which is
+      deliberately Open-Meteo FORECAST data: pressure_signal scores a
+      1-3 day-ahead target hour, and a real observation can't exist yet for
+      a future hour, so it can't be swapped for real data the way Samedan's
+      ground-truth role could be.
 """
 
 import time
@@ -50,7 +61,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from meteoswiss import fetch_sam_hourly_observations
+from meteoswiss import LUGANO_STATION, ZURICH_STATION, fetch_pressure_observations, fetch_sam_hourly_observations
 
 TIMEZONE = "Europe/Zurich"
 
@@ -138,6 +149,17 @@ def _fetch_samedan_recent():
         return None
 
 
+def _fetch_pressure_recent(station):
+    """Best-effort: real-time pressure at a real MeteoSwiss station, used
+    as the pressure_nowcast_score feature. A failure here must not break
+    the forecast pipeline."""
+    try:
+        return fetch_pressure_observations(station, include_historical=False)
+    except Exception as e:
+        print(f"[warn] {station} pressure nowcast fetch failed, continuing without it: {e}")
+        return None
+
+
 def fetch_raw(forecast_days=3):
     """Forward-looking forecast (used by forecast_and_log.py)."""
     return {
@@ -148,6 +170,8 @@ def fetch_raw(forecast_days=3):
         "zurich": _get(47.3769, 8.5417, ["pressure_msl"], forecast_days=forecast_days),
         "ensemble": _fetch_ensemble_wind(*SILVAPLANA, forecast_days=forecast_days),
         "samedan_obs": _fetch_samedan_recent(),
+        "lugano_obs": _fetch_pressure_recent(LUGANO_STATION),
+        "zurich_obs": _fetch_pressure_recent(ZURICH_STATION),
     }
 
 
@@ -156,10 +180,10 @@ def fetch_raw_historical(start_date: str, end_date: str):
     used by backtest.py. Pulled from the Historical Forecast API archive.
     A short pause between requests keeps us under burst limits.
 
-    Does NOT set "samedan_obs" - backtest.py already fetches the full
-    multi-year Samedan archive once for ground-truth labeling and injects
-    it into raw["samedan_obs"] itself, rather than this function fetching
-    the same (large, rate-limited) archive again per season."""
+    Does NOT set "samedan_obs" / "lugano_obs" / "zurich_obs" - backtest.py
+    already fetches the full multi-year archives for these once (via
+    historical_cache.py) and injects them into raw itself, rather than this
+    function re-fetching them (large, rate-limited) again per season."""
     out = {}
     specs = [
         ("silvaplana", SILVAPLANA, _SILVAPLANA_VARS),
@@ -182,17 +206,18 @@ def _angle_diff_score(angle, ideal, half_width):
     return max(0.0, 1.0 - d / half_width)
 
 
-def _lookup_samedan_morning(samedan_obs, date):
-    """The Samedan observation nearest 07:00 local on `date` (a naive
-    midnight datetime), within +/-90 min, or None. Shared by
-    engineer_features (samedan_morning_score) and raw_snapshot (the
-    unnormalized reading), so the two can never quietly disagree."""
+def _lookup_morning_obs(obs, date):
+    """The observation nearest 07:00 local on `date` (a naive midnight
+    datetime), within +/-90 min, or None. Generic over any {datetime_utc:
+    {...}} obs dict - shared by engineer_features (samedan_morning_score,
+    pressure_nowcast_score) and raw_snapshot (the unnormalized readings),
+    so they can never quietly disagree on which observation they picked."""
     morning_local = date.replace(hour=7, tzinfo=ZoneInfo("Europe/Zurich"))
     morning_utc = morning_local.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
     for offset_min in (0, 60, -60, 90, -90):
         cand = morning_utc + timedelta(minutes=offset_min)
-        if cand in samedan_obs:
-            return samedan_obs[cand]
+        if cand in obs:
+            return obs[cand]
     return None
 
 
@@ -309,9 +334,28 @@ def engineer_features(raw, idx):
     samedan_obs = raw.get("samedan_obs")
     samedan_morning_score = 0.0
     if samedan_obs:
-        morning_obs = _lookup_samedan_morning(samedan_obs, date)
+        morning_obs = _lookup_morning_obs(samedan_obs, date)
         if morning_obs is not None:
             samedan_morning_score = morning_obs["speed_kmh"] / 20.0
+
+    # 22. Pressure NOWCAST - the same Lugano-Zurich gradient as
+    # pressure_signal (feature 2), but from real MeteoSwiss station
+    # observations as of this morning rather than the forecast model.
+    # Genuinely additive information (a real measurement, not another
+    # forecast), unlike pressure_signal itself which has to stay
+    # forecast-based since it scores a 1-3 day-ahead target hour a real
+    # observation can't exist for yet. Same peaked scoring as
+    # pressure_signal (favorable near -1.25 hPa) for comparability. Falls
+    # back to a neutral 0.0 if either station's morning reading is missing.
+    lugano_obs = raw.get("lugano_obs")
+    zurich_obs = raw.get("zurich_obs")
+    pressure_nowcast_score = 0.0
+    if lugano_obs and zurich_obs:
+        lug_morning = _lookup_morning_obs(lugano_obs, date)
+        zur_morning = _lookup_morning_obs(zurich_obs, date)
+        if lug_morning is not None and zur_morning is not None:
+            p_diff_now = lug_morning["pressure_hpa"] - zur_morning["pressure_hpa"]
+            pressure_nowcast_score = max(-1.0, min(1.0, 1.0 - abs(p_diff_now + 1.25) / 4.0))
 
     return {
         "thermal_excess": thermal_excess,
@@ -335,6 +379,7 @@ def engineer_features(raw, idx):
         "upper_wind_dewpoint_interaction": upper_wind_dewpoint_interaction,
         "thermal_seasonal_interaction": thermal_seasonal_interaction,
         "samedan_morning_score": samedan_morning_score,
+        "pressure_nowcast_score": pressure_nowcast_score,
     }
 
 
@@ -376,11 +421,24 @@ def raw_snapshot(raw, idx):
             if key.startswith("wind_speed_10m") and idx < len(series) and series[idx] is not None
         }
 
+    date = datetime.fromisoformat(sil["time"][idx][:10])
+
     samedan_obs = raw.get("samedan_obs")
     if samedan_obs:
-        date = datetime.fromisoformat(sil["time"][idx][:10])
-        morning_obs = _lookup_samedan_morning(samedan_obs, date)
+        morning_obs = _lookup_morning_obs(samedan_obs, date)
         if morning_obs is not None:
             snapshot["samedan_morning"] = morning_obs
+
+    lugano_obs = raw.get("lugano_obs")
+    if lugano_obs:
+        morning_obs = _lookup_morning_obs(lugano_obs, date)
+        if morning_obs is not None:
+            snapshot["lugano_morning"] = morning_obs
+
+    zurich_obs = raw.get("zurich_obs")
+    if zurich_obs:
+        morning_obs = _lookup_morning_obs(zurich_obs, date)
+        if morning_obs is not None:
+            snapshot["zurich_morning"] = morning_obs
 
     return snapshot

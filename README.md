@@ -1,7 +1,7 @@
 # Malojawind — Silvaplana wingfoil forecast
 
 Self-improving forecast for the Maloja wind at Lake Silvaplana.
-Scores 21 engineered features (Bregaglia thermal contrast, Lugano–Zürich
+Scores 22 engineered features (Bregaglia thermal contrast, Lugano–Zürich
 pressure gradient, 700hPa wind, CAPE, a multi-model wind ensemble, and more)
 from 20+ raw data points, sends Telegram alerts, verifies itself against the
 real kitesailing.ch Silvaplana lake reading (MeteoSwiss's Samedan station as
@@ -39,8 +39,10 @@ is genuinely adding signal.
 ### 5. Done
 From here it runs itself:
 - **07:00 & 10:00 CEST** — forecast + Telegram alert, predictions logged
-- **every 15 min, 14:00–18:59 CEST** — scrapes the kitesailing.ch Silvaplana
-  reading into `logs/kitesailing_observations.jsonl`
+- **every 15 min, 05:00–21:45 CEST (sunrise to sundown)** — scrapes the
+  kitesailing.ch Silvaplana reading into `logs/kitesailing_observations.jsonl`
+  - well beyond the scored 12:00-18:00 window, so there's a full-day
+  record available for future analysis
 - **20:00 CEST** — verifies past predictions against the real Silvaplana
   reading (Samedan as fallback), updates the model weights, refreshes the
   dashboard
@@ -62,17 +64,18 @@ From here it runs itself:
 
 | File | Role |
 |---|---|
-| `features.py` | Fetches 20+ raw data points, engineers 21 signals |
+| `features.py` | Fetches 20+ raw data points, engineers 22 signals |
 | `model.py` | Logistic scorer + online learning step |
-| `meteoswiss.py` | Real Samedan station data (fallback ground truth + nowcast feature) |
+| `meteoswiss.py` | Real Samedan wind + Lugano/Zürich pressure (fallback ground truth + nowcast features) |
 | `kitesailing_weather.py` | Scrapes the real Silvaplana lake reading (primary ground truth) |
 | `forecast_and_log.py` | Daily forecast + Telegram + prediction log |
 | `verify_and_learn.py` | Checks predictions vs reality, updates weights |
 | `backtest.py` | One-shot historical training (2024–2026, Samedan-labeled) |
+| `historical_cache.py` | Caches backtest.py's raw fetches so retrains don't re-pull the same history |
 | `refresh_dashboard.py` | Nightly dashboard data rebuild |
 | `weights.json` | Current model weights (auto-updated) |
 | `docs/` | Dashboard (GitHub Pages) |
-| `logs/` | Prediction log, backtest dataset, kitesailing observations (auto-committed) |
+| `logs/` | Prediction log, backtest dataset, kitesailing observations, raw data cache (auto-committed) |
 
 ## Known limitations
 
