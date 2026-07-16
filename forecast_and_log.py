@@ -68,6 +68,7 @@ def build_and_log():
             tier = tier_from_prob(p, weights)
             model_kt = kt(raw["silvaplana"]["wind_speed_10m"][idx])
             gust_kt = kt(raw["silvaplana"]["wind_gusts_10m"][idx])
+            wind_dir_deg = raw["silvaplana"]["wind_direction_10m"][idx]
 
             record = {
                 "logged_at": datetime.now(timezone.utc).isoformat(),
@@ -76,6 +77,11 @@ def build_and_log():
                 "tier": tier,
                 "model_wind_kt": round(model_kt, 1),
                 "model_gust_kt": round(gust_kt, 1),
+                # Raw compass degrees (0-360, meteorological convention - the
+                # direction the wind is blowing FROM), kept unconverted here;
+                # refresh_dashboard.py turns this into a human-readable
+                # compass label (e.g. "SW") for display.
+                "model_wind_dir_deg": round(wind_dir_deg, 0),
                 "features": feats,
                 # Full unnormalized snapshot of what the live forecast said,
                 # kept even though only `feats` is used for scoring - once

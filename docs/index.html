@@ -3,169 +3,304 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Malojawind · Silvaplana</title>
+<meta name="description" content="Silvaplana wingfoil forecast - self-improving model, live performance, and honest holdout evaluation.">
+<title>Wingcheck · Silvaplana</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
-    --ice:#F6F9FC; --card:#FFFFFF; --line:#E4EBF2; --line-soft:#EEF3F8;
+    --ice:#F5F8FC; --card:#FFFFFF; --line:#E4EBF2; --line-soft:#EEF3F8;
     --ink:#15242F; --ink-2:#5A6B7A; --ink-3:#93A3B1;
-    --blue:#2273C3; --blue-soft:#E3EFFA;
-    --good:#0E9F6E; --good-soft:#E3F5EE;
-    --warn:#D98E04; --warn-soft:#FBF1DD;
+    --blue:#2273C3; --blue-soft:#E3EFFA; --blue-deep:#164A80;
+    --good:#0E9F6E; --good-soft:#E3F5EE; --good-ink:#0b7a54;
+    --warn:#D98E04; --warn-soft:#FBF1DD; --warn-ink:#8a5c05;
+    --bad-soft:#F1F3F6; --bad-ink:#5A6B7A;
     --display:'Outfit',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
-    --radius:18px; --shadow:0 1px 2px rgba(21,36,47,.04), 0 8px 24px rgba(21,36,47,.06);
+    --radius:16px; --radius-lg:20px;
+    --shadow:0 1px 2px rgba(21,36,47,.04), 0 8px 24px rgba(21,36,47,.06);
+    color-scheme: light;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--ice);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1080px;margin:0 auto;padding:0 20px 72px;}
+  html{-webkit-text-size-adjust:100%;}
+  body{background:var(--ice);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased;
+    overflow-x:hidden;}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 18px 64px;}
+  a{color:inherit;}
+  h1,h2,h3{font-family:var(--display);letter-spacing:-0.01em;}
 
-  /* ---------- Hero ---------- */
-  .hero{position:relative;padding:64px 0 44px;overflow:hidden;}
-  .hero-wind{position:absolute;inset:0;pointer-events:none;}
-  .hero-wind path{fill:none;stroke:var(--blue);stroke-width:1.5;opacity:.12;
+  /* ---------- Header ---------- */
+  .site-header{position:relative;padding:36px 0 28px;overflow:hidden;}
+  .hero-wind{position:absolute;inset:0;pointer-events:none;z-index:0;}
+  .hero-wind path{fill:none;stroke:var(--blue);stroke-width:1.5;opacity:.10;
     stroke-dasharray:6 14;animation:flow 9s linear infinite;}
-  .hero-wind path:nth-child(2){opacity:.08;animation-duration:13s;}
-  .hero-wind path:nth-child(3){opacity:.06;animation-duration:17s;}
+  .hero-wind path:nth-child(2){opacity:.07;animation-duration:13s;}
   @keyframes flow{to{stroke-dashoffset:-400;}}
   @media (prefers-reduced-motion:reduce){.hero-wind path{animation:none;}}
-
+  .header-inner{position:relative;z-index:1;}
   .kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
-    font-size:12px;color:var(--blue);background:var(--blue-soft);
-    padding:6px 14px;border-radius:100px;margin-bottom:20px;}
-  .kicker b{font-weight:500;}
-  h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,5.5vw,52px);
-    letter-spacing:-0.02em;line-height:1.06;}
+    font-size:11.5px;color:var(--blue);background:var(--blue-soft);
+    padding:6px 13px;border-radius:100px;margin-bottom:16px;font-weight:500;}
+  h1{font-weight:700;font-size:clamp(28px,6vw,42px);line-height:1.08;}
   h1 em{font-style:normal;color:var(--blue);}
-  .hero p{color:var(--ink-2);font-size:16px;line-height:1.65;max-width:540px;margin-top:16px;}
-  .status-line{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px;}
-  .chip{font-family:var(--mono);font-size:12px;padding:7px 14px;border-radius:100px;
-    background:var(--card);border:1px solid var(--line);color:var(--ink-2);}
-  .chip.sample{background:var(--warn-soft);border-color:transparent;color:#8a5c05;font-weight:500;}
+  .header-sub{color:var(--ink-2);font-size:14.5px;margin-top:10px;max-width:520px;}
+  .status-line{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:6px 12px;border-radius:100px;
+    background:var(--card);border:1px solid var(--line);color:var(--ink-2);
+    display:inline-flex;align-items:center;gap:6px;}
+  .chip.sample{background:var(--warn-soft);border-color:transparent;color:var(--warn-ink);font-weight:500;}
+  .chip.fresh{background:var(--good-soft);border-color:transparent;color:var(--good-ink);font-weight:500;}
+  .chip.stale{background:var(--warn-soft);border-color:transparent;color:var(--warn-ink);font-weight:500;}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;}
 
-  /* ---------- KPI cards ---------- */
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:8px 0 46px;}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:22px 22px 20px;box-shadow:var(--shadow);}
-  .kpi .k-label{font-size:13px;color:var(--ink-2);font-weight:500;}
-  .kpi .k-value{font-family:var(--display);font-size:38px;font-weight:600;margin-top:6px;letter-spacing:-0.02em;}
-  .kpi .k-sub{font-size:12.5px;color:var(--ink-3);margin-top:6px;line-height:1.45;}
-  .kpi.hero-kpi{background:linear-gradient(135deg,#1D5FA4,#2E86D8);border:none;color:#fff;}
-  .kpi.hero-kpi .k-label{color:rgba(255,255,255,.85);}
-  .kpi.hero-kpi .k-sub{color:rgba(255,255,255,.7);}
-  .kpi.hero-kpi .k-value{color:#fff;}
+  /* ---------- Sections ---------- */
+  section{margin-top:22px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:22px;box-shadow:var(--shadow);}
+  .section-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;}
+  .section-head h2{font-size:18px;font-weight:600;}
+  .section-head .hint{font-size:12.5px;color:var(--ink-3);}
+  .explain{font-size:13px;color:var(--ink-2);line-height:1.6;margin-bottom:16px;max-width:620px;}
 
-  /* ---------- Cards / sections ---------- */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:26px;box-shadow:var(--shadow);}
-  .card + .card, section{margin-top:18px;}
-  .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
-  .card-head h2{font-family:var(--display);font-size:19px;font-weight:600;letter-spacing:-0.01em;}
-  .card-head .hint{font-size:13px;color:var(--ink-3);}
-  .card .explain{font-size:13.5px;color:var(--ink-2);line-height:1.6;margin-bottom:18px;max-width:640px;}
+  /* ---------- Today's forecast cards ---------- */
+  .forecast-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px;}
+  .fc-card{border:1px solid var(--line);border-radius:14px;padding:16px 12px;text-align:center;
+    background:var(--ice);transition:transform .15s ease;}
+  .fc-card.recommended{background:linear-gradient(160deg,#1D5FA4,#2E86D8);border-color:transparent;color:#fff;}
+  .fc-time{font-family:var(--mono);font-size:12.5px;color:var(--ink-3);font-weight:500;}
+  .fc-card.recommended .fc-time{color:rgba(255,255,255,.8);}
+  .fc-pct{font-family:var(--display);font-size:30px;font-weight:700;margin:6px 0 2px;letter-spacing:-0.02em;}
+  .fc-pct-label{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
+  .fc-card.recommended .fc-pct-label{color:rgba(255,255,255,.75);}
+  .fc-badge{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;
+    padding:5px 11px;border-radius:100px;margin-bottom:10px;white-space:nowrap;}
+  .fc-badge.good{background:var(--good-soft);color:var(--good-ink);}
+  .fc-badge.marginal{background:var(--warn-soft);color:var(--warn-ink);}
+  .fc-badge.unlikely{background:var(--bad-soft);color:var(--bad-ink);}
+  .fc-card.recommended .fc-badge{background:rgba(255,255,255,.22);color:#fff;}
+  .fc-wind{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.5;}
+  .fc-card.recommended .fc-wind{color:rgba(255,255,255,.9);}
+  .empty-state{color:var(--ink-3);font-size:13.5px;padding:18px 4px;text-align:center;}
 
-  .chart-box{height:300px;position:relative;}
-  .chart-box.tall{height:320px;}
-  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft);}
-  .legend span{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);}
-  .swatch{width:20px;height:4px;border-radius:2px;display:inline-block;}
-  .swatch.dot{width:9px;height:9px;border-radius:50%;}
+  /* ---------- Daily summary ---------- */
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:4px;}
+  .summary-stat .s-label{font-size:12px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.03em;}
+  .summary-stat .s-value{font-family:var(--display);font-size:24px;font-weight:600;margin-top:4px;}
+  .recommendation{margin-top:14px;padding:14px 16px;background:var(--blue-soft);border-radius:12px;
+    font-size:14px;color:var(--blue-deep);font-weight:500;line-height:1.5;}
 
-  .two-col{display:grid;grid-template-columns:1.15fr 1fr;gap:18px;margin-top:18px;}
-  @media (max-width:840px){.two-col{grid-template-columns:1fr;}}
+  /* ---------- Generic stat row (live performance) ---------- */
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;}
+  .stat{padding:14px 0;}
+  .stat .st-label{font-size:12px;color:var(--ink-2);font-weight:500;}
+  .stat .st-value{font-family:var(--display);font-size:26px;font-weight:600;margin-top:4px;}
+  .stat .st-sub{font-size:11.5px;color:var(--ink-3);margin-top:3px;}
+  .provisional-note{font-size:12.5px;color:var(--warn-ink);background:var(--warn-soft);
+    border-radius:10px;padding:9px 13px;margin-top:14px;display:inline-block;}
 
-  /* ---------- Weights ---------- */
-  .w-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft);}
+  /* ---------- Frozen evaluation ---------- */
+  .frozen-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+    background:var(--blue-soft);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  .frozen-banner .fb-text{font-size:12.5px;color:var(--blue-deep);}
+  .frozen-banner .fb-meta{font-family:var(--mono);font-size:11.5px;color:var(--blue-deep);opacity:.85;}
+  .eval-btn{display:inline-flex;align-items:center;gap:8px;background:var(--blue);color:#fff;
+    font-family:var(--body);font-weight:600;font-size:13.5px;padding:11px 18px;border-radius:100px;
+    text-decoration:none;white-space:nowrap;box-shadow:0 2px 8px rgba(34,115,195,.3);}
+  .eval-btn:hover{background:var(--blue-deep);}
+  .eval-btn svg{width:14px;height:14px;flex:none;}
+  .eval-btn-wrap{margin-top:16px;}
+  .eval-btn-tip{font-size:12px;color:var(--ink-3);margin-top:8px;max-width:420px;}
+
+  .window-tables{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;}
+  @media (max-width:640px){.window-tables{grid-template-columns:1fr;}}
+  .window-block h3{font-size:13.5px;font-weight:600;margin-bottom:2px;}
+  .window-block .w-hint{font-size:11.5px;color:var(--ink-3);margin-bottom:10px;}
+  .metric-list{display:flex;flex-direction:column;gap:0;}
+  .metric-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line-soft);
+    font-size:13px;}
+  .metric-row:last-child{border-bottom:none;}
+  .metric-row .m-label{color:var(--ink-2);}
+  .metric-row .m-value{font-family:var(--mono);font-weight:600;color:var(--ink);}
+
+  /* ---------- Ablation ---------- */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .metrics-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:460px;}
+  .metrics-table th,.metrics-table td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+  .metrics-table th:first-child,.metrics-table td:first-child{text-align:left;white-space:normal;}
+  .metrics-table th{color:var(--ink-3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;}
+  .metrics-table td{font-family:var(--mono);color:var(--ink);}
+  .metrics-table td:first-child{font-family:var(--body);font-weight:500;}
+  .metrics-table tr.best td{background:var(--good-soft);}
+
+  /* ---------- Technical details (collapsed) ---------- */
+  details.tech{background:transparent;border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:0;box-shadow:none;overflow:hidden;}
+  details.tech > summary{cursor:pointer;list-style:none;padding:18px 22px;font-family:var(--display);
+    font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:space-between;
+    background:var(--card);}
+  details.tech > summary::-webkit-details-marker{display:none;}
+  details.tech > summary::after{content:'+';font-size:20px;color:var(--ink-3);font-weight:400;}
+  details.tech[open] > summary::after{content:'−';}
+  .tech-body{padding:4px 22px 22px;background:var(--card);}
+  .tech-sub{margin-top:22px;}
+  .tech-sub:first-child{margin-top:6px;}
+  .tech-sub h3{font-size:13px;font-weight:600;margin-bottom:8px;}
+  .limitations{font-size:12.5px;color:var(--ink-2);line-height:1.7;padding-left:18px;}
+  .limitations li{margin-bottom:6px;}
+
+  .chart-box{height:260px;position:relative;}
+  .chart-box.tall{height:300px;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);}
+  .swatch{width:18px;height:4px;border-radius:2px;display:inline-block;}
+  .swatch.dot2{width:8px;height:8px;border-radius:50%;}
+
+  .w-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-soft);}
   .w-row:last-child{border-bottom:none;}
-  .w-name{font-size:13.5px;color:var(--ink);font-weight:500;}
-  .w-desc{font-size:12px;color:var(--ink-3);margin-top:2px;}
-  .w-bar-wrap{display:flex;align-items:center;gap:10px;min-width:150px;}
-  .w-bar{flex:1;height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden;min-width:80px;}
+  .w-name{font-size:13px;color:var(--ink);font-weight:500;}
+  .w-desc{font-size:11.5px;color:var(--ink-3);margin-top:1px;}
+  .w-bar-wrap{display:flex;align-items:center;gap:9px;min-width:140px;}
+  .w-bar{flex:1;height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden;min-width:70px;}
   .w-fill{height:100%;border-radius:3px;background:var(--blue);}
-  .w-val{font-family:var(--mono);font-size:12px;color:var(--ink-2);width:44px;text-align:right;}
+  .w-val{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);width:42px;text-align:right;}
 
-  footer{margin-top:56px;text-align:center;font-size:12.5px;color:var(--ink-3);line-height:1.8;}
-  footer .mono{font-family:var(--mono);font-size:11.5px;}
+  footer{margin-top:40px;text-align:center;font-size:12px;color:var(--ink-3);line-height:1.8;}
+  footer .mono{font-family:var(--mono);font-size:11px;}
   ::selection{background:var(--blue-soft);}
 
-  /* ---------- Upcoming forecast ---------- */
-  .upcoming-list{display:flex;flex-direction:column;gap:10px;}
-  .upcoming-row{display:flex;align-items:center;justify-content:space-between;gap:14px;
-    padding:14px 16px;border-radius:12px;background:var(--ice);border:1px solid var(--line-soft);}
-  .upcoming-when{font-weight:600;font-size:14.5px;}
-  .upcoming-wind{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-top:2px;}
-  .tier-badge{font-family:var(--mono);font-size:12px;font-weight:600;padding:7px 14px;
-    border-radius:100px;white-space:nowrap;}
-  .tier-badge.good{background:var(--good-soft);color:#0b7a54;}
-  .tier-badge.marginal{background:var(--warn-soft);color:#8a5c05;}
-  .tier-badge.unlikely{background:var(--line-soft);color:var(--ink-3);}
-  .upcoming-empty{color:var(--ink-3);font-size:13.5px;padding:4px 0;}
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ice:#0F1720; --card:#17212B; --line:#28333F; --line-soft:#212B36;
+      --ink:#E7EEF4; --ink-2:#A9B8C4; --ink-3:#71828F;
+      --blue:#4B9EE8; --blue-soft:#1B2E42; --blue-deep:#8FC4F5;
+      --good:#2FD08E; --good-soft:#123528; --good-ink:#4FE0A6;
+      --warn:#E3A93B; --warn-soft:#3A2E10; --warn-ink:#F0BE5C;
+      --bad-soft:#232E38; --bad-ink:#A9B8C4;
+      color-scheme: dark;
+    }
+    .eval-btn{box-shadow:0 2px 8px rgba(0,0,0,.4);}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <!-- ================= HERO ================= -->
-  <header class="hero">
-    <svg class="hero-wind" viewBox="0 0 1080 260" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M -40 70 C 200 30, 420 110, 640 70 S 1000 30, 1140 80"/>
-      <path d="M -40 140 C 240 100, 460 180, 700 140 S 1020 100, 1140 150"/>
-      <path d="M -40 210 C 220 170, 480 240, 720 200 S 1040 170, 1140 215"/>
+  <!-- ================= HEADER ================= -->
+  <header class="site-header">
+    <svg class="hero-wind" viewBox="0 0 1080 200" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M -40 60 C 200 20, 420 100, 640 60 S 1000 20, 1140 70"/>
+      <path d="M -40 130 C 240 90, 460 170, 700 130 S 1020 90, 1140 140"/>
     </svg>
-    <div class="kicker">◍ <b>SILVAPLANA · LIVE MODEL</b></div>
-    <h1>Will the <em>Malojawind</em> blow&nbsp;today?</h1>
-    <p>A small forecasting model that reads the physical drivers of the Maloja wind — Bregaglia heating, pressure gradients, winds aloft — and checks its own answers against real MeteoSwiss measurements, learning as it goes.</p>
-    <div class="status-line" id="statusLine"></div>
+    <div class="header-inner">
+      <div class="kicker">◍ SILVAPLANA · WINGCHECK</div>
+      <h1>Will the <em>Malojawind</em> blow&nbsp;today?</h1>
+      <p class="header-sub">A small self-improving forecasting model for Lake Silvaplana - reads the physical drivers of the Maloja wind and checks its own predictions against the real lake reading.</p>
+      <div class="status-line" id="statusLine"></div>
+    </div>
   </header>
 
-  <!-- ================= Upcoming forecast ================= -->
-  <section class="card">
-    <div class="card-head">
-      <h2>Next sessions</h2>
-      <div class="hint">12:00–18:00, updated after every forecast run</div>
+  <!-- ================= TODAY'S FORECAST ================= -->
+  <section class="card" aria-labelledby="today-h">
+    <div class="section-head">
+      <h2 id="today-h">Today's forecast</h2>
+      <div class="hint">14:00–18:00 local time</div>
     </div>
-    <div class="upcoming-list" id="upcomingList"></div>
+    <p class="explain">Estimated likelihood is the model's own probability that each hour will be a rideable wingfoil session - not a guarantee, and not the same as the alert-tier cutoff.</p>
+    <div class="forecast-grid" id="forecastGrid" role="list"></div>
   </section>
 
-  <!-- ================= KPIs ================= -->
-  <div class="kpis" id="kpiRow"></div>
+  <!-- ================= DAILY SUMMARY ================= -->
+  <section class="card" id="summarySection" aria-labelledby="summary-h">
+    <div class="section-head"><h2 id="summary-h">Daily summary</h2></div>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="recommendation" id="recommendation"></div>
+  </section>
 
-  <!-- ================= Timeline ================= -->
-  <section class="card">
-    <div class="card-head">
-      <h2>Wind history &amp; model confidence</h2>
-      <div class="hint" id="timelineHint">Afternoon window, 12:00–18:00</div>
+  <!-- ================= LIVE PERFORMANCE ================= -->
+  <section class="card" aria-labelledby="live-h">
+    <div class="section-head">
+      <h2 id="live-h">Live performance</h2>
+      <div class="hint">Verified real-world forecasts</div>
     </div>
-    <p class="explain">The grey area is the wind that actually blew. The blue line is how confident the model was (or would have been, for past seasons) that it would be a rideable day. When blue rises before grey does, the model is doing its job.</p>
-    <div class="chart-box tall"><canvas id="timelineChart"></canvas></div>
-    <div class="legend">
-      <span><i class="swatch" style="background:#B9C6D2"></i>Actual wind (knots)</span>
-      <span><i class="swatch" style="background:#2273C3"></i>Model confidence</span>
-      <span><i class="swatch dot" style="background:#0E9F6E"></i>Verified live forecasts</span>
-      <span><i class="swatch" style="background:#D98E04;height:2px"></i>10 kt rideable line</span>
+    <p class="explain">How the deployed model has actually done, checked against the real Silvaplana lake reading (kitesailing.ch primary, MeteoSwiss Samedan as fallback) as predictions get verified.</p>
+    <div class="stat-row" id="liveStatRow"></div>
+    <div id="provisionalNote"></div>
+  </section>
+
+  <!-- ================= FROZEN HOLDOUT EVALUATION ================= -->
+  <section class="card" aria-labelledby="holdout-h">
+    <div class="section-head">
+      <h2 id="holdout-h">Frozen holdout evaluation</h2>
+      <div class="hint">Not the same as live performance above</div>
+    </div>
+    <p class="explain">A separate model, trained only on past seasons and scored once against a season it never trained on, then frozen - this is the honest answer to "how would this do on data it's never seen," and it does not change as the live model keeps learning.</p>
+    <div class="frozen-banner" id="frozenBanner"></div>
+    <div class="window-tables" id="windowTables"></div>
+    <div class="eval-btn-wrap">
+      <a class="eval-btn" id="evalBtn" href="https://github.com/ambrogio5/wingcheck/actions/workflows/wingcheck.yml" target="_blank" rel="noopener noreferrer" aria-describedby="evalBtnTip">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM6 11.5v-7l6 3.5-6 3.5Z"/></svg>
+        Run fresh evaluation
+      </a>
+      <p class="eval-btn-tip" id="evalBtnTip">Opens GitHub Actions in a new tab. Select "Run workflow" and enable the run_backtest option.</p>
     </div>
   </section>
 
-  <!-- ================= Monthly + Weights ================= -->
-  <div class="two-col">
-    <section class="card">
-      <div class="card-head"><h2>Rideable days by month</h2></div>
-      <p class="explain">Share of afternoon hours that reached rideable wind — your season at a glance.</p>
-      <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
-    </section>
+  <!-- ================= ABLATION ================= -->
+  <section class="card" aria-labelledby="ablation-h">
+    <div class="section-head">
+      <h2 id="ablation-h">Feature ablation</h2>
+      <div class="hint">Diagnostic, not model selection</div>
+    </div>
+    <p class="explain">Each row is its own model, trained fresh with only the listed features, scored once against the same frozen holdout above. This explains roughly how much each feature group contributes - it is not used to pick a winner, and the deployed model always uses the full feature set.</p>
+    <div class="table-wrap"><table class="metrics-table" id="ablationTable"></table></div>
+  </section>
 
-    <section class="card">
-      <div class="card-head"><h2>What the model listens to</h2></div>
-      <p class="explain">The signals it weighs, strongest first. These shift automatically as the model learns.</p>
-      <div id="weightsList"></div>
-    </section>
-  </div>
+  <!-- ================= TECHNICAL DETAILS ================= -->
+  <details class="tech">
+    <summary>Technical details</summary>
+    <div class="tech-body">
+      <div class="tech-sub">
+        <h3>Operational alert tiers (frozen holdout)</h3>
+        <div class="table-wrap"><table class="metrics-table" id="operationalTable"></table></div>
+      </div>
+      <div class="tech-sub">
+        <h3>Reproducibility &amp; deployment</h3>
+        <div class="table-wrap"><table class="metrics-table" id="reproTable"></table></div>
+      </div>
+      <div class="tech-sub">
+        <h3>What the model listens to</h3>
+        <p class="explain">The signals it weighs, strongest first. These shift automatically as the model learns.</p>
+        <div id="weightsList"></div>
+      </div>
+      <div class="tech-sub">
+        <h3>Rideable days by month</h3>
+        <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
+      </div>
+      <div class="tech-sub">
+        <h3>Wind history &amp; model confidence</h3>
+        <div class="chart-box tall"><canvas id="timelineChart"></canvas></div>
+        <div class="legend">
+          <span><i class="swatch" style="background:#B9C6D2"></i>Actual wind (knots)</span>
+          <span><i class="swatch" style="background:#2273C3"></i>Model confidence</span>
+          <span><i class="swatch dot2" style="background:#0E9F6E"></i>Verified live forecasts</span>
+          <span><i class="swatch" style="background:#D98E04;height:2px"></i>10 kt rideable line</span>
+        </div>
+      </div>
+      <div class="tech-sub">
+        <h3>Known limitations</h3>
+        <ul class="limitations">
+          <li>Historical retraining still labels against MeteoSwiss Samedan (kitesailing.ch has no historical archive), while the live loop labels against the real Silvaplana lake reading - a real, currently-open labeling-criterion mismatch.</li>
+          <li>Backtest features come from Open-Meteo's 0-hour archive, not a genuine 1-3 day-ahead forecast - expect live accuracy below the frozen holdout's.</li>
+          <li>The 2026 holdout is a partial season; trust the live accuracy number as it accumulates.</li>
+        </ul>
+      </div>
+    </div>
+  </details>
 
   <footer>
     <div id="genAt">—</div>
     <div class="mono" id="sampleCount">—</div>
-    <div class="mono">Data: Open-Meteo · Ground truth: kitesailing.ch · Source: MeteoSwiss</div>
+    <div class="mono">Data: Open-Meteo · Ground truth: kitesailing.ch (primary), MeteoSwiss Samedan (fallback + secondary signal)</div>
   </footer>
 </div>
 
@@ -192,9 +327,31 @@ const FEATURES = {
   upper_wind_dewpoint_interaction:{name:"Aloft wind × dry air", desc:"Combined effect of upper wind and dryness"},
   thermal_seasonal_interaction:{name:"Heating × season",   desc:"How the thermal effect shifts through the year"},
   samedan_morning_score: {name:"Samedan this morning",     desc:"Real upstream wind already measured today"},
+  pressure_nowcast_score:{name:"Pressure gradient now",    desc:"Lugano–Zürich gradient from real station readings this morning, not the forecast"},
 };
 
+const ABLATION_LABELS = {
+  majority_class_baseline: 'Majority-class baseline',
+  forecast_wind_only: 'Forecast wind only',
+  wind_gust_direction: 'Wind + gust + direction',
+  previous_core_physical_set: 'Previous core physical set',
+  full_current_model: 'Full current model',
+  full_minus_pressure_nowcast: 'Full − pressure nowcast',
+  full_minus_samedan_morning: 'Full − Samedan morning',
+};
+
+const TIER_INTERPRETATION = {
+  GOOD: 'Good session likely',
+  MARGINAL: 'Marginal — worth checking closer to time',
+  UNLIKELY: 'Unlikely to be rideable',
+};
+
+const DATA_FRESHNESS_HOURS = 30;      // live forecast/learn cadence is daily
+const EVAL_FRESHNESS_DAYS = 30;       // backtest is a manual, infrequent action
+
 const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
+const fmtNum = (x, d=2) => (x===null||x===undefined) ? "—" : Number(x).toFixed(d);
+const fmtInt = x => (x===null||x===undefined) ? "—" : Math.round(x);
 
 // target_time is a naive Europe/Zurich wall-clock string (no offset) - parse
 // its components directly via Date.UTC and always format with timeZone:'UTC'
@@ -206,69 +363,213 @@ function parseNaiveLocal(s){
   return new Date(Date.UTC(y, m-1, d, hh, mm));
 }
 
-function renderUpcoming(d){
-  const list = d.upcoming_forecast || [];
-  const el = document.getElementById('upcomingList');
-  if (!list.length){
-    el.innerHTML = '<div class="upcoming-empty">No forecast logged yet — runs automatically at 07:00 &amp; 10:00 CEST.</div>';
-    return;
-  }
-  const tierClass = t => t==='GOOD' ? 'good' : t==='MARGINAL' ? 'marginal' : 'unlikely';
-  el.innerHTML = list.map(p=>{
-    const dt = parseNaiveLocal(p.target_time);
-    const when = dt.toLocaleDateString('en',{weekday:'short', day:'2-digit', month:'2-digit', timeZone:'UTC'})
-      + ' ' + dt.toLocaleTimeString('en',{hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'UTC'});
-    return `
-      <div class="upcoming-row">
-        <div>
-          <div class="upcoming-when">${when}</div>
-          <div class="upcoming-wind">model ${p.model_wind_kt}kt (gust ${p.model_gust_kt}kt) · confidence ${fmtPct(p.probability)}</div>
-        </div>
-        <div class="tier-badge ${tierClass(p.tier)}">${p.tier}</div>
-      </div>`;
-  }).join('');
+function hoursAgo(isoString){
+  if(!isoString) return null;
+  const then = new Date(isoString);
+  if (isNaN(then.getTime())) return null;
+  return (Date.now() - then.getTime()) / 36e5;
 }
+
+function tierClass(t){ return t==='GOOD' ? 'good' : t==='MARGINAL' ? 'marginal' : 'unlikely'; }
 
 function renderStatus(d){
   const el = document.getElementById('statusLine');
   const chips = [];
   if (d.is_sample_data) chips.push('<span class="chip sample">Sample data — run backtest.py for real numbers</span>');
+  const age = hoursAgo(d.generated_at);
+  if (age !== null){
+    if (age <= DATA_FRESHNESS_HOURS) chips.push('<span class="chip fresh"><i class="dot"></i>Live data is fresh</span>');
+    else chips.push('<span class="chip stale"><i class="dot"></i>Live data may be stale</span>');
+  }
   const spy = d.samples_per_year || {};
   for (const y of Object.keys(spy).sort()) chips.push(`<span class="chip">${y} · ${spy[y]} hrs</span>`);
   el.innerHTML = chips.join('');
 }
 
-function renderKpis(d){
-  const bt = d.holdout_metrics_2026 || {};
-  const lv = d.live_metrics || {n:0};
-  const hasLive = lv.n > 0;
-  const cards = [];
+function getTodayCards(d){
+  const list = (d.upcoming_forecast || []).filter(p=>{
+    const h = parseNaiveLocal(p.target_time).getUTCHours();
+    return h >= 14 && h <= 18;
+  });
+  if (!list.length) return {day: null, cards: []};
+  list.sort((a,b)=>a.target_time.localeCompare(b.target_time));
+  const day = list[0].target_time.slice(0,10);
+  return {day, cards: list.filter(p=>p.target_time.slice(0,10)===day)};
+}
 
-  if (hasLive){
-    cards.push({cls:'hero-kpi', label:'Right in the real world', value:fmtPct(lv.accuracy),
-      sub:`Across ${lv.n} live forecasts, verified against the Samedan station`});
-  } else {
-    cards.push({cls:'hero-kpi', label:'Right in the real world', value:'—',
-      sub:'Appears once the first live forecasts are verified'});
+function renderTodayForecast(d){
+  const {cards} = getTodayCards(d);
+  const el = document.getElementById('forecastGrid');
+  if (!cards.length){
+    el.innerHTML = '<div class="empty-state">No forecast logged for today\'s 14:00–18:00 window yet — updates automatically at 07:00 &amp; 10:00 CEST.</div>';
+    return;
   }
-  cards.push({label:'Right on past seasons', value:fmtPct(bt.accuracy),
-    sub: bt.trivial_baseline_accuracy
-      ? `vs ${fmtPct(bt.trivial_baseline_accuracy)} if it always guessed “no wind”`
-      : 'Tested on a season it never trained on'});
-  cards.push({label:'When it says “go”, it’s right', value:fmtPct(hasLive ? lv.precision : bt.precision),
-    sub:'Precision — how trustworthy a green light is'});
-  cards.push({label:'Rideable days it catches', value:fmtPct(hasLive ? lv.recall : bt.recall),
-    sub:'Recall — how few good sessions it misses'});
+  const bestProb = Math.max(...cards.map(c=>c.probability ?? 0));
+  el.innerHTML = cards.map(c=>{
+    const dt = parseNaiveLocal(c.target_time);
+    const time = dt.toLocaleTimeString('en',{hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'UTC'});
+    const isBest = c.probability === bestProb;
+    const wind = c.model_wind_kt!==undefined ? `Wind ${fmtInt(c.model_wind_kt)} kt` : 'Wind —';
+    const gust = c.model_gust_kt!==undefined ? `Gust ${fmtInt(c.model_gust_kt)} kt` : '';
+    const dir = c.model_wind_dir ? ` · ${c.model_wind_dir}` : '';
+    return `
+      <div class="fc-card${isBest?' recommended':''}" role="listitem" aria-label="${time}, ${fmtPct(c.probability)} estimated likelihood, ${c.tier}">
+        <div class="fc-time">${time}</div>
+        <div class="fc-pct">${fmtPct(c.probability)}</div>
+        <div class="fc-pct-label">est. likelihood</div>
+        <div class="fc-badge ${tierClass(c.tier)}">${c.tier}</div>
+        <div class="fc-wind">${wind} · ${gust}${dir}</div>
+      </div>`;
+  }).join('');
+}
 
-  document.getElementById('kpiRow').innerHTML = cards.map(k=>`
-    <div class="kpi ${k.cls||''}">
-      <div class="k-label">${k.label}</div>
-      <div class="k-value">${k.value}</div>
-      <div class="k-sub">${k.sub||''}</div>
-    </div>`).join('');
+function renderDailySummary(d){
+  const {cards} = getTodayCards(d);
+  const section = document.getElementById('summarySection');
+  const grid = document.getElementById('summaryGrid');
+  const rec = document.getElementById('recommendation');
+  if (!cards.length){
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  const best = cards.reduce((a,b)=> (b.probability ?? 0) > (a.probability ?? 0) ? b : a);
+  const peakWind = Math.max(...cards.map(c=>c.model_wind_kt ?? 0));
+  const bestTime = parseNaiveLocal(best.target_time).toLocaleTimeString('en',{hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'UTC'});
+
+  grid.innerHTML = `
+    <div class="summary-stat"><div class="s-label">Best hour</div><div class="s-value">${bestTime}</div></div>
+    <div class="summary-stat"><div class="s-label">Max estimated likelihood</div><div class="s-value">${fmtPct(best.probability)}</div></div>
+    <div class="summary-stat"><div class="s-label">Expected peak wind</div><div class="s-value">${fmtInt(peakWind)} kt</div></div>`;
+
+  const interp = TIER_INTERPRETATION[best.tier] || 'Check the forecast closer to time';
+  rec.textContent = `${interp} — best odds around ${bestTime} (${fmtPct(best.probability)} estimated likelihood, model likelihood, not a guarantee).`;
+}
+
+function renderLivePerformance(d){
+  const lv = d.live_metrics || {n:0};
+  const el = document.getElementById('liveStatRow');
+  const note = document.getElementById('provisionalNote');
+  if (!lv.n){
+    el.innerHTML = '<div class="empty-state">No verified live forecasts yet — appears once predictions are checked against real outcomes.</div>';
+    note.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <div class="stat"><div class="st-label">Verified forecasts</div><div class="st-value">${lv.n}</div></div>
+    <div class="stat"><div class="st-label">Accuracy</div><div class="st-value">${fmtPct(lv.accuracy)}</div>
+      <div class="st-sub">vs ${fmtPct(lv.trivial_baseline_accuracy)} majority-class baseline</div></div>
+    <div class="stat"><div class="st-label">Balanced accuracy</div><div class="st-value">${fmtPct(lv.balanced_accuracy)}</div></div>
+    <div class="stat"><div class="st-label">Precision / Recall</div><div class="st-value">${fmtPct(lv.precision)} / ${fmtPct(lv.recall)}</div></div>`;
+  if (lv.n < 30){
+    note.innerHTML = `<span class="provisional-note">Small sample (n=${lv.n}) — provisional, treat with caution until more forecasts are verified.</span>`;
+  } else {
+    note.innerHTML = '';
+  }
+}
+
+function metricRows(pairs){
+  return pairs.map(([label, value])=>
+    `<div class="metric-row"><span class="m-label">${label}</span><span class="m-value">${value}</span></div>`
+  ).join('');
+}
+
+function renderFrozenEvaluation(d){
+  const ev = d.evaluation || {};
+  const banner = document.getElementById('frozenBanner');
+  const tables = document.getElementById('windowTables');
+  const evalBtnTip = document.getElementById('evalBtnTip');
+
+  if (!ev.n_holdout_samples){
+    banner.innerHTML = '<span class="fb-text">No holdout evaluation yet — run backtest.py (or use the button below).</span>';
+    tables.innerHTML = '';
+    return;
+  }
+
+  const age = ev.generated_at ? (Date.now() - new Date(ev.generated_at).getTime()) / 86400000 : null;
+  const isStale = age !== null && age > EVAL_FRESHNESS_DAYS;
+  const genAt = ev.generated_at ? ev.generated_at.slice(0,16).replace('T',' ') + ' UTC' : 'unknown';
+  const trainYears = (ev.trained_on_years||[]).join('+');
+  const holdoutYears = (ev.holdout_years||[]).join('+');
+
+  banner.innerHTML = `
+    <div class="fb-text">Trained on ${trainYears} · evaluated once on the untouched ${holdoutYears} season${isStale ? ' · <strong>evaluation may be stale</strong>' : ''}</div>
+    <div class="fb-meta">generated ${genAt}</div>`;
+
+  const fw = (ev.hourly && ev.hourly.full_window && ev.hourly.full_window['cutoff_0.5']) || {};
+  const pw = (ev.hourly && ev.hourly.prime_window && ev.hourly.prime_window['cutoff_0.5']) || {};
+  const fwHours = (ev.full_window_hours || [12,18]).join(':00–') + ':00';
+  const pwHours = (ev.prime_window_hours || [14,18]).join(':00–') + ':00';
+
+  const block = (title, hint, r) => `
+    <div class="window-block">
+      <h3>${title}</h3>
+      <div class="w-hint">${hint}</div>
+      <div class="metric-list">
+        ${metricRows([
+          ['Sample count', r.n ?? '—'],
+          ['Accuracy', fmtPct(r.accuracy)],
+          ['Majority baseline', fmtPct(r.majority_baseline_accuracy)],
+          ['Balanced accuracy', fmtPct(r.balanced_accuracy)],
+          ['Precision', fmtPct(r.precision)],
+          ['Recall', fmtPct(r.recall)],
+          ['Specificity', fmtPct(r.specificity)],
+          ['ROC AUC', fmtNum(r.roc_auc, 3)],
+          ['PR AUC', fmtNum(r.pr_auc, 3)],
+          ['Brier score', fmtNum(r.brier_score, 3)],
+        ])}
+      </div>
+    </div>`;
+
+  tables.innerHTML = block('Full window', fwHours, fw) + block('Prime window (diagnostic)', pwHours, pw);
+
+  evalBtnTip.textContent = 'Opens GitHub Actions in a new tab. Select "Run workflow" and enable the run_backtest option.'
+    + (isStale ? ' This evaluation is due for a refresh.' : '');
+}
+
+function renderOperationalAndRepro(d){
+  const ev = d.evaluation || {};
+  const dep = d.deployment || {};
+  const repro = d.reproducibility || {};
+  const hf = (ev.hourly && ev.hourly.full_window) || {};
+  const th = ev.thresholds || {};
+
+  const opEl = document.getElementById('operationalTable');
+  if (!hf['cutoff_marginal'] && !hf['cutoff_good']){
+    opEl.innerHTML = '<tr><td>No holdout data yet</td></tr>';
+  } else {
+    const rows = [['MARGINAL', th.marginal, hf['cutoff_marginal']], ['GOOD', th.good, hf['cutoff_good']]];
+    const head = '<tr><th>Tier</th><th>Cutoff</th><th>Precision</th><th>Recall</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th></tr>';
+    const body = rows.map(([label, cutoff, r])=>{
+      r = r || {};
+      return `<tr><td>${label}</td><td>${cutoff ?? '—'}</td><td>${fmtPct(r.precision)}</td><td>${fmtPct(r.recall)}</td>`
+        + `<td>${r.true_positive ?? '—'}</td><td>${r.false_positive ?? '—'}</td><td>${r.true_negative ?? '—'}</td><td>${r.false_negative ?? '—'}</td></tr>`;
+    }).join('');
+    opEl.innerHTML = head + body;
+  }
+
+  const reproEl = document.getElementById('reproTable');
+  reproEl.innerHTML = metricRows([
+    ['Deployment trained on', (dep.trained_on_years||[]).join('+') || '—'],
+    ['Deployment training samples', dep.n_training_samples ?? '—'],
+    ['Deployment thresholds', dep.thresholds ? `GOOD≥${dep.thresholds.good} · MARGINAL≥${dep.thresholds.marginal}` : '—'],
+    ['Reproducibility seed', repro.seed ?? '—'],
+    ['Training epochs', repro.epochs ?? '—'],
+  ]);
+}
+
+function renderAblation(d){
+  const groups = (d.evaluation && d.evaluation.ablation && d.evaluation.ablation.groups) || [];
+  const el = document.getElementById('ablationTable');
+  if (!groups.length){ el.innerHTML = '<tr><td>No ablation data yet — run backtest.py</td></tr>'; return; }
+  const best = groups.reduce((a,b)=> (b.roc_auc??0) > (a.roc_auc??0) ? b : a, groups[0]);
+  const head = '<tr><th>Group</th><th>Features</th><th>Accuracy</th><th>Balanced acc.</th><th>ROC AUC</th><th>Brier</th></tr>';
+  const body = groups.map(g=>`<tr class="${g===best?'best':''}"><td>${ABLATION_LABELS[g.name]||g.name}</td><td>${g.n_features}</td><td>${fmtPct(g.accuracy)}</td><td>${fmtPct(g.balanced_accuracy)}</td><td>${fmtNum(g.roc_auc,3)}</td><td>${fmtNum(g.brier_score,3)}</td></tr>`).join('');
+  el.innerHTML = head + body;
 }
 
 function renderTimeline(d){
+  if (typeof Chart === 'undefined') return;
   const pts = d.timeline || [];
   const step = Math.max(1, Math.floor(pts.length/420));
   const s = pts.filter((_,i)=> i%step===0 || pts[i].source==='live');
@@ -298,18 +599,19 @@ function renderTimeline(d){
             ? ` confidence ${Math.round(c.parsed.y*100)}%`
             : ` ${c.dataset.label}: ${c.parsed.y}`}}},
       scales:{
-        x:{ticks:{color:'#93A3B1',maxTicksLimit:7,font:{size:11}},grid:{display:false},border:{display:false}},
-        y:{position:'left',ticks:{color:'#93A3B1',font:{size:11}},grid:{color:'#EEF3F8'},border:{display:false},
-           title:{display:true,text:'knots',color:'#93A3B1',font:{size:11}}},
-        y2:{position:'right',min:0,max:1,ticks:{color:'#8FB6DD',font:{size:11},callback:v=>Math.round(v*100)+'%'},
+        x:{ticks:{color:'#93A3B1',maxTicksLimit:6,font:{size:10.5}},grid:{display:false},border:{display:false}},
+        y:{position:'left',ticks:{color:'#93A3B1',font:{size:10.5}},grid:{color:'#EEF3F8'},border:{display:false},
+           title:{display:true,text:'knots',color:'#93A3B1',font:{size:10.5}}},
+        y2:{position:'right',min:0,max:1,ticks:{color:'#8FB6DD',font:{size:10.5},callback:v=>Math.round(v*100)+'%'},
             grid:{drawOnChartArea:false},border:{display:false},
-            title:{display:true,text:'confidence',color:'#8FB6DD',font:{size:11}}},
+            title:{display:true,text:'confidence',color:'#8FB6DD',font:{size:10.5}}},
       }
     }
   });
 }
 
 function renderMonthly(d){
+  if (typeof Chart === 'undefined') return;
   const mb = d.monthly_breakdown || {};
   const months = Object.keys(mb);
   const pretty = m => new Date(m+'-01').toLocaleDateString('en',{month:'short',year:'2-digit'});
@@ -325,7 +627,7 @@ function renderMonthly(d){
         tooltip:{backgroundColor:'#15242F',padding:10,cornerRadius:10,
           callbacks:{label:c=>` ${c.parsed.y}% of afternoon hours rideable`}}},
       scales:{
-        x:{ticks:{color:'#93A3B1',font:{size:10.5},maxRotation:45,minRotation:45},grid:{display:false},border:{display:false}},
+        x:{ticks:{color:'#93A3B1',font:{size:10},maxRotation:45,minRotation:45},grid:{display:false},border:{display:false}},
         y:{ticks:{color:'#93A3B1',callback:v=>v+'%'},grid:{color:'#EEF3F8'},border:{display:false},max:100},
       }
     }
@@ -362,9 +664,11 @@ async function init(){
     d = window.__FALLBACK__; d.is_sample_data = true;
   }
   // Each section renders independently - one failing (e.g. Chart.js not
-  // loading) must not blank out the others, especially the upcoming
-  // forecast, which is the page's actual headline answer.
-  for (const fn of [renderStatus, renderUpcoming, renderKpis, renderTimeline, renderMonthly, renderWeights]){
+  // loading) must not blank out the others, especially today's forecast,
+  // which is the page's actual headline answer.
+  for (const fn of [renderStatus, renderTodayForecast, renderDailySummary, renderLivePerformance,
+                     renderFrozenEvaluation, renderOperationalAndRepro, renderAblation,
+                     renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
   }
   document.getElementById('genAt').textContent =
@@ -379,7 +683,7 @@ init();
 // Minimal fallback so the page renders even opened as a plain file
 window.__FALLBACK__ = {
   generated_at:new Date().toISOString(), total_samples:0,
-  samples_per_year:{}, holdout_metrics_2026:{}, live_metrics:{n:0},
+  samples_per_year:{}, evaluation:{}, deployment:{}, live_metrics:{n:0},
   upcoming_forecast:[],
   final_weights:{weights:{thermal_excess:.9,pressure_signal:.8,upper_wind_alignment:.8,
     upper_wind_speed_score:.5,dewpoint_score:.3,cape_penalty:.4,
