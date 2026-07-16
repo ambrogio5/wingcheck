@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Wingcheck research: station discovery, correlation screening, rolling-origin evaluation, calibration, and regime analysis - exploratory, not the operational dashboard.">
+<title>Wingcheck · Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ice:#F5F8FC; --card:#FFFFFF; --line:#E4EBF2; --line-soft:#EEF3F8;
+    --ink:#15242F; --ink-2:#5A6B7A; --ink-3:#93A3B1;
+    --blue:#2273C3; --blue-soft:#E3EFFA; --blue-deep:#164A80;
+    --good:#0E9F6E; --good-soft:#E3F5EE; --good-ink:#0b7a54;
+    --warn:#D98E04; --warn-soft:#FBF1DD; --warn-ink:#8a5c05;
+    --bad-soft:#F1F3F6; --bad-ink:#5A6B7A;
+    --display:'Outfit',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+    --radius-lg:20px; --shadow:0 1px 2px rgba(21,36,47,.04), 0 8px 24px rgba(21,36,47,.06);
+    color-scheme: light;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ice);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 18px 64px;}
+  a{color:var(--blue);}
+  h1,h2,h3{font-family:var(--display);letter-spacing:-0.01em;}
+  header{padding:36px 0 20px;}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;
+    color:var(--warn-ink);background:var(--warn-soft);padding:6px 13px;border-radius:100px;margin-bottom:16px;font-weight:500;}
+  h1{font-weight:700;font-size:clamp(26px,5.5vw,38px);line-height:1.1;}
+  .header-sub{color:var(--ink-2);font-size:14.5px;margin-top:10px;max-width:640px;line-height:1.6;}
+  .back-link{font-size:13px;margin-top:14px;display:inline-block;}
+  section{margin-top:20px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow);}
+  .card h2{font-size:17px;font-weight:600;margin-bottom:4px;}
+  .hint{font-size:12px;color:var(--ink-3);}
+  .explain{font-size:13px;color:var(--ink-2);line-height:1.6;margin:8px 0 16px;max-width:680px;}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:480px;}
+  th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+  th:first-child,td:first-child{text-align:left;white-space:normal;}
+  th{color:var(--ink-3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;}
+  td{font-family:var(--mono);color:var(--ink);}
+  td:first-child{font-family:var(--body);font-weight:500;}
+  tr.best td{background:var(--good-soft);}
+  .status-chip{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:100px;display:inline-block;}
+  .status-chip.available{background:var(--good-soft);color:var(--good-ink);}
+  .status-chip.unavailable{background:var(--bad-soft);color:var(--bad-ink);}
+  .status-chip.confirmed{background:var(--blue-soft);color:var(--blue-deep);}
+  .empty-state{color:var(--ink-3);font-size:13px;padding:14px 4px;}
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-top:8px;}
+  .stat .s-label{font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;}
+  .stat .s-value{font-family:var(--display);font-size:22px;font-weight:600;margin-top:4px;}
+  footer{margin-top:40px;text-align:center;font-size:12px;color:var(--ink-3);line-height:1.8;}
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ice:#0F1720; --card:#17212B; --line:#28333F; --line-soft:#212B36;
+      --ink:#E7EEF4; --ink-2:#A9B8C4; --ink-3:#71828F;
+      --blue:#4B9EE8; --blue-soft:#1B2E42; --blue-deep:#8FC4F5;
+      --good:#2FD08E; --good-soft:#123528; --good-ink:#4FE0A6;
+      --warn:#E3A93B; --warn-soft:#3A2E10; --warn-ink:#F0BE5C;
+      --bad-soft:#232E38; --bad-ink:#A9B8C4;
+      color-scheme: dark;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">⚗ EXPLORATORY RESEARCH — NOT THE OPERATIONAL DASHBOARD</div>
+    <h1>Local station research</h1>
+    <p class="header-sub">Station discovery, correlation screening, rolling-origin evaluation, calibration, and
+      weather-regime analysis for the Malojawind model. Every result here is diagnostic - it never changes
+      production weights automatically, and the 2026 period shown is a repeatedly-inspected reference, not a
+      pristine holdout. See <a href="./DATA_ARCHITECTURE.md" target="_blank" rel="noopener noreferrer">docs/DATA_ARCHITECTURE.md</a>
+      and <a href="./STATION_RESEARCH.md" target="_blank" rel="noopener noreferrer">docs/STATION_RESEARCH.md</a> for full context.</p>
+    <a class="back-link" href="./index.html">&larr; Back to the live forecast dashboard</a>
+  </header>
+
+  <section class="card" aria-labelledby="archive-h">
+    <h2 id="archive-h">Data archive health</h2>
+    <div class="stat-row" id="archiveStats"></div>
+  </section>
+
+  <section class="card" aria-labelledby="stations-h">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;">
+      <h2 id="stations-h">Station coverage</h2>
+      <div class="hint">Every investigated station, confirmed and candidate</div>
+    </div>
+    <p class="explain">Only stations marked <span class="status-chip confirmed">confirmed</span> have real,
+      fetched historical data in this project. Every other station was proposed from general knowledge and
+      could not be verified against a live source this session (network to data.geo.admin.ch was blocked) -
+      see each row's note in docs/STATION_RESEARCH.md.</p>
+    <div class="table-wrap"><table id="stationTable"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="family-h">
+    <h2 id="family-h">Station-family rolling-origin comparison</h2>
+    <p class="explain">Each row is a feature group trained fresh on each fold's training split and scored on
+      that fold's own validation split - never the same data twice. The 2026 column is a labeled REFERENCE
+      evaluation (already inspected repeatedly in earlier work), not a pristine holdout.</p>
+    <div class="table-wrap"><table id="familyTable"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="corr-h">
+    <h2 id="corr-h">Feature correlation screen</h2>
+    <p class="explain">Diagnostic only - does not select which features enter the comparison above.
+      Benjamini-Hochberg FDR correction applied at alpha=0.10 across all features tested.</p>
+    <div class="table-wrap"><table id="corrTable"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="calib-h">
+    <h2 id="calib-h">Calibration (expected calibration error by fold)</h2>
+    <p class="explain">Platt scaling / isotonic regression are fit on each fold's training split only and
+      measured on that fold's own validation split.</p>
+    <div class="table-wrap"><table id="calibTable"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="regime-h">
+    <h2 id="regime-h">False-positive drivers by weather regime</h2>
+    <p class="explain">Out-of-sample false-positive share, aggregated across all rolling-origin folds, by
+      rule-based weather regime (regimes.py).</p>
+    <div class="table-wrap"><table id="regimeTable"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="session-h">
+    <h2 id="session-h">Daily-session aggregation comparison</h2>
+    <p class="explain">Balanced accuracy is the metric to trust here (daily positives are highly imbalanced) -
+      not raw accuracy.</p>
+    <div class="table-wrap"><table id="sessionTable"></table></div>
+  </section>
+
+  <footer>
+    <div id="genAt">—</div>
+    <div>This page is generated by refresh_research_dashboard.py from logs/historical/reports/.</div>
+  </footer>
+</div>
+
+<script>
+const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
+const fmtNum = (x, d=3) => (x===null||x===undefined) ? "—" : Number(x).toFixed(d);
+
+const FAMILY_LABELS = {
+  majority_class_baseline: "Majority-class baseline",
+  forecast_wind_only: "Forecast wind only",
+  wind_gust_direction: "Wind + gust + direction",
+  full_current_model: "Full current model",
+  full_plus_samedan_morning: "Full + Samedan morning (already included)",
+  full_minus_samedan_morning: "Full − Samedan morning",
+  full_plus_pressure_nowcast: "Full + pressure nowcast (already included)",
+  full_minus_pressure_nowcast: "Full − pressure nowcast",
+};
+
+function renderArchiveStats(d){
+  const el = document.getElementById('archiveStats');
+  const fv = d.forecast_vintages || {n_vintages: 0};
+  const nStations = Object.keys(d.station_coverage || {}).length;
+  const nConfirmed = Object.values(d.station_coverage || {}).filter(s => s.verification === 'confirmed').length;
+  el.innerHTML = `
+    <div class="stat"><div class="s-label">Stations investigated</div><div class="s-value">${nStations}</div></div>
+    <div class="stat"><div class="s-label">Confirmed (real data)</div><div class="s-value">${nConfirmed}</div></div>
+    <div class="stat"><div class="s-label">Forecast vintages archived</div><div class="s-value">${fv.n_vintages}</div></div>
+    <div class="stat"><div class="s-label">Last asset sync</div><div class="s-value" style="font-size:13px;">${(d.last_asset_sync||'—').slice(0,16).replace('T',' ')}</div></div>`;
+}
+
+function renderStationTable(d){
+  const el = document.getElementById('stationTable');
+  const coverage = d.station_coverage || {};
+  const rows = Object.entries(coverage).sort((a,b)=> (a[1].verification==='confirmed'?0:1) - (b[1].verification==='confirmed'?0:1));
+  if (!rows.length){ el.innerHTML = '<tr><td class="empty-state">No station manifest found - run historical_data.py sync.</td></tr>'; return; }
+  const head = '<tr><th>Station</th><th>Provider</th><th>Verification</th><th>Confidence</th><th>Records</th></tr>';
+  const body = rows.map(([sid, s])=>{
+    const chipClass = s.verification === 'confirmed' ? 'confirmed' : (s.coverage && s.coverage.n_records > 0 ? 'available' : 'unavailable');
+    return `<tr><td>${s.name || sid}</td><td>${s.provider||'—'}</td><td><span class="status-chip ${chipClass}">${s.verification}</span></td><td>${s.confidence||'—'}</td><td>${(s.coverage && s.coverage.n_records) || 0}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + body;
+}
+
+function renderFamilyTable(d){
+  const el = document.getElementById('familyTable');
+  const sa = d.station_analysis;
+  if (!sa){ el.innerHTML = '<tr><td class="empty-state">No station_analysis report found - run station_analysis.py.</td></tr>'; return; }
+  const comparison = sa.rolling_origin_family_comparison || {};
+  const groupNames = Object.keys(comparison).filter(k => k !== '_note');
+  const foldNames = (comparison[groupNames[0]] || []).map(f => f.fold);
+  const head = `<tr><th>Group</th>${foldNames.map(f=>`<th>${f}</th>`).join('')}</tr>`;
+  const bestFamily = sa.best_family && sa.best_family.name;
+  const body = groupNames.map(name=>{
+    const cells = comparison[name].map(f => `<td>${fmtNum(f.full_window && f.full_window.roc_auc)}</td>`).join('');
+    return `<tr class="${name===bestFamily?'best':''}"><td>${FAMILY_LABELS[name]||name}</td>${cells}</tr>`;
+  }).join('');
+  el.innerHTML = head + body;
+}
+
+function renderCorrTable(d){
+  const el = document.getElementById('corrTable');
+  const sa = d.station_analysis;
+  if (!sa){ el.innerHTML = '<tr><td class="empty-state">No station_analysis report found.</td></tr>'; return; }
+  const corr = sa.correlation || {};
+  const names = Object.keys(corr).filter(k => k !== '_note');
+  const head = '<tr><th>Feature</th><th>Pearson r</th><th>90% CI</th><th>ROC AUC</th><th>Coverage</th><th>FDR sig.</th></tr>';
+  const body = names.map(name=>{
+    const c = corr[name];
+    const ci = c.pearson_bootstrap_ci_90pct ? `[${fmtNum(c.pearson_bootstrap_ci_90pct[0],2)}, ${fmtNum(c.pearson_bootstrap_ci_90pct[1],2)}]` : '—';
+    return `<tr><td>${name}</td><td>${fmtNum(c.pearson,3)}</td><td>${ci}</td><td>${fmtNum(c.roc_auc,3)}</td><td>${fmtPct(c.coverage)}</td><td>${c['fdr_significant_at_0.10']?'yes':'no'}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + body;
+}
+
+function renderCalibTable(d){
+  const el = document.getElementById('calibTable');
+  const ca = d.calibration_analysis;
+  if (!ca){ el.innerHTML = '<tr><td class="empty-state">No calibration_analysis report found - run calibration_analysis.py.</td></tr>'; return; }
+  const head = '<tr><th>Fold</th><th>n</th><th>ECE uncalibrated</th><th>ECE Platt</th><th>ECE isotonic</th></tr>';
+  const body = ca.folds.map(f=>`<tr><td>${f.fold}</td><td>${f.n_validate}</td><td>${fmtNum(f.uncalibrated.expected_calibration_error)}</td><td>${fmtNum(f.platt.expected_calibration_error)}</td><td>${fmtNum(f.isotonic.expected_calibration_error)}</td></tr>`).join('');
+  el.innerHTML = head + body;
+}
+
+function renderRegimeTable(d){
+  const el = document.getElementById('regimeTable');
+  const ra = d.regime_analysis;
+  if (!ra){ el.innerHTML = '<tr><td class="empty-state">No regime_analysis report found - run regime_analysis.py.</td></tr>'; return; }
+  const summary = ra.false_positive_summary || {};
+  const head = '<tr><th>Regime</th><th>n</th><th>False positives</th><th>FP share</th></tr>';
+  const body = Object.entries(summary).map(([regime, s])=>`<tr><td>${regime.replace(/_/g,' ')}</td><td>${s.n}</td><td>${s.total_false_positives}</td><td>${fmtPct(s.false_positive_share_of_regime)}</td></tr>`).join('');
+  el.innerHTML = head + body;
+}
+
+function renderSessionTable(d){
+  const el = document.getElementById('sessionTable');
+  const cta = d.continuous_target_analysis;
+  if (!cta){ el.innerHTML = '<tr><td class="empty-state">No continuous_target_analysis report found.</td></tr>'; return; }
+  const head = '<tr><th>Fold</th><th>Max-hourly-prob bal.acc</th><th>Dedicated daily model bal.acc</th><th>Rule-based bal.acc</th></tr>';
+  const body = cta.daily_session_target.map(f=>{
+    const m = f.max_hourly_probability, dm = f.dedicated_daily_model, rb = f.rule_based_threshold;
+    return `<tr><td>${f.fold}</td><td>${fmtPct(m.balanced_accuracy)}</td><td>${fmtPct(dm.balanced_accuracy)}</td><td>${fmtPct(rb.balanced_accuracy)}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + body;
+}
+
+async function init(){
+  let d;
+  try{
+    const r = await fetch(`./research/research_data.json?v=${Date.now()}`, {cache: 'no-store'});
+    if(!r.ok) throw 0;
+    d = await r.json();
+  }catch(e){
+    d = {generated_at: null, is_sample_data: true, station_coverage: {}, forecast_vintages: {n_vintages:0}};
+  }
+  for (const fn of [renderArchiveStats, renderStationTable, renderFamilyTable, renderCorrTable,
+                     renderCalibTable, renderRegimeTable, renderSessionTable]){
+    try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
+  }
+  document.getElementById('genAt').textContent = d.generated_at ? ('Data generated ' + d.generated_at.slice(0,16).replace('T',' ') + ' UTC') : 'No research data generated yet.';
+}
+init();
+</script>
+</body>
+</html>
