@@ -22,6 +22,15 @@
 # a schema/metric/calibration regression should fail the job instead of
 # silently committing bad weights or dashboard data.
 #
+#  - validate: runs on every pull_request. Syntax-checks every module and
+#    runs the same offline test suite - nothing else. Deliberately does NOT
+#    run forecasts, learning, scraping, backtests, Telegram calls, or any
+#    commit/push step, since a PR from an untrusted branch must never be
+#    able to trigger those (no secrets are exposed to this job either).
+#    Each operational job's `if:` explicitly requires github.event_name to
+#    be 'schedule' or 'workflow_dispatch' so a pull_request event can never
+#    satisfy them, even if the trigger list above grows in the future.
+#
 # Required repo secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 # Required repo setting: Settings -> Actions -> General -> Workflow permissions
 #   -> "Read and write permissions" (so jobs can commit log/weight updates)
@@ -43,8 +52,23 @@ on:
         description: "Run the full historical backtest/retrain instead of a normal forecast"
         type: boolean
         default: false
+  pull_request:
 
 jobs:
+  # Lightweight PR validation: syntax + offline tests only. No network
+  # calls beyond `pip install`, no Telegram, no commits, no secrets used.
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python -m py_compile *.py tests/*.py
+      - run: python -m unittest discover -s tests
+
   backtest:
     if: github.event_name == 'workflow_dispatch' && inputs.run_backtest == true
     runs-on: ubuntu-latest
@@ -68,7 +92,9 @@ jobs:
           git push
 
   forecast:
-    if: github.event_name == 'schedule' && github.event.schedule == '0 5,8 * * *' || (github.event_name == 'workflow_dispatch' && inputs.run_backtest != true)
+    if: >
+      (github.event_name == 'schedule' && github.event.schedule == '0 5,8 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_backtest != true)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
