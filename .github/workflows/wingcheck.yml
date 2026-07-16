@@ -16,6 +16,12 @@
 #    regenerates the dashboard. Run this once to start, and again any time
 #    you want a from-scratch retrain.
 #
+# The forecast/learn/backtest jobs all run the offline `tests/` unittest
+# suite (stdlib only, no network calls, <1s) right after installing
+# dependencies and BEFORE running the real script or committing anything -
+# a schema/metric/calibration regression should fail the job instead of
+# silently committing bad weights or dashboard data.
+#
 # Required repo secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 # Required repo setting: Settings -> Actions -> General -> Workflow permissions
 #   -> "Read and write permissions" (so jobs can commit log/weight updates)
@@ -50,6 +56,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
+      - run: python -m unittest discover -s tests
       - run: python backtest.py
       - name: Commit dataset, weights, dashboard data, and raw data cache
         run: |
@@ -71,6 +78,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
+      - run: python -m unittest discover -s tests
       - run: python forecast_and_log.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -122,6 +130,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
+      - run: python -m unittest discover -s tests
       - run: python verify_and_learn.py
       - run: python refresh_dashboard.py
       - name: Commit weight + log + dashboard updates
