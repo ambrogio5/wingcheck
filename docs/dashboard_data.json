@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T16:07:39.208988+00:00",
+  "generated_at": "2026-07-16T18:42:13.318985+00:00",
   "total_samples": 3111,
   "samples_per_year": {
     "2024": 1288,
@@ -22382,5 +22382,10 @@
       "year": 2026,
       "source": "backtest"
     }
-  ]
+  ],
+  "daily_diagnostics": {},
+  "session_forecast": {},
+  "station_health": {},
+  "model_agreement": {},
+  "data_provenance": {}
 }
