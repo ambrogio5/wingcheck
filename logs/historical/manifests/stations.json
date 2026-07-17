@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-17T21:36:07.451959+00:00",
+  "generated_at": "2026-07-17T22:04:21.520662+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -26,9 +26,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 11200,
-      "data_start": "2004-02-01T06:00:00+00:00",
-      "data_end": "2026-07-16T23:00:00+00:00",
+      "n_records": 108118,
+      "data_start": "2014-03-18T00:00:00+00:00",
+      "data_end": "2026-07-17T21:00:00+00:00",
       "n_records_10min": 34840,
       "data_start_10min": "2004-02-01T06:00:00+00:00",
       "data_end_10min": "2026-07-16T23:50:00+00:00"
@@ -72,9 +72,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 0,
-      "data_start": null,
-      "data_end": null,
+      "n_records": 398840,
+      "data_start": "1981-01-01T00:00:00+00:00",
+      "data_end": "2026-07-17T21:00:00+00:00",
       "n_records_10min": 0,
       "data_start_10min": null,
       "data_end_10min": null
