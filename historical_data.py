@@ -384,9 +384,22 @@ def _coverage_for_station(station_id: str) -> dict:
 def _rebuild_coverage_manifest(registry=None):
     registry = registry or station_registry.load_registry()
     os.makedirs(MANIFEST_DIR, exist_ok=True)
+    # Normalized station files are intentionally gitignored. Preserve the
+    # last known committed coverage for stations absent in a fresh checkout;
+    # a targeted SIA sync must not erase SAM/LUG/SMA coverage to zero.
+    previous = {}
+    if os.path.exists(COVERAGE_MANIFEST_PATH):
+        try:
+            with open(COVERAGE_MANIFEST_PATH) as f:
+                previous = json.load(f).get("stations", {})
+        except (OSError, ValueError):
+            previous = {}
     snapshot = {}
     for sid, s in registry.items():
         cov = _coverage_for_station(sid)
+        old = previous.get(sid, {})
+        if cov["n_records"] == 0 and old.get("n_records", 0) > 0:
+            cov = {key: old.get(key) for key in ("n_records", "data_start", "data_end")}
         snapshot[sid] = {
             "name": s.name, "provider": s.provider, "roles": list(s.roles),
             "enabled": s.enabled, "verification": s.verification,

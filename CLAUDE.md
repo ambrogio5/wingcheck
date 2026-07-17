@@ -582,3 +582,19 @@ this PR.
 - `logs/forecast_issuances.jsonl` is append-only, one record per
   `forecast_and_log.py` run (not per hour, unlike `logs/predictions.jsonl`)
   - never hand-edit or rewrite historical entries in it.
+
+## Ground truth and retraining gate
+
+- `ground_truth.py` is the canonical observation registry. Never collapse
+  different stations at ingestion time or strip `label_provenance` from a
+  prepared training row.
+- Direct Windsurfcenter/Silvaplana observations outrank SIA; SIA outranks
+  Samedan only when `config/ground_truth_policy.json` explicitly permits it.
+- SIA substitution is intentionally disabled until a human reviews the
+  `station_calibration.py` report. The report is descriptive and must never
+  silently change policy or `weights.json`.
+- Confidence currently records evidence quality only. Do not use it as a loss
+  weight without a separate rolling-origin experiment and review.
+- `retraining_dataset.py` prepares rows; it does not retrain. Production
+  retraining must start from `model.new_weights()` and preserve the existing
+  evaluation/deployment separation.

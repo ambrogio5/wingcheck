@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-17T16:26:59.079789+00:00",
+  "generated_at": "2026-07-17T20:04:15.159918+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -13,6 +13,19 @@
       "n_records": 399192,
       "data_start": "1981-01-01T00:00:00+00:00",
       "data_end": "2026-07-16T23:00:00+00:00"
+    },
+    "sia": {
+      "name": "Segl-Maria",
+      "provider": "meteoswiss",
+      "roles": [
+        "target_region",
+        "ground_truth"
+      ],
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 108116,
+      "data_start": "2014-03-18T00:00:00+00:00",
+      "data_end": "2026-07-17T19:00:00+00:00"
     },
     "lug": {
       "name": "Lugano",

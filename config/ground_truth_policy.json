@@ -1,0 +1,8 @@
+{
+  "allow_sia_substitution": false,
+  "sia_confidence": null,
+  "allow_samedan_fallback": true,
+  "samedan_confidence": 0.4,
+  "maximum_quality_flags": 0,
+  "note": "SIA substitution stays disabled until station_calibration.py produces a reviewed overlap report against Windsurfcenter. Confidence is provenance metadata only; it does not weight model loss yet."
+}

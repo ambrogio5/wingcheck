@@ -242,7 +242,30 @@ via any `sync`/`coverage` call.
 
 ## Licensing and provenance
 
-All three confirmed stations (`sam`, `lug`, `sma`) are MeteoSwiss
+### Ground-truth registry and SIA calibration
+
+`logs/historical/ground_truth/observations.jsonl` is the derived canonical
+registry used to prepare labels. It deliberately supports several records per
+UTC timestamp: lake/Windsurfcenter, SIA and Samedan are not collapsed during
+ingestion. Each row retains station ID, original source asset/retrieval
+metadata, quality flags, validation status and confidence.
+
+Selection is a separate policy operation (`config/ground_truth_policy.json`).
+Direct lake measurements take priority. SIA is a candidate near-target source,
+but substitution remains disabled until `station_calibration.py` has measured
+overlap, bias, RMSE, lag, circular direction error and monthly stability against
+Windsurfcenter. The analysis command never edits policy or production weights.
+
+Official SIA metadata is snapshotted in `config/sia_official_metadata.json`.
+The 2026-07-17 verification downloaded 108,116 hourly rows spanning
+2014-03-18 through the current file. The normalized archive is intentionally
+gitignored; provider assets and checksums in the manifest make it reproducible.
+
+`retraining_dataset.py` joins the current feature rows to approved registry
+labels, writes label provenance into every output row and reports exclusions.
+It stops before model training so calibration can be reviewed first.
+
+Confirmed MeteoSwiss stations (`sam`, `sia`, `lug`, `sma`, `cov`) are
 SwissMetNet stations under MeteoSwiss Open Data (opendata.swiss terms of
 use - attribution required, commercial use permitted). Every candidate
 station's presumed licence is recorded in `config/stations.json`'s

@@ -20,6 +20,23 @@
       "notes": "10km from the Silvaplana target lake, in the Upper Engadin (same broad target region as the lake). fu3010h0/fu3010h1 columns confirmed against the live MeteoSwiss STAC API. Historical fallback ground truth for backtest.py labeling (kitesailing.ch has no archive); real lake correlation is only ~0.52, an acknowledged accuracy ceiling - see CLAUDE.md."
     },
     {
+      "station_id": "sia",
+      "name": "Segl-Maria",
+      "provider": "meteoswiss",
+      "latitude": 46.432331,
+      "longitude": 9.762325,
+      "elevation_m": 1804.0,
+      "roles": ["target_region", "ground_truth"],
+      "available_variables": ["wind_speed_ms", "wind_gust_ms", "wind_direction_deg", "temperature_c", "relative_humidity_pct", "precipitation_mm", "sunshine_duration_min", "global_radiation_wm2"],
+      "historical_available": true,
+      "live_available": true,
+      "licence": "MeteoSwiss Open Data (attribution required; verify metadata snapshot during sync)",
+      "reporting_delay_minutes": 10,
+      "enabled": true,
+      "verification": "confirmed",
+      "notes": "Official MeteoSwiss Segl-Maria station SIA, WIGOS 0-20000-0-06779, close to the Sils/Silvaplana lake corridor. A verified sync on 2026-07-17 loaded 108,116 hourly rows from 2014-03-18 onward. It is a high-quality reference and potential substitute target only after overlap calibration against the Windsurfcenter station. It must not be silently treated as identical to the lake sensor."
+    },
+    {
       "station_id": "lug",
       "name": "Lugano",
       "provider": "meteoswiss",

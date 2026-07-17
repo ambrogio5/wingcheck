@@ -7,6 +7,35 @@ from 20+ raw data points, sends Telegram alerts, verifies itself against the
 real kitesailing.ch Silvaplana lake reading (MeteoSwiss's Samedan station as
 fallback + secondary signal), and retrains its weights nightly.
 
+## SIA and auditable ground truth
+
+Segl-Maria (`SIA`) is now a confirmed official MeteoSwiss reference station.
+The verified hourly archive contains 108,116 rows from 2014-03-18 through the
+latest refresh, including wind, gust, direction, temperature, humidity,
+precipitation, sunshine and radiation.  Large normalized files are regenerated
+from MeteoSwiss rather than committed; official metadata and source/checksum
+manifests are committed.
+
+Training-data preparation now has three explicit steps:
+
+```bash
+python3 historical_data.py sync --station sia
+python3 ground_truth.py build \
+  --source sia=logs/historical/station_hourly/sia.jsonl \
+  --source windsurfcenter=/path/to/normalized_windsurfcenter.jsonl
+python3 station_calibration.py
+python3 retraining_dataset.py
+```
+
+`ground_truth.py` preserves multiple observations for the same timestamp and
+their provenance. Direct Windsurfcenter/lake measurements have priority. SIA
+substitution is disabled in `config/ground_truth_policy.json` until its overlap
+report has been reviewed; Samedan remains an explicitly lower-confidence
+fallback. Confidence is metadata only and does not weight the loss function.
+`retraining_dataset.py` prepares inspectable, provenance-preserving rows but
+does not alter `weights.json`. Retrain only after reviewing calibration,
+coverage and exclusions.
+
 ## Setup (once, ~15 minutes)
 
 ### 1. Create the repo

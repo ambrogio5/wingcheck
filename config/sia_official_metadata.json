@@ -1,0 +1,15 @@
+{
+  "station_abbr": "SIA",
+  "name": "Segl-Maria",
+  "canton": "GR",
+  "latitude": 46.432331,
+  "longitude": 9.762325,
+  "elevation_m": 1804.0,
+  "data_since": "01.12.1863",
+  "hourly_archive_start": "2014-03-18T00:00:00+00:00",
+  "hourly_archive_verified_records": 108116,
+  "wigos_id": "0-20000-0-06779",
+  "verified_at": "2026-07-17T20:04:07+00:00",
+  "source_url": "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ogd-smn_meta_stations.csv",
+  "note": "Small reproducibility snapshot. Raw/normalized archives are regenerable from official MeteoSwiss assets and remain outside Git because of size."
+}

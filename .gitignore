@@ -7,6 +7,9 @@ __pycache__/
 # seconds via `python3 historical_data.py sync` - see docs/DATA_ARCHITECTURE.md.
 # Only the small manifests (tens of KB) are committed.
 logs/historical/station_hourly/*.jsonl
+logs/historical/ground_truth/*.jsonl
+logs/historical/datasets/*.jsonl
+logs/historical/raw/meteoswiss/sia/
 
 # Transient operational nowcast snapshot (station_nowcast.py) - rewritten
 # every forecast run from a bounded recent-tail fetch, never meant to be a
