@@ -44,10 +44,34 @@ def prepare(feature_rows, observations, policy):
         row["label_provenance"] = {
             "source": label["source"], "station_id": label["station_id"],
             "confidence": label.get("confidence"), "quality_flags": label.get("quality_flags", []),
+            "policy_version": label.get("policy_version"),
             "source_provenance": label.get("provenance", {}),
         }
         output.append(row)
     return output, dict(excluded)
+
+
+def coverage_tables(prepared, excluded):
+    """Part-of-report label coverage: by source, year, month, confidence
+    state, plus positive rate - everything a reviewer needs to judge
+    whether the labeled subset can support a retrain."""
+    by_source = Counter(r["label_provenance"]["source"] for r in prepared)
+    by_year = Counter(r["date"][:4] for r in prepared)
+    by_month = Counter(r["date"][:7] for r in prepared)
+    by_confidence = Counter(
+        "measured" if r["label_provenance"]["confidence"] is not None else "uncalibrated_null"
+        for r in prepared)
+    positives = sum(1 for r in prepared if r["outcome"] == 1.0)
+    return {
+        "labels_by_source": dict(by_source),
+        "labels_by_year": dict(sorted(by_year.items())),
+        "labels_by_month": dict(sorted(by_month.items())),
+        "labels_by_confidence_state": dict(by_confidence),
+        "n_labeled": len(prepared),
+        "n_excluded": sum(excluded.values()),
+        "exclusion_reasons": excluded,
+        "positive_rate": round(positives / len(prepared), 4) if prepared else None,
+    }
 
 
 def main(argv=None):
@@ -61,9 +85,8 @@ def main(argv=None):
     observations = ground_truth.load_jsonl(args.registry)
     prepared, excluded = prepare(rows, observations, ground_truth.load_policy(args.policy))
     ground_truth.write_jsonl(args.output, prepared)
-    sources = Counter(row["label_provenance"]["source"] for row in prepared)
-    summary = {"output": args.output, "n": len(prepared), "labels_by_source": dict(sources),
-               "excluded": excluded, "weights_modified": False}
+    summary = {"output": args.output, "n": len(prepared),
+               **coverage_tables(prepared, excluded), "weights_modified": False}
     print(json.dumps(summary, indent=2))
     return 0
 
