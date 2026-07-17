@@ -1,9 +1,22 @@
 """Auditable ground-truth registry for training and evaluation.
 
-The registry preserves every observation from every source.  Label selection is
-a separate, deterministic operation: direct lake measurements win; SIA may be
-used only when a reviewed calibration policy explicitly permits substitution;
-Samedan remains a lower-confidence fallback.  No source record is overwritten.
+The registry preserves every observation from every source.  Label selection
+is a separate, deterministic operation with the provisional SIA-first policy
+(config/ground_truth_policy.json, policy_version 2):
+
+    1. direct lake measurement (kitesailing / windsurfcenter / silvaplana_lake)
+    2. official MeteoSwiss Segl-Maria (sia) - the principal near-lake
+       reference while direct lake coverage is still sparse
+    3. missing label - never fabricated
+
+Samedan (sam) is deliberately NOT a default label source under this policy -
+it stays in the registry as a preserved contextual observation and remains
+available to an explicitly-named research experiment (allow_samedan_fallback,
+off by default), but a missing SIA hour must NOT silently become a
+Samedan-labeled hour.  SIA's measurement quality (official MeteoSwiss
+station) is deliberately kept separate from its UNMEASURED equivalence to
+the Windsurfcenter/lake target - see sia_calibration_status in the policy
+file and station_calibration.py.  No source record is ever overwritten.
 """
 
 from __future__ import annotations
@@ -20,14 +33,29 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_REGISTRY_PATH = os.path.join(BASE_DIR, "logs", "historical", "ground_truth", "observations.jsonl")
 DEFAULT_POLICY_PATH = os.path.join(BASE_DIR, "config", "ground_truth_policy.json")
 
-SOURCE_PRIORITY = {"windsurfcenter": 0, "silvaplana_lake": 0, "sia": 1, "sam": 2}
+SOURCE_PRIORITY = {"kitesailing": 0, "windsurfcenter": 0, "silvaplana_lake": 0, "sia": 1, "sam": 2}
+
+# Provenance/derivation markers that describe HOW a record was produced, not
+# a problem with it - they must never disqualify an observation from
+# labeling the way a real data-quality flag (implausible value, gust <
+# speed, ...) does. "derived_from_10min_mean" + "n_10min_samples:N" mark
+# sia hourly records honestly aggregated from real 10-minute readings (see
+# sia_import.py) - real measurements, transparently derived.
+INFORMATIONAL_FLAG_PREFIXES = ("derived_from_10min", "n_10min_samples:")
+
+
+def blocking_flags(row: dict) -> list:
+    return [f for f in row.get("quality_flags", [])
+            if not any(f.startswith(p) for p in INFORMATIONAL_FLAG_PREFIXES)]
 
 
 @dataclass(frozen=True)
 class LabelPolicy:
-    allow_sia_substitution: bool = False
+    policy_version: int = 2
+    allow_sia_substitution: bool = True
     sia_confidence: Optional[float] = None
-    allow_samedan_fallback: bool = True
+    sia_calibration_status: str = "insufficient_evidence"
+    allow_samedan_fallback: bool = False
     samedan_confidence: float = 0.40
     maximum_quality_flags: int = 0
 
@@ -73,7 +101,7 @@ def canonical_observation(*, timestamp_utc: str, source: str, station_id: str,
 def records_from_normalized_station(records: Iterable[dict], source: str = None) -> list[dict]:
     converted = []
     for row in records:
-        converted.append(canonical_observation(
+        obs = canonical_observation(
             timestamp_utc=row["timestamp_utc"],
             source=source or row.get("station_id"),
             station_id=row["station_id"],
@@ -83,8 +111,41 @@ def records_from_normalized_station(records: Iterable[dict], source: str = None)
             temperature_c=row.get("temperature_c"),
             quality_flags=row.get("quality_flags"),
             provenance={"source_asset": row.get("source_asset"), "retrieved_at": row.get("retrieved_at")},
-            validation_status="source_validated" if not row.get("quality_flags") else "flagged",
-            confidence=1.0 if source in ("windsurfcenter", "silvaplana_lake") else None,
+            validation_status="source_validated" if not blocking_flags(row) else "flagged",
+            confidence=1.0 if source in ("kitesailing", "windsurfcenter", "silvaplana_lake") else None,
+        )
+        converted.append(obs)
+    return converted
+
+
+KMH_TO_MS = 1000.0 / 3600.0
+
+
+def records_from_kitesailing(observations: Iterable[dict]) -> list[dict]:
+    """Converts logs/kitesailing_observations.jsonl rows (the real scraped
+    Silvaplana lake readings - see kitesailing_weather.py) into canonical
+    observations under source 'kitesailing'. Deliberately NOT labeled
+    'windsurfcenter': the widget is embedded on kitesailing.ch and its
+    upstream sensor identity/ownership has not been conclusively
+    demonstrated - see docs/DATA_ARCHITECTURE.md's station-identity
+    section. Wind arrives in km/h and converts to m/s here."""
+    converted = []
+    for row in observations:
+        ts = row.get("observed_at")
+        if not ts or row.get("avg_wind_kmh") is None:
+            continue
+        converted.append(canonical_observation(
+            timestamp_utc=ts,
+            source="kitesailing",
+            station_id="silvaplana_kitesailing",
+            wind_speed_ms=row["avg_wind_kmh"] * KMH_TO_MS,
+            wind_gust_ms=(row.get("gust_kmh") or 0) * KMH_TO_MS if row.get("gust_kmh") is not None else None,
+            wind_direction_deg=row.get("wind_dir_deg"),
+            temperature_c=row.get("temp_c"),
+            provenance={"source_asset": "logs/kitesailing_observations.jsonl",
+                        "retrieved_at": row.get("retrieved_at") or ts},
+            validation_status="source_validated",
+            confidence=1.0,
         ))
     return converted
 
@@ -126,9 +187,15 @@ def load_policy(path: str = DEFAULT_POLICY_PATH) -> LabelPolicy:
 
 
 def select_label(observations: Iterable[dict], policy: LabelPolicy) -> Optional[dict]:
+    """Deterministic SIA-first selection: direct lake sources always win;
+    sia is the principal reference when no lake reading exists; sam is
+    excluded unless the policy explicitly enables the legacy research
+    fallback. Informational provenance flags (blocking_flags) never
+    disqualify a record; real quality flags do. Returns None (missing
+    label) rather than ever fabricating one."""
     eligible = []
     for row in observations:
-        if row.get("wind_speed_ms") is None or len(row.get("quality_flags", [])) > policy.maximum_quality_flags:
+        if row.get("wind_speed_ms") is None or len(blocking_flags(row)) > policy.maximum_quality_flags:
             continue
         source = row.get("source")
         if source == "sia" and not policy.allow_sia_substitution:
@@ -140,6 +207,7 @@ def select_label(observations: Iterable[dict], policy: LabelPolicy) -> Optional[
             candidate["confidence"] = policy.sia_confidence
         elif source == "sam":
             candidate["confidence"] = policy.samedan_confidence
+        candidate["policy_version"] = policy.policy_version
         eligible.append(candidate)
     if not eligible:
         return None
@@ -150,9 +218,13 @@ def coverage_summary(records: Iterable[dict]) -> dict:
     summary = {}
     for row in records:
         source = row["source"]
-        item = summary.setdefault(source, {"n": 0, "start": None, "end": None, "flagged": 0})
+        item = summary.setdefault(source, {"n": 0, "start": None, "end": None,
+                                            "quality_flagged": 0, "informational_flagged": 0})
         item["n"] += 1
-        item["flagged"] += bool(row.get("quality_flags"))
+        if blocking_flags(row):
+            item["quality_flagged"] += 1
+        elif row.get("quality_flags"):
+            item["informational_flagged"] += 1
         ts = row["timestamp_utc"]
         item["start"] = ts if item["start"] is None or ts < item["start"] else item["start"]
         item["end"] = ts if item["end"] is None or ts > item["end"] else item["end"]
@@ -164,7 +236,11 @@ def build_registry(station_files: dict[str, str], output_path=DEFAULT_REGISTRY_P
     added_by_source = {}
     for source, path in station_files.items():
         before = len(records)
-        records = merge_registry(records, records_from_normalized_station(load_jsonl(path), source=source))
+        if source == "kitesailing":
+            incoming = records_from_kitesailing(load_jsonl(path))
+        else:
+            incoming = records_from_normalized_station(load_jsonl(path), source=source)
+        records = merge_registry(records, incoming)
         added_by_source[source] = len(records) - before
     write_jsonl(output_path, records)
     return {"path": output_path, "total": len(records), "added_by_source": added_by_source,
