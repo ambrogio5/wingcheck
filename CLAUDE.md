@@ -588,13 +588,42 @@ this PR.
 - `ground_truth.py` is the canonical observation registry. Never collapse
   different stations at ingestion time or strip `label_provenance` from a
   prepared training row.
-- Direct Windsurfcenter/Silvaplana observations outrank SIA; SIA outranks
-  Samedan only when `config/ground_truth_policy.json` explicitly permits it.
-- SIA substitution is intentionally disabled until a human reviews the
-  `station_calibration.py` report. The report is descriptive and must never
-  silently change policy or `weights.json`.
+- Label priority (`config/ground_truth_policy.json`, policy_version 2, the
+  provisional SIA-first policy): direct lake observations (`kitesailing` /
+  `windsurfcenter` / `silvaplana_lake`) always outrank SIA; SIA is the
+  principal reference when no lake reading exists; a missing lake+SIA hour
+  stays UNLABELED. **Samedan is context only, never a default label**
+  (`allow_samedan_fallback: false`) - re-enable it only inside an
+  explicitly named research experiment, never silently.
+  `verify_and_learn.py` implements the same priority live and never
+  rewrites rows verified under the old samedan_fallback policy.
+- SIA's measurement quality is a separate question from its equivalence to
+  the lake target, which is UNMEASURED (`sia_confidence: null` on purpose;
+  calibration maturity gates in `station_calibration.py`: <14 independent
+  overlapping days = insufficient, 14-41 preliminary, 42+ calibration
+  candidate). The calibration report is descriptive and must never
+  silently change policy or `weights.json` - policy changes are reviewed
+  edits of the versioned policy file citing a real report.
+- SIA's real archive has an open 2010-2025 gap (see
+  `docs/DATA_ARCHITECTURE.md`'s "SIA ingestion" section, including the
+  correction of a fabricated earlier "108,116 rows" claim, and why
+  `station_hourly/sia.jsonl` is a flagged, derived mean-of-10-minute
+  product). `sia_import.py` is the ingestion path for the real raw files;
+  informational derivation flags (`derived_from_10min_mean`,
+  `n_10min_samples:N`) never disqualify a record from labeling -
+  `ground_truth.blocking_flags()` is the arbiter of real quality flags.
 - Confidence currently records evidence quality only. Do not use it as a loss
   weight without a separate rolling-origin experiment and review.
 - `retraining_dataset.py` prepares rows; it does not retrain. Production
   retraining must start from `model.new_weights()` and preserve the existing
-  evaluation/deployment separation.
+  evaluation/deployment separation. `model_comparison_sia.py` is the
+  research-only comparison harness (asserts `weights.json` untouched);
+  there is deliberately NO workflow option that promotes a model - the
+  `run_ground_truth_research` dispatch job commits reports/manifests only.
+- The retraining gate is currently FAILED, honestly: SIA-first labels
+  cover only 535 of 3,111 backtest rows (May-Jul 2026 - SIA has no wind
+  data before 2026 in any real supplied file), lake/SIA calibration is
+  `insufficient_evidence` (1 overlapping day), and one partial season
+  cannot support the multi-year rolling-origin protocol. Production
+  weights stay Samedan-labeled (`backtest.py`, unchanged) until the gap
+  closes or lake coverage accumulates.

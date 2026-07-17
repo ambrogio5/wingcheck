@@ -380,18 +380,110 @@ def unmatched_predictions_count(predictions: list, now: datetime = None) -> int:
 
 def verification_sources(verified: list, predictions: list = None) -> dict:
     """Section 10: how many verified predictions used the real lake
-    reading vs. the Samedan fallback - never blended into one accuracy
-    number without these counts alongside it (see docs/DATA_ARCHITECTURE.md).
-    Also reports how many mature predictions matched NEITHER source."""
+    reading vs. the SIA reference vs. the legacy Samedan fallback - never
+    blended into one accuracy number without these counts alongside it
+    (see docs/DATA_ARCHITECTURE.md). Legacy samedan_fallback rows (verified
+    before ground-truth policy v2) are preserved, never rewritten, and
+    counted separately here. Also reports how many mature predictions
+    matched NO source."""
     silvaplana_lake_count = sum(1 for r in verified if r.get("ground_truth_source") == "kitesailing")
+    sia_reference_count = sum(1 for r in verified if r.get("ground_truth_source") == "sia_reference")
     samedan_fallback_count = sum(1 for r in verified if r.get("ground_truth_source") == "samedan_fallback")
-    total = silvaplana_lake_count + samedan_fallback_count
+    total = silvaplana_lake_count + sia_reference_count + samedan_fallback_count
     return {
         "silvaplana_lake_count": silvaplana_lake_count,
+        "sia_reference_count": sia_reference_count,
+        "legacy_samedan_fallback_count": samedan_fallback_count,
+        # kept under its old key too so docs/index.html keeps rendering
+        # until it's updated to the new one
         "samedan_fallback_count": samedan_fallback_count,
         "lake_coverage_pct": round(silvaplana_lake_count / total, 3) if total else None,
+        "sia_coverage_pct": round(sia_reference_count / total, 3) if total else None,
         "unmatched_count": unmatched_predictions_count(predictions or []),
     }
+
+
+def _ground_truth_policy() -> dict:
+    path = os.path.join(BASE_DIR, "config", "ground_truth_policy.json")
+    try:
+        with open(path) as f:
+            raw = json.load(f)
+        return {"policy_version": raw.get("policy_version"),
+                "priority": raw.get("priority"),
+                "samedan_reference_allowed": raw.get("allow_samedan_fallback"),
+                "sia_calibration_status": raw.get("sia_calibration_status"),
+                "relationship_classification": raw.get("relationship_classification")}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def reference_stations() -> dict:
+    """"Historical reference stations" dashboard section: coverage,
+    latest observation, and role for every ground-truth-relevant station,
+    read from the committed coverage manifest (no network). Empty dict
+    when the manifest doesn't exist yet."""
+    manifest_path = os.path.join(BASE_DIR, "logs", "historical", "manifests", "stations.json")
+    try:
+        with open(manifest_path) as f:
+            manifest = json.load(f).get("stations", {})
+    except (OSError, json.JSONDecodeError):
+        return {}
+    wanted = {
+        "windsurfcenter_silvaplana": "intended primary target (no data acquired yet)",
+        "sia": "principal near-lake historical reference",
+        "sils": "distinct user-provided lake-adjacent sample",
+        "sam": "contextual down-valley station (no longer the default label)",
+        "cov": "summit / competing-flow predictor",
+    }
+    out = {}
+    for sid, role in wanted.items():
+        m = manifest.get(sid)
+        if m is None:
+            continue
+        out[sid] = {
+            "name": m.get("name"), "role": role,
+            "enabled": m.get("enabled"), "verification": m.get("verification"),
+            "n_records": m.get("n_records"), "data_start": m.get("data_start"),
+            "data_end": m.get("data_end"),
+            "n_records_10min": m.get("n_records_10min"),
+        }
+    return out
+
+
+def station_agreement() -> dict:
+    """Latest SIA/lake calibration summary - shown only with its maturity
+    label attached, and only the small headline fields (the full report
+    stays in logs/historical/reports/). Empty dict when no report exists."""
+    import glob
+    reports = sorted(glob.glob(os.path.join(
+        BASE_DIR, "logs", "historical", "reports", "station_calibration_*_sia_*.json")))
+    if not reports:
+        return {}
+    try:
+        with open(reports[-1]) as f:
+            r = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    zero = r.get("zero_lag", {})
+    n_days = r.get("independent_overlapping_days", 0)
+    out = {
+        "source_a": r.get("source_a"), "source_b": r.get("source_b"),
+        "independent_overlapping_days": n_days,
+        "calibration_maturity": r.get("calibration_maturity"),
+        "classification": r.get("classification"),
+        "generated_at": r.get("generated_at"),
+        "n_pairs": zero.get("n", 0),
+    }
+    # Correlation/bias figures from a too-small overlap are noise dressed
+    # as numbers - suppressed below the minimum reporting gate, only the
+    # honest maturity state is shown.
+    if n_days >= 14:
+        out.update({
+            "pearson": zero.get("pearson"), "mae_ms": zero.get("mae_ms"),
+            "bias_sia_minus_lake_ms": zero.get("bias_sia_minus_lake_ms"),
+            "best_lag_hours": r.get("best_lag_hours"),
+        })
+    return out
 
 
 def lake_water_temperature() -> dict:
@@ -495,6 +587,9 @@ def main():
         "station_nowcast_status": station_nowcast_status(latest_issuance),
         "verification_sources": verification_sources(verified, predictions),
         "lake_water_temperature": lake_water_temperature(),
+        "reference_stations": reference_stations(),
+        "ground_truth_policy": _ground_truth_policy(),
+        "station_agreement": station_agreement(),
     }
 
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)

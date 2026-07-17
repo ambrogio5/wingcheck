@@ -111,6 +111,10 @@ on:
         description: "Run station_analysis.py's fixed family comparisons and refresh docs/research.html (never touches weights.json, never promotes a feature)"
         type: boolean
         default: false
+      run_ground_truth_research:
+        description: "Rebuild the ground-truth registry, run the SIA/lake station calibration, prepare the provenance-preserving retraining dataset, and run the research model comparison (never touches weights.json - production promotion is a separate, reviewed change)"
+        type: boolean
+        default: false
   pull_request:
 
 concurrency:
@@ -162,7 +166,8 @@ jobs:
     if: >
       (github.event_name == 'schedule' && github.event.schedule == '0 5,8 * * *') ||
       (github.event_name == 'workflow_dispatch' && inputs.run_backtest != true &&
-       inputs.sync_historical_data != true && inputs.run_station_analysis != true)
+       inputs.sync_historical_data != true && inputs.run_station_analysis != true &&
+       inputs.run_ground_truth_research != true)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -267,5 +272,45 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/historical/reports/ logs/historical/manifests/ docs/research/research_data.json
           git diff --staged --quiet || git commit -m "station research run $(date -u +%F)"
+          git pull --rebase origin main
+          git push
+
+  # Ground-truth / SIA calibration research: MANUAL ONLY. Rebuilds the
+  # registry from real normalized station data, measures SIA/lake
+  # agreement, prepares the provenance-preserving retraining dataset, and
+  # runs the research model comparison. Commits reports + manifests only -
+  # never the production weights file (each research script asserts that
+  # itself, and tests/test_workflow.py asserts it too). Production
+  # promotion is a separate, human-reviewed change, not a workflow
+  # option - see CLAUDE.md's "Ground truth and retraining gate".
+  ground_truth_research:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_ground_truth_research == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python -m unittest discover -s tests
+      - run: python historical_data.py sync
+      - name: Build ground-truth registry from real station data
+        run: |
+          python ground_truth.py build \
+            --source kitesailing=logs/kitesailing_observations.jsonl \
+            --source sia=logs/historical/station_hourly/sia.jsonl \
+            --source sils=logs/historical/station_hourly/sils.jsonl \
+            --source sam=logs/historical/station_hourly/sam.jsonl
+      - run: python station_calibration.py --source-a kitesailing --source-b sia
+      - run: python retraining_dataset.py
+      - run: python model_comparison_sia.py
+      - name: Commit research reports and manifests (never production weights)
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/historical/reports/ logs/historical/manifests/
+          git diff --staged --quiet || git commit -m "ground truth research run $(date -u +%F)"
           git pull --rebase origin main
           git push

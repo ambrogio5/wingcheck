@@ -359,6 +359,17 @@
     <div class="stat-row" id="verificationSourcesRow"></div>
   </section>
 
+  <!-- ================= HISTORICAL REFERENCE STATIONS ================= -->
+  <section class="card" id="refStationsSection" aria-labelledby="refstations-h" style="display:none;">
+    <div class="section-head"><h2 id="refstations-h">Historical reference stations</h2>
+      <div class="hint">Ground-truth sources, coverage and the current label policy</div></div>
+    <div class="stat-row" id="groundTruthPolicyRow"></div>
+    <div class="health-sub-head">Station coverage</div>
+    <div id="refStationsTable"></div>
+    <div class="health-sub-head">Station agreement <span class="hint">(SIA vs. lake — shown with maturity label)</span></div>
+    <div class="stat-row" id="stationAgreementRow"></div>
+  </section>
+
   <!-- ================= FROZEN HOLDOUT EVALUATION ================= -->
   <section class="card" aria-labelledby="holdout-h">
     <div class="section-head">
@@ -812,6 +823,55 @@ function renderIngestionHealth(d){
   ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
 }
 
+function renderReferenceStations(d){
+  const rs = d.reference_stations || {};
+  const policy = d.ground_truth_policy || {};
+  const agreement = d.station_agreement || {};
+  const section = document.getElementById('refStationsSection');
+  if (!Object.keys(rs).length){ return; }
+  section.style.display = '';
+
+  document.getElementById('groundTruthPolicyRow').innerHTML = [
+    ['Policy version', policy.policy_version ?? '—'],
+    ['Label priority', (policy.priority||[]).join(' → ') || '—'],
+    ['Samedan as label', policy.samedan_reference_allowed ? 'allowed (research only)' : 'not allowed'],
+    ['SIA calibration', policy.sia_calibration_status || '—'],
+  ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+
+  const rows = Object.entries(rs).map(([sid, s])=>{
+    const state = s.verification === 'confirmed'
+      ? badge('healthy','Confirmed') : badge('no_data','Unverified');
+    const cov = s.n_records
+      ? `${s.n_records.toLocaleString()} hourly${s.n_records_10min ? ` · ${s.n_records_10min.toLocaleString()} ×10min` : ''}`
+      : 'no data yet';
+    const span = s.data_start ? `${s.data_start.slice(0,10)} → ${s.data_end ? s.data_end.slice(0,10) : '…'}` : '—';
+    return `<tr><td>${s.name || sid}</td><td>${s.role || ''}</td><td>${state}</td><td>${cov}</td><td>${span}</td></tr>`;
+  }).join('');
+  document.getElementById('refStationsTable').innerHTML =
+    `<div style="overflow-x:auto"><table><thead><tr><th>Station</th><th>Role</th><th>Status</th><th>Coverage</th><th>Span</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+
+  const agRow = document.getElementById('stationAgreementRow');
+  if (!agreement.calibration_maturity){
+    agRow.innerHTML = '<div class="empty-state">No calibration report yet.</div>';
+  } else {
+    const maturity = agreement.calibration_maturity;
+    const preliminary = maturity !== 'calibration_candidate';
+    const cells = [
+      ['Overlapping days', agreement.independent_overlapping_days ?? 0],
+      ['Maturity', preliminary ? badge('no_data', maturity) : badge('healthy', maturity)],
+      ['Classification', agreement.classification || '—'],
+    ];
+    if (agreement.pearson != null){
+      cells.push(['Correlation', agreement.pearson.toFixed(3)],
+                 ['Bias (SIA − lake)', agreement.bias_sia_minus_lake_ms.toFixed(2)+' m/s'],
+                 ['Best lag', agreement.best_lag_hours+'h']);
+    } else {
+      cells.push(['Correlation / bias', 'suppressed — overlap below 14-day reporting gate']);
+    }
+    agRow.innerHTML = cells.map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+  }
+}
+
 function renderLakeWaterTemperature(d){
   const wt = d.lake_water_temperature || {};
   const el = document.getElementById('waterTempRow');
@@ -1060,7 +1120,8 @@ async function init(){
   // loading) must not blank out the others, especially today's forecast,
   // which is the page's actual headline answer.
   for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
-                     renderLakeWaterTemperature, renderLivePerformance, renderIngestionHealth, renderFrozenEvaluation,
+                     renderLakeWaterTemperature, renderLivePerformance, renderIngestionHealth, renderReferenceStations,
+                     renderFrozenEvaluation,
                      renderOperationalAndRepro, renderAblation, renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
   }
@@ -1085,6 +1146,7 @@ window.__FALLBACK__ = {
   daily_diagnostics:{}, session_forecast:{}, station_health:{}, model_agreement:{}, data_provenance:{},
   lake_station_health:{}, summit_station_health:{}, verification_sources:{},
   station_nowcast_status:{}, lake_water_temperature:{},
+  reference_stations:{}, ground_truth_policy:{}, station_agreement:{},
 };
 </script>
 </body>

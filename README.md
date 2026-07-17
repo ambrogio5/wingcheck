@@ -9,32 +9,45 @@ fallback + secondary signal), and retrains its weights nightly.
 
 ## SIA and auditable ground truth
 
-Segl-Maria (`SIA`) is now a confirmed official MeteoSwiss reference station.
-The verified hourly archive contains 108,116 rows from 2014-03-18 through the
-latest refresh, including wind, gust, direction, temperature, humidity,
-precipitation, sunshine and radiation.  Large normalized files are regenerated
-from MeteoSwiss rather than committed; official metadata and source/checksum
-manifests are committed.
+Segl-Maria (`SIA`, WIGOS 0-20000-0-06779) is a confirmed official MeteoSwiss
+station ~4km up-corridor from the Silvaplana lake at the same elevation band -
+the principal near-lake historical reference while direct lake coverage is
+still sparse. Real verified coverage (from user-supplied official OGD files,
+preserved + checksummed under `logs/historical/raw/meteoswiss/sia/`):
+2004-2009 synoptic-hours temperature/humidity only (no wind), plus
+full-variable 10-minute data (wind, gust, direction, QFE pressure,
+precipitation, radiation, sunshine) for 2026-01-01 onward. **There is a real,
+open coverage gap from 2010 through 2025** - see
+`docs/DATA_ARCHITECTURE.md`'s SIA section. Hourly records are honest
+mean-of-10-minute aggregates, flagged as derived.
 
-Training-data preparation now has three explicit steps:
+The live ground-truth priority (`config/ground_truth_policy.json`, v2) is:
+
+1. direct lake measurement (kitesailing.ch scrape) - always wins
+2. SIA - principal reference when no lake reading exists
+3. missing label - never fabricated; **Samedan is context only, no longer a
+   default label** (re-enable only inside an explicitly named research
+   experiment)
+
+Training-data preparation now has explicit, inspectable steps:
 
 ```bash
-python3 historical_data.py sync --station sia
+python3 sia_import.py --historical <ogd-smn_sia_t_historical_*.csv> --recent <ogd-smn_sia_t_recent.csv>
 python3 ground_truth.py build \
+  --source kitesailing=logs/kitesailing_observations.jsonl \
   --source sia=logs/historical/station_hourly/sia.jsonl \
-  --source windsurfcenter=/path/to/normalized_windsurfcenter.jsonl
-python3 station_calibration.py
+  --source sam=logs/historical/station_hourly/sam.jsonl
+python3 station_calibration.py --source-a kitesailing --source-b sia
 python3 retraining_dataset.py
+python3 model_comparison_sia.py
 ```
 
-`ground_truth.py` preserves multiple observations for the same timestamp and
-their provenance. Direct Windsurfcenter/lake measurements have priority. SIA
-substitution is disabled in `config/ground_truth_policy.json` until its overlap
-report has been reviewed; Samedan remains an explicitly lower-confidence
-fallback. Confidence is metadata only and does not weight the loss function.
-`retraining_dataset.py` prepares inspectable, provenance-preserving rows but
-does not alter `weights.json`. Retrain only after reviewing calibration,
-coverage and exclusions.
+`ground_truth.py` preserves multiple observations per timestamp with full
+provenance. SIA's equivalence to the lake target is UNMEASURED (calibration
+maturity: insufficient - fewer than 14 independent overlapping days) - its
+label confidence is deliberately null, not guessed. None of these scripts
+ever writes `weights.json`; production retraining stays a separate,
+human-reviewed step gated on real calibration and label coverage.
 
 ## Setup (once, ~15 minutes)
 
