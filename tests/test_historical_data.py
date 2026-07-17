@@ -272,6 +272,149 @@ class LiveFetchIsBestEffortTests(unittest.TestCase):
                 del sys.modules["meteoswiss"]
 
 
+class NoLiveSourceStationTests(unittest.TestCase):
+    """NO_LIVE_SOURCE_STATIONS (e.g. sils) must short-circuit
+    _attempt_live_fetch before it ever reaches _parser_kind_for's generic
+    MeteoSwiss fallback - no meteoswiss import, no network attempt."""
+
+    def test_attempt_live_fetch_returns_empty_without_importing_meteoswiss(self):
+        self.assertIn("sils", hd.NO_LIVE_SOURCE_STATIONS)
+        obs, source = hd._attempt_live_fetch("sils")
+        self.assertEqual(obs, {})
+        self.assertIsNone(source)
+
+    def test_normal_station_not_in_no_live_source_set(self):
+        self.assertNotIn("sam", hd.NO_LIVE_SOURCE_STATIONS)
+        self.assertNotIn("cov", hd.NO_LIVE_SOURCE_STATIONS)
+
+
+class ImportManualCsvTests(unittest.TestCase):
+    """import_manual_csv(): parses a manually-provided file, merges it into
+    logs/raw_cache/generic_<station_id>.json, and syncs it into the
+    normalized archive - against temp directories only."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_hist_dir = hd.HIST_DIR
+        self._orig_manifest_dir = hd.MANIFEST_DIR
+        self._orig_station_hourly_dir = hd.STATION_HOURLY_DIR
+        self._orig_raw_cache_dir = hd.RAW_CACHE_DIR
+        self._orig_coverage_path = hd.COVERAGE_MANIFEST_PATH
+        self._orig_assets_path = hd.ASSETS_MANIFEST_PATH
+        self._orig_registry = sr.load_registry
+
+        hd.HIST_DIR = os.path.join(self.tmpdir, "historical")
+        hd.MANIFEST_DIR = os.path.join(hd.HIST_DIR, "manifests")
+        hd.STATION_HOURLY_DIR = os.path.join(hd.HIST_DIR, "station_hourly")
+        hd.RAW_CACHE_DIR = os.path.join(self.tmpdir, "raw_cache")
+        hd.COVERAGE_MANIFEST_PATH = os.path.join(hd.MANIFEST_DIR, "stations.json")
+        hd.ASSETS_MANIFEST_PATH = os.path.join(hd.MANIFEST_DIR, "assets.jsonl")
+        sr.load_registry = lambda path=None: {
+            "sils": _fake_station("sils", enabled=True, verification="confirmed")
+        }
+
+        self.csv_path = os.path.join(self.tmpdir, "weatherdata_silser_see.csv")
+        with open(self.csv_path, "w", encoding="utf-8") as f:
+            f.write(
+                '"date/time (local)";"wind direction [degrees]";"wind speed [kts]";'
+                '"air temperature [°C]";"air pressure [hPa]";"clouds"\n'
+                '"2014-04-02 00:00:00";110;2.00;0.00;847.00;""\n'
+                '"2014-04-02 08:00:00";10;1.00;-5.00;847.00;"SKC"\n'
+            )
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        hd.HIST_DIR = self._orig_hist_dir
+        hd.MANIFEST_DIR = self._orig_manifest_dir
+        hd.STATION_HOURLY_DIR = self._orig_station_hourly_dir
+        hd.RAW_CACHE_DIR = self._orig_raw_cache_dir
+        hd.COVERAGE_MANIFEST_PATH = self._orig_coverage_path
+        hd.ASSETS_MANIFEST_PATH = self._orig_assets_path
+        sr.load_registry = self._orig_registry
+
+    def test_rejects_a_station_not_in_no_live_source_stations(self):
+        with self.assertRaises(ValueError):
+            hd.import_manual_csv("sam", self.csv_path, "semicolon_weather")
+
+    def test_rejects_unknown_format(self):
+        with self.assertRaises(ValueError):
+            hd.import_manual_csv("sils", self.csv_path, "not_a_real_format")
+
+    def test_import_writes_raw_cache_and_syncs(self):
+        result = hd.import_manual_csv("sils", self.csv_path, "semicolon_weather")
+        self.assertEqual(result["n_parsed"], 2)
+        self.assertEqual(result["sync_result"]["status"], "ok")
+        self.assertEqual(result["sync_result"]["added"], 2)
+        cache_path = hd._generic_raw_cache_path("sils")
+        self.assertTrue(os.path.exists(cache_path))
+        with open(cache_path) as f:
+            cached = json.load(f)
+        self.assertEqual(len(cached), 2)
+
+    def test_second_import_merges_rather_than_overwrites(self):
+        hd.import_manual_csv("sils", self.csv_path, "semicolon_weather")
+        second_path = os.path.join(self.tmpdir, "more_data.csv")
+        with open(second_path, "w", encoding="utf-8") as f:
+            f.write(
+                '"date/time (local)";"wind direction [degrees]";"wind speed [kts]";'
+                '"air temperature [°C]";"air pressure [hPa]";"clouds"\n'
+                '"2014-04-03 00:00:00";200;3.00;1.00;845.00;""\n'
+            )
+        result = hd.import_manual_csv("sils", second_path, "semicolon_weather")
+        self.assertEqual(result["n_cached_total"], 3)
+        self.assertEqual(result["sync_result"]["total"], 3)
+
+
+class ImportCsvCliTests(unittest.TestCase):
+    """historical_data.py import-csv --station/--file/--format"""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_hist_dir = hd.HIST_DIR
+        self._orig_manifest_dir = hd.MANIFEST_DIR
+        self._orig_station_hourly_dir = hd.STATION_HOURLY_DIR
+        self._orig_raw_cache_dir = hd.RAW_CACHE_DIR
+        self._orig_coverage_path = hd.COVERAGE_MANIFEST_PATH
+        self._orig_assets_path = hd.ASSETS_MANIFEST_PATH
+        self._orig_registry = sr.load_registry
+
+        hd.HIST_DIR = os.path.join(self.tmpdir, "historical")
+        hd.MANIFEST_DIR = os.path.join(hd.HIST_DIR, "manifests")
+        hd.STATION_HOURLY_DIR = os.path.join(hd.HIST_DIR, "station_hourly")
+        hd.RAW_CACHE_DIR = os.path.join(self.tmpdir, "raw_cache")
+        hd.COVERAGE_MANIFEST_PATH = os.path.join(hd.MANIFEST_DIR, "stations.json")
+        hd.ASSETS_MANIFEST_PATH = os.path.join(hd.MANIFEST_DIR, "assets.jsonl")
+        sr.load_registry = lambda path=None: {
+            "sils": _fake_station("sils", enabled=True, verification="confirmed")
+        }
+
+        self.csv_path = os.path.join(self.tmpdir, "weatherdata_silser_see.csv")
+        with open(self.csv_path, "w", encoding="utf-8") as f:
+            f.write(
+                '"date/time (local)";"wind direction [degrees]";"wind speed [kts]";'
+                '"air temperature [°C]";"air pressure [hPa]";"clouds"\n'
+                '"2014-04-02 00:00:00";110;2.00;0.00;847.00;""\n'
+            )
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        hd.HIST_DIR = self._orig_hist_dir
+        hd.MANIFEST_DIR = self._orig_manifest_dir
+        hd.STATION_HOURLY_DIR = self._orig_station_hourly_dir
+        hd.RAW_CACHE_DIR = self._orig_raw_cache_dir
+        hd.COVERAGE_MANIFEST_PATH = self._orig_coverage_path
+        hd.ASSETS_MANIFEST_PATH = self._orig_assets_path
+        sr.load_registry = self._orig_registry
+
+    def test_cli_import_csv_prints_result(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            hd.main(["import-csv", "--station", "sils", "--file", self.csv_path,
+                     "--format", "semicolon_weather"])
+        self.assertIn('"status": "ok"', buf.getvalue())
+        self.assertIn('"n_parsed": 1', buf.getvalue())
+
+
 class MetadataCliTests(unittest.TestCase):
     """historical_data.py metadata --station/--search - a real network
     fetch in production, mocked here via a fake meteoswiss module (same

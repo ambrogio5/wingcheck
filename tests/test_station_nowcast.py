@@ -7,6 +7,7 @@ test - no real fetch is ever attempted."""
 import unittest
 from datetime import datetime, timedelta, timezone
 
+import historical_data as hd
 import station_nowcast as sn
 import station_registry as sr
 
@@ -100,6 +101,29 @@ class BuildSnapshotTests(unittest.TestCase):
         registry = {"cov": _fake_station("cov")}
         snapshot = sn.build_snapshot(registry=registry, station_ids=["not_a_real_station"])
         self.assertEqual(snapshot["stations"], {})
+
+
+class NoLiveSourceStationGuardTests(unittest.TestCase):
+    """A station in historical_data.NO_LIVE_SOURCE_STATIONS (e.g. sils, a
+    manually-imported-only station with no MeteoSwiss API) must never
+    attempt a real fetch here - _parser_kind_for's generic fallback would
+    otherwise wrongly treat it as a MeteoSwiss station."""
+
+    def test_fetch_normalized_recent_short_circuits(self):
+        self.assertIn("sils", hd.NO_LIVE_SOURCE_STATIONS)
+        station = _fake_station("sils")
+        # No meteoswiss import/network call happens - if it did, this would
+        # raise (or hang) since no fake meteoswiss module is installed.
+        records, flags = sn._fetch_normalized_recent(station)
+        self.assertEqual(records, [])
+        self.assertIn("no_live_source:manual_import_only", flags)
+
+    def test_build_snapshot_reports_flag_for_no_live_source_station(self):
+        registry = {"sils": _fake_station("sils")}
+        snapshot = sn.build_snapshot(registry=registry, station_ids=["sils"])
+        entry = snapshot["stations"]["sils"]
+        self.assertEqual(entry["observations"], [])
+        self.assertIn("no_live_source:manual_import_only", entry["quality_flags"])
 
 
 if __name__ == "__main__":

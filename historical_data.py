@@ -14,6 +14,9 @@ Commands:
     python3 historical_data.py sync       # incrementally refresh the archive (idempotent)
     python3 historical_data.py validate   # data-quality + continuity checks
     python3 historical_data.py coverage   # per-station record counts / date ranges
+    python3 historical_data.py import-csv --station <id> --file <path> --format <name>
+                                           # ingest a one-off manually-provided file (see
+                                           # NO_LIVE_SOURCE_STATIONS / manual_station_import.py)
 
 Only stations with enabled=true in config/stations.json are ever actually
 fetched - see station_registry.py's docstring for why every other entry
@@ -59,6 +62,7 @@ NORMALIZED_FIELDS = (
     "pressure_station_hpa", "pressure_sea_level_hpa",
     "wind_speed_ms", "wind_gust_ms", "wind_direction_deg",
     "precipitation_mm", "sunshine_duration_min", "global_radiation_wm2",
+    "clouds_raw",
     "source_asset", "retrieved_at", "quality_flags",
 )
 
@@ -85,6 +89,7 @@ def _blank_record(station, dt_utc, source_asset, retrieved_at):
         "precipitation_mm": None,
         "sunshine_duration_min": None,
         "global_radiation_wm2": None,
+        "clouds_raw": None,
         "source_asset": source_asset,
         "retrieved_at": retrieved_at,
         "quality_flags": [],
@@ -199,6 +204,14 @@ def append_asset_manifest_entry(entry: dict):
 
 _ROLE_SPECIFIC_PARSER_STATIONS = ("sam", "lug", "sma")  # the three original role-specific parsers
 
+NO_LIVE_SOURCE_STATIONS = ("sils",)
+"""Stations whose only data source is a one-off manual import (e.g. a
+user-provided CSV) rather than any live-fetchable API. `_attempt_live_fetch`
+and station_nowcast.py's `_fetch_normalized_recent` must both short-circuit
+for these BEFORE reaching `_parser_kind_for`'s generic fallback, which
+otherwise assumes any non-sam/lug/sma station is a real MeteoSwiss station
+and would attempt a live MeteoSwiss API call that can never succeed."""
+
 
 def _parser_kind_for(station_id: str) -> str:
     """Which historical_data.py normalizer applies. 'sam' and 'lug'/'sma'
@@ -254,6 +267,8 @@ def _attempt_live_fetch(station_id: str, full_history: bool = False):
     Returns (obs_dict, source_asset) or ({}, None) on ANY failure - never
     raises, since this repo must keep working in network-restricted
     environments."""
+    if station_id in NO_LIVE_SOURCE_STATIONS:
+        return {}, None
     kind = _parser_kind_for(station_id)
     try:
         import meteoswiss
@@ -390,6 +405,48 @@ def coverage_report(station_id=None) -> dict:
     return snapshot
 
 
+def import_manual_csv(station_id: str, file_path: str, fmt: str) -> dict:
+    """Parses a one-off, user-provided historical data file (via
+    manual_station_import.PARSERS[fmt]) and merges it into
+    logs/raw_cache/generic_<station_id>.json - the same durable, committed
+    raw-cache convention already used for cov - then runs sync([station_id])
+    so it's ingested into the normalized archive immediately. Only valid for
+    a station in NO_LIVE_SOURCE_STATIONS (a manual import onto a
+    live-fetchable station would silently get overwritten/duplicated by the
+    next real sync). Merging (not overwriting) means repeated imports of
+    overlapping or additional files for the same station just accumulate,
+    consistent with 'I'll load more data later'."""
+    if station_id not in NO_LIVE_SOURCE_STATIONS:
+        raise ValueError(
+            f"{station_id!r} is not in NO_LIVE_SOURCE_STATIONS - manual CSV import is only for "
+            f"stations with no live-fetchable source. Add it there first if this is intentional."
+        )
+    import manual_station_import
+    parser = manual_station_import.PARSERS.get(fmt)
+    if parser is None:
+        raise ValueError(f"Unknown format {fmt!r}; available: {sorted(manual_station_import.PARSERS)}")
+
+    with open(file_path, encoding="utf-8") as f:
+        text = f.read()
+    parsed = parser(text)  # {datetime_utc (aware): {field: value}}
+
+    cache_path = _generic_raw_cache_path(station_id)
+    existing = {}
+    if os.path.exists(cache_path):
+        with open(cache_path) as f:
+            existing = json.load(f)
+    for dt_utc, vals in parsed.items():
+        existing[dt_utc.isoformat()] = vals
+
+    os.makedirs(RAW_CACHE_DIR, exist_ok=True)
+    with open(cache_path, "w") as f:
+        json.dump(existing, f, indent=2, sort_keys=True)
+
+    sync_result = sync([station_id])
+    return {"station_id": station_id, "n_parsed": len(parsed), "n_cached_total": len(existing),
+            "sync_result": sync_result.get(station_id)}
+
+
 def validate_archive() -> dict:
     """Data-quality + continuity checks over every station currently on
     disk. Delegates the actual checks to data_quality.py so the rules live
@@ -417,6 +474,11 @@ def main(argv=None):
                                               "never a guessed abbreviation)")
     p_meta.add_argument("--station", default=None, help="Exact official abbreviation, e.g. cov")
     p_meta.add_argument("--search", default=None, help="Case-insensitive substring match against station name/abbr")
+    p_import = sub.add_parser("import-csv", help="Ingest a one-off manually-provided historical data file "
+                                                  "(for a station in NO_LIVE_SOURCE_STATIONS only)")
+    p_import.add_argument("--station", required=True, help="station_id, e.g. sils")
+    p_import.add_argument("--file", required=True, help="Path to the file to import")
+    p_import.add_argument("--format", required=True, help="Parser name, see manual_station_import.PARSERS")
 
     args = parser.parse_args(argv)
 
@@ -450,6 +512,9 @@ def main(argv=None):
                 print("Provide --station <abbr> for an exact lookup or --search <substring> to search by name.")
         except Exception as e:
             print(f"[error] metadata lookup failed: {e}")
+    elif args.command == "import-csv":
+        result = import_manual_csv(args.station, args.file, args.format)
+        print(json.dumps(result, indent=2))
     return 0
 
 
