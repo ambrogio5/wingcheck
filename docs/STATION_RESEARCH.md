@@ -32,82 +32,117 @@ returned real data and a human has updated the entry's `verification` and
 | `sam` | Samedan | `target_region`, `ground_truth` | 399,181 real hourly records in `logs/raw_cache/samedan_archive.json`; `fu3010h0`/`fu3010h1` wind columns confirmed against the live MeteoSwiss STAC API |
 | `lug` | Lugano | `synoptic_pressure` | 196,835 real hourly records in `logs/raw_cache/pressure_lug.json`; `pp0qffh0` confirmed live |
 | `sma` | Zürich / Fluntern | `synoptic_pressure` | 196,770 real hourly records in `logs/raw_cache/pressure_sma.json`; `pp0qffh0` confirmed live |
+| `cov` | Piz Corvatsch | `summit`, `competing_flow` | 398,816 real hourly records (1981-2026); official metadata (lat 46.418039, lon 9.821308, elev 3294m) and identity both confirmed live 2026-07-16/17 - see "Corvatsch (COV) integration" below |
 
-These are the only three stations with `"verification": "confirmed"` and
-`"enabled": true` - enforced by `tests/test_station_registry.py`'s honesty
-invariants (an enabled station must be confirmed; an unverified station
-must never be enabled).
+These four stations have `"verification": "confirmed"` and `"enabled":
+true` - enforced by `tests/test_station_registry.py`'s honesty invariants
+(an enabled station must be confirmed; an unverified station must never
+be enabled).
 
-**Why `pressure_family_score` is the only new candidate feature with real
-historical coverage** (see `station_analysis.py`'s report): both stations
-behind it - `lug` and `sma` - are confirmed and enabled. Every other new
-candidate family (source heating, pass activation, summit support,
-radiation/moisture) depends on a station role with zero confirmed
-stations, so those families are honestly reported as having zero real
-coverage rather than a fabricated result.
+**Why `pressure_family_score` was previously the only new candidate
+feature family with real historical coverage** (see `station_analysis.py`'s
+report): before COV's integration, only `lug`/`sma` (behind
+`pressure_family_score`) were confirmed and enabled - every station-role
+family now has at least one real, confirmed station behind it (summit ->
+cov), though `summit_support_score`/`competing_flow_score` still need a
+fresh `station_analysis.py` run against COV's now-enabled data before
+their real incremental value (if any) is known - see the "Feature-
+promotion prohibition" section below; enabling the station is not the
+same as promoting a feature derived from it.
 
-## Corvatsch (COV) - real data confirmed reachable; metadata and the enable decision still pending
+## Corvatsch (COV) integration - complete, via two real network-enabled runs
 
-`cov` (Piz Corvatsch, official MeteoSwiss abbreviation **COV**) is different
-from every other entry below: its existence as a genuine, official
-MeteoSwiss automatic station is **confirmed** - given directly, not guessed
-(an earlier iteration of this registry used the wrong, invented abbreviation
-`cor` for the same physical station; that entry has been replaced).
+`cov` (Piz Corvatsch, official MeteoSwiss abbreviation **COV**) went
+through the full bootstrap process this registry requires, entirely via
+real GitHub Actions runs with genuine network access (this development
+sandbox has none - see "Sandbox network constraint" above):
 
-**Real data fetch succeeded** - `historical_data.py sync --station cov`,
-dispatched via the `sync_historical_data` workflow's `probe_station` input
-in a real, network-enabled GitHub Actions run (2026-07-16, run
-[29537134420](https://github.com/ambrogio5/wingcheck/actions/runs/29537134420)),
-returned a genuine historical archive:
+1. **Identity** was given directly, not guessed (an earlier iteration of
+   this registry used the wrong, invented abbreviation `cor` for the same
+   physical station; that entry was replaced with the real `cov`).
+2. **Real historical data fetch** (2026-07-16, run
+   [29537134420](https://github.com/ambrogio5/wingcheck/actions/runs/29537134420),
+   dispatched via `sync_historical_data`'s `probe_station` input):
+   **398,816 real hourly records, 1981-01-01 through 2026-07-16** -
+   essentially matching Samedan's own record depth (399,181 records, same
+   start year). `historical_data.py validate` flagged 33,609 records
+   (~8.4%, vs. sam's 0.006%, lug/sma's 0%) - the per-flag-type breakdown
+   (`data_quality.flag_counts()`, added specifically to investigate this)
+   showed **99.6% of that (33,468) is a single, well-understood cause**:
+   `implausible_global_radiation_wm2`. The plausibility ceiling (1400 W/m²
+   in `data_quality.PLAUSIBLE_RANGES`) was calibrated against sam/lug/sma,
+   none of which sit above ~1700m or are routinely snow-covered; Corvatsch
+   is a ~3294m, frequently snow-covered summit, where solar-radiation
+   sensors legitimately read above a sea-level-tuned ceiling due to
+   thinner atmosphere plus snow-albedo reflection - a well-documented real
+   effect at high alpine stations (e.g. Jungfraujoch). The remainder (138
+   `implausible_relative_humidity_pct`, likely rime-icing sensor
+   artifacts - also a known high-altitude effect; 1 `gust_less_than_speed`;
+   2 `implausible_sunshine_duration_min`) is negligible - genuine,
+   physically-expected high-summit data, not a data-quality problem.
+3. **Real official metadata fetch** (2026-07-17, run
+   [29596156852](https://github.com/ambrogio5/wingcheck/actions/runs/29596156852),
+   `historical_data.py metadata --station cov`): latitude 46.418039,
+   longitude 9.821308, elevation 3294m, data_since 1979-07-26 - very close
+   to the ~3294-3297m approximate figure previously carried in
+   `docs/DATA_ARCHITECTURE.md`, now superseded by this confirmed value.
 
-- **398,816 real hourly records, 1981-01-01 through 2026-07-16** -
-  essentially matching Samedan's own record depth (399,181 records, same
-  start year). Files loaded: `ogd-smn_cov_h_historical_{1980-1989,1990-1999,
-  2000-2009,2010-2019,2020-2029}.csv`, `ogd-smn_cov_h_now.csv`,
-  `ogd-smn_cov_h_recent.csv`.
-- `historical_data.py validate` flagged 33,609 records (~8.4%, vs. sam's
-  0.006%, lug/sma's 0%) - but the per-flag-type breakdown (added
-  specifically to investigate this, see `data_quality.flag_counts()`)
-  shows **99.6% of that (33,468) is a single, well-understood cause**:
-  `implausible_global_radiation_wm2`. The plausibility ceiling (1400 W/m²
-  in `data_quality.PLAUSIBLE_RANGES`) was calibrated against sam/lug/sma,
-  none of which sit above ~1700m or are routinely snow-covered; Corvatsch
-  is a ~3300m, frequently snow-covered summit, where solar-radiation
-  sensors legitimately read above a sea-level-tuned ceiling due to
-  thinner atmosphere plus snow-albedo reflection - a well-documented real
-  effect at high alpine stations (e.g. Jungfraujoch). The remainder (138
-  `implausible_relative_humidity_pct`, likely rime-icing sensor
-  artifacts - also a known high-altitude effect; 1 `gust_less_than_speed`;
-  2 `implausible_sunshine_duration_min`) is negligible. **This reads as
-  genuine, physically-expected high-summit data, not a data-quality
-  problem** - but see "What would change a candidate's status" below:
-  this analysis is not itself the human sign-off that section requires.
+A human (the repo owner) reviewed both results and authorized the
+integration - `config/stations.json`'s `cov` entry is now
+`verification: "confirmed", enabled: true`, with `available_variables`
+listing only the fields with direct evidence of real non-null values
+(`wind_speed_ms`/`wind_gust_ms` via the `gust_less_than_speed` check
+requiring both; `global_radiation_wm2`/`relative_humidity_pct`/
+`sunshine_duration_min` via their own implausible-value flags firing on
+real data). `wind_direction_deg`/`temperature_c`/`dew_point_c`/
+`precipitation_mm`/`pressure_sea_level_hpa` may also be published but
+aren't independently confirmed present yet - see the entry's own `notes`
+field for exactly why each is or isn't included. `reporting_delay_minutes`
+stays at its conservative unmeasured default (15) - that specific figure
+was never measured, only the data/metadata above were.
 
-**What's still unverified**: the exact metadata (latitude/longitude/
-elevation) - `meteoswiss.fetch_station_metadata('cov')` against the
-official `ogd-smn_meta_stations.csv` has not yet been run for real (the
-probe above only exercised the STAC observational-data fetch, not the
-separate metadata-CSV fetch). See `docs/DATA_ARCHITECTURE.md`'s Corvatsch
-section for the approximate elevation given in the task specification
-(~3294-3297m, deliberately NOT written into `config/stations.json`'s
-`elevation_m` field until a real metadata fetch confirms it).
+**What this does and doesn't mean**: COV's live data now flows through
+`station_nowcast.py` into the operational forecast pipeline's diagnostics
+(`summit_wind_diagnosis`, `competing_flow`, `data_health`) for real. It is
+**not** added to `features.FEATURE_NAMES` and does **not** affect
+`weights.json` or model scoring - promoting a COV-derived feature into
+production still requires the separate, deliberate, human-reviewed
+process described in "Feature-promotion prohibition" below, informed by a
+fresh `station_analysis.py --family corvatsch` run now that real data
+exists (the 2026-07-16 run of that analysis, in PR #7-#10, necessarily
+showed zero incremental value across all 5 families - COV had no real
+data at all at that time).
 
-`config/stations.json`'s `cov` entry stays `verification: "unverified",
-enabled: false` - the real data above is strong, encouraging evidence, but
-per this project's established rule a human still has to inspect it
-(alongside a real metadata fetch) and edit the registry by hand before
-COV counts as confirmed/enabled - this document reporting a clean result
-is not itself that sign-off.
+## Passo del Bernina (BEH) - identity confirmed, data sync deferred
+
+`beh` (Passo del Bernina) was discovered via a real
+`meteoswiss.search_stations_by_name('bernina')` run (2026-07-17, run
+[29596156852](https://github.com/ambrogio5/wingcheck/actions/runs/29596156852))
+- a genuine official MeteoSwiss automatic station, official abbreviation
+**BEH**, never a guessed code. Real confirmed metadata: latitude
+46.409158, longitude 10.019567, elevation 2260m, data_since
+1908-11-01 - an even longer record than Samedan's own.
+
+No historical data sync has been attempted for BEH yet (deliberately
+deferred, at the repo owner's request, to a later session) - it stays
+`verification: "unverified", enabled: false` in `config/stations.json`
+until `historical_data.py sync --station beh` succeeds and a human
+inspects the result, exactly the same bar COV just cleared. Candidate
+roles (`pass`, `competing_flow`) mirror the existing, still-unconfirmed
+`poschiavo` entry's eastern/Bernina-flow-suppression rationale, but at
+the pass itself rather than the valley town beyond it - both entries can
+coexist; enabling one doesn't require retiring the other.
 
 ## Unverified candidates
 
 | id | Name | Roles | Confidence note |
 |---|---|---|---|
+| `beh` | Passo del Bernina | `pass`, `competing_flow` | **Identity and metadata confirmed live** (2026-07-17, see "Passo del Bernina (BEH)" above) - the single highest-confidence unenabled candidate in this table, since (unlike every other row here) its real official abbreviation and coordinates are already known, not guessed. Only a data sync remains. |
 | `piz_nair` | Piz Nair (St. Moritz) | `summit` | Investigated in this PR - see `docs/PIZ_NAIR_DATA_SOURCE.md`. Not a MeteoSwiss OGD station; no confirmed machine-readable feed found. |
 | `maloja` | Maloja | `pass`, `source_region` | One of Switzerland's oldest continuously operated climate stations - moderate confidence a MeteoSwiss station exists here, but the exact current API code was not confirmed. |
-| `sils` | Sils / Segl | `target_region` | The lake immediately upstream of Silvaplana - **the single highest-priority candidate for the next real sync attempt**, since it would be a genuinely new, non-redundant signal if it exists. |
+| `sils` | Sils / Segl | `target_region` | The lake immediately upstream of Silvaplana - **the highest-priority candidate for the next real sync attempt among the still name-unconfirmed rows**, since it would be a genuinely new, non-redundant signal if it exists. |
 | `vicosoprano` | Vicosoprano | `source_region` | **Important**: these coordinates are already used in `features.py` as an Open-Meteo *forecast-model grid point*, not a real ground station - no evidence was found that Vicosoprano hosts an actual MeteoSwiss station. Do not conflate the two. |
-| `poschiavo` | Poschiavo | `competing_flow` | Eastern/Bernina-flow-suppression context candidate. |
+| `poschiavo` | Poschiavo | `competing_flow` | Eastern/Bernina-flow-suppression context candidate - see also `beh` above, a confirmed station covering similar context. |
 | `chur` | Chur | `synoptic_pressure`, `down_valley` | Well-known long-record station; moderate confidence it exists under some code, not confirmed. |
 
 No candidate is marked `enabled: true`. Flipping that flag requires an
