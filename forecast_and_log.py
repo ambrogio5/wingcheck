@@ -229,6 +229,7 @@ def _log_issuance(raw, results, weights, issued_at_utc, vintage_entry):
             "station_reporting_delay_minutes": station_reporting_delay_minutes,
             "station_source_assets": station_source_assets,
             "station_role_aggregates": station_role_aggregates,
+            "station_nowcast_snapshot_used": os.path.exists(NOWCAST_SNAPSHOT_PATH),
             "diagnostics": diagnostics,
             "session_forecast": session_forecasts,
             "hourly_predictions": [
