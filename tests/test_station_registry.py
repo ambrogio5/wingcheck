@@ -30,9 +30,13 @@ class HonestyInvariantTests(unittest.TestCase):
     def setUp(self):
         self.stations = sr.load_registry()
 
-    def test_confirmed_set_is_exactly_sam_lug_sma(self):
+    def test_confirmed_set_is_exactly_sam_lug_sma_cov(self):
+        # cov joined this set 2026-07-17 after a real network-enabled fetch
+        # confirmed both its official metadata and 398,816 real historical
+        # records - see config/stations.json's cov entry and
+        # docs/STATION_RESEARCH.md for the full evidence.
         confirmed = {sid for sid, s in self.stations.items() if s.verification == "confirmed"}
-        self.assertEqual(confirmed, {"sam", "lug", "sma"})
+        self.assertEqual(confirmed, {"sam", "lug", "sma", "cov"})
 
     def test_enabled_stations_are_all_confirmed(self):
         for sid, s in self.stations.items():
@@ -74,7 +78,7 @@ class LookupHelperTests(unittest.TestCase):
 
     def test_enabled_station_ids(self):
         ids = sr.enabled_station_ids(self.stations)
-        self.assertEqual(set(ids), {"sam", "lug", "sma"})
+        self.assertEqual(set(ids), {"sam", "lug", "sma", "cov"})
 
     def test_stations_by_role(self):
         pressure_stations = sr.stations_by_role("synoptic_pressure", self.stations)
@@ -91,9 +95,11 @@ class LookupHelperTests(unittest.TestCase):
 
 
 class CovRegistrationTests(unittest.TestCase):
-    """Corvatsch (COV) registration: identity confirmed, but not yet
-    enabled/verification=confirmed since no real fetch has succeeded in
-    this repo's own environment yet - see docs/STATION_RESEARCH.md."""
+    """Corvatsch (COV) registration: identity, metadata, AND a real
+    historical data fetch were all confirmed via real network-enabled
+    GitHub Actions runs (2026-07-16/17) - see docs/STATION_RESEARCH.md and
+    config/stations.json's cov entry for the full evidence. cov is now
+    genuinely enabled/confirmed, not just identity-confirmed."""
 
     def setUp(self):
         self.stations = sr.load_registry()
@@ -106,16 +112,26 @@ class CovRegistrationTests(unittest.TestCase):
         self.assertIn("summit", cov.roles)
         self.assertIn("competing_flow", cov.roles)
 
-    def test_cov_is_not_yet_enabled_or_confirmed(self):
+    def test_cov_is_enabled_and_confirmed(self):
         cov = self.stations["cov"]
-        self.assertFalse(cov.enabled)
-        self.assertEqual(cov.verification, "unverified")
+        self.assertTrue(cov.enabled)
+        self.assertEqual(cov.verification, "confirmed")
 
-    def test_cov_coordinates_and_elevation_are_null_pending_real_fetch(self):
+    def test_cov_coordinates_and_elevation_are_the_real_confirmed_values(self):
         cov = self.stations["cov"]
-        self.assertIsNone(cov.latitude)
-        self.assertIsNone(cov.longitude)
-        self.assertIsNone(cov.elevation_m)
+        self.assertAlmostEqual(cov.latitude, 46.418039)
+        self.assertAlmostEqual(cov.longitude, 9.821308)
+        self.assertAlmostEqual(cov.elevation_m, 3294.0)
+
+    def test_cov_available_variables_reflect_real_confirmed_evidence_only(self):
+        cov = self.stations["cov"]
+        for expected in ("wind_speed_ms", "wind_gust_ms", "global_radiation_wm2",
+                         "relative_humidity_pct", "sunshine_duration_min"):
+            self.assertIn(expected, cov.available_variables)
+        # Fields never independently confirmed present must not be assumed.
+        for unconfirmed in ("temperature_c", "dew_point_c", "precipitation_mm",
+                             "pressure_sea_level_hpa", "wind_direction_deg"):
+            self.assertNotIn(unconfirmed, cov.available_variables)
 
     def test_old_invented_cor_id_no_longer_present(self):
         # An earlier iteration of this registry used the wrong, invented
@@ -129,38 +145,87 @@ class CovRegistrationTests(unittest.TestCase):
         self.assertEqual(piz_nair.verification, "unverified")
 
 
-class MergeOfficialMetadataTests(unittest.TestCase):
-    """The 'official metadata overrides provisional values' mechanism -
-    exercised directly rather than via a real fetch (which is blocked in
-    this sandbox - see docs/STATION_RESEARCH.md)."""
+class BerninaPassRegistrationTests(unittest.TestCase):
+    """Passo del Bernina (BEH): identity confirmed via a real
+    meteoswiss.search_stations_by_name('bernina') run (2026-07-17,
+    GitHub Actions) - a genuine official MeteoSwiss station, never a
+    guessed abbreviation. Data sync deliberately deferred - not attempted
+    this session, so it stays unverified/disabled exactly like COV did
+    before its own data fetch succeeded."""
 
     def setUp(self):
         self.stations = sr.load_registry()
 
+    def test_beh_is_registered(self):
+        self.assertIn("beh", self.stations)
+
+    def test_beh_has_pass_and_competing_flow_roles(self):
+        beh = self.stations["beh"]
+        self.assertIn("pass", beh.roles)
+        self.assertIn("competing_flow", beh.roles)
+
+    def test_beh_coordinates_and_elevation_are_the_real_confirmed_values(self):
+        beh = self.stations["beh"]
+        self.assertAlmostEqual(beh.latitude, 46.409158)
+        self.assertAlmostEqual(beh.longitude, 10.019567)
+        self.assertAlmostEqual(beh.elevation_m, 2260.0)
+
+    def test_beh_is_not_yet_enabled_or_confirmed(self):
+        # Identity/metadata confirmed, but no historical data sync has
+        # been attempted yet - enabling requires a real sync, per this
+        # registry's own bar for every station.
+        beh = self.stations["beh"]
+        self.assertFalse(beh.enabled)
+        self.assertEqual(beh.verification, "unverified")
+
+    def test_beh_available_variables_empty_pending_data_sync(self):
+        beh = self.stations["beh"]
+        self.assertEqual(beh.available_variables, ())
+
+
+class MergeOfficialMetadataTests(unittest.TestCase):
+    """The 'official metadata overrides provisional values' mechanism -
+    exercised against a synthetic provisional station (constructed
+    directly, not pulled from the real registry - cov itself is now
+    confirmed/enabled with real metadata already filled in, following
+    exactly this merge process for real, so its own placeholder state no
+    longer exists to test against; beh is the current still-provisional
+    example, but a synthetic fixture keeps this test independent of
+    whichever real station happens to be mid-bootstrap at any given time)."""
+
+    def _provisional_station(self, station_id="candidate"):
+        return sr.Station(
+            station_id=station_id, name="Provisional Candidate", provider="meteoswiss",
+            latitude=None, longitude=None, elevation_m=None, roles=("summit",),
+            available_variables=(), historical_available=None, live_available=None,
+            licence="unknown", reporting_delay_minutes=15, enabled=False,
+            verification="unverified", notes="",
+        )
+
     def test_official_metadata_overrides_null_placeholders(self):
-        cov = self.stations["cov"]
-        official = {"latitude": 46.4144, "longitude": 9.8214, "elevation_m": 3295.0, "name": "Piz Corvatsch"}
-        merged = sr.merge_official_metadata(cov, official)
+        candidate = self._provisional_station()
+        official = {"latitude": 46.4144, "longitude": 9.8214, "elevation_m": 3295.0, "name": "Real Name"}
+        merged = sr.merge_official_metadata(candidate, official)
         self.assertEqual(merged.latitude, 46.4144)
         self.assertEqual(merged.longitude, 9.8214)
         self.assertEqual(merged.elevation_m, 3295.0)
 
     def test_missing_official_fields_keep_the_provisional_value(self):
-        cov = self.stations["cov"]
-        merged = sr.merge_official_metadata(cov, {"latitude": 46.4144})
+        candidate = self._provisional_station()
+        merged = sr.merge_official_metadata(candidate, {"latitude": 46.4144})
         self.assertEqual(merged.latitude, 46.4144)
         self.assertIsNone(merged.longitude)  # not in official_metadata - stays as it was
 
     def test_merge_does_not_mutate_the_original_entry(self):
-        cov = self.stations["cov"]
-        sr.merge_official_metadata(cov, {"latitude": 46.4144})
-        self.assertIsNone(cov.latitude)  # original untouched (NamedTuple is immutable anyway, but confirm no aliasing bugs)
+        candidate = self._provisional_station()
+        sr.merge_official_metadata(candidate, {"latitude": 46.4144})
+        self.assertIsNone(candidate.latitude)  # original untouched (NamedTuple is immutable anyway, but confirm no aliasing bugs)
 
     def test_merge_never_flips_enabled_or_verification(self):
-        cov = self.stations["cov"]
-        merged = sr.merge_official_metadata(cov, {"latitude": 46.4144, "longitude": 9.8214, "elevation_m": 3295.0})
-        self.assertEqual(merged.enabled, cov.enabled)
-        self.assertEqual(merged.verification, cov.verification)
+        candidate = self._provisional_station()
+        merged = sr.merge_official_metadata(candidate, {"latitude": 46.4144, "longitude": 9.8214, "elevation_m": 3295.0})
+        self.assertEqual(merged.enabled, candidate.enabled)
+        self.assertEqual(merged.verification, candidate.verification)
 
 
 class PizNairCannotBeEnabledTests(unittest.TestCase):
