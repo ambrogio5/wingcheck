@@ -16,6 +16,7 @@
     --good:#0E9F6E; --good-soft:#E3F5EE; --good-ink:#0b7a54;
     --warn:#D98E04; --warn-soft:#FBF1DD; --warn-ink:#8a5c05;
     --bad-soft:#F1F3F6; --bad-ink:#5A6B7A;
+    --crit:#D64545; --crit-soft:#FBEAEA; --crit-ink:#B32E2E;
     --display:'Outfit',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
     --radius:16px; --radius-lg:20px;
     --shadow:0 1px 2px rgba(21,36,47,.04), 0 8px 24px rgba(21,36,47,.06);
@@ -115,6 +116,40 @@
   .provisional-note{font-size:12.5px;color:var(--warn-ink);background:var(--warn-soft);
     border-radius:10px;padding:9px 13px;margin-top:14px;display:inline-block;}
 
+  /* ---------- Status badges (shared: healthy/degraded/critical/etc.) ---------- */
+  .badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;
+    font-weight:600;padding:5px 11px;border-radius:100px;white-space:nowrap;}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;}
+  .badge.healthy,.badge.ok,.badge.fresh,.badge.reporting{background:var(--good-soft);color:var(--good-ink);}
+  .badge.degraded,.badge.stale,.badge.fallback{background:var(--warn-soft);color:var(--warn-ink);}
+  .badge.critical,.badge.failed{background:var(--crit-soft);color:var(--crit-ink);}
+  .badge.no_data,.badge.unknown{background:var(--bad-soft);color:var(--bad-ink);}
+
+  /* ---------- Tooltip helper (native title attribute, zero-dependency) --- */
+  .tip{cursor:help;text-decoration:underline dotted;text-decoration-color:var(--ink-3);
+    text-underline-offset:2px;}
+
+  /* ---------- Quick-scan summary row (always visible, never collapsed) --- */
+  .quick-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:4px;}
+  .qs-card{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--ice);}
+  .qs-card .qs-label{font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.03em;margin-bottom:7px;}
+
+  /* ---------- Health subheadings + expandable detail ---------- */
+  .health-sub-head{font-size:12px;font-weight:600;color:var(--ink-3);text-transform:uppercase;
+    letter-spacing:.04em;margin:18px 0 10px;}
+  .health-sub-head:first-of-type{margin-top:4px;}
+  details.health-detail{margin-top:16px;border-top:1px solid var(--line-soft);padding-top:4px;}
+  details.health-detail > summary{cursor:pointer;list-style:none;padding:10px 2px;font-size:13px;
+    font-weight:600;color:var(--ink);display:flex;align-items:center;justify-content:space-between;}
+  details.health-detail > summary::-webkit-details-marker{display:none;}
+  details.health-detail > summary::after{content:'Show detail +';font-size:11.5px;font-weight:500;color:var(--blue);}
+  details.health-detail[open] > summary::after{content:'Hide detail −';}
+  .health-detail-body{padding:6px 2px 4px;}
+  .failure-cat-list{list-style:none;font-size:12.5px;color:var(--ink-2);line-height:1.9;}
+  .failure-cat-list li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line-soft);padding:4px 0;}
+  .failure-cat-list li span:first-child{font-family:var(--mono);font-size:11.5px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;}
+
   /* ---------- Frozen evaluation ---------- */
   .frozen-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
     background:var(--blue-soft);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
@@ -193,6 +228,7 @@
       --good:#2FD08E; --good-soft:#123528; --good-ink:#4FE0A6;
       --warn:#E3A93B; --warn-soft:#3A2E10; --warn-ink:#F0BE5C;
       --bad-soft:#232E38; --bad-ink:#A9B8C4;
+      --crit:#E86A6A; --crit-soft:#3A1C1C; --crit-ink:#F0918E;
       color-scheme: dark;
     }
     .eval-btn{box-shadow:0 2px 8px rgba(0,0,0,.4);}
@@ -276,16 +312,10 @@
     <div class="stat-row" id="stationHealthRow" style="margin-top:14px;"></div>
   </section>
 
-  <!-- ================= DATA INGESTION HEALTH (always shown - operational) ================= -->
-  <section class="card" aria-labelledby="ingestion-h">
-    <div class="section-head"><h2 id="ingestion-h">Station data health</h2>
-      <div class="hint">Operational - sampler and station ingestion status</div></div>
-    <div class="summary-day-head">Lake sampler (kitesailing.ch, primary ground truth)</div>
-    <div class="stat-row" id="lakeHealthRow"></div>
-    <div class="summary-day-head" style="margin-top:14px;">Summit stations</div>
-    <div id="summitHealthRow"><div class="empty-state">No summit station data yet.</div></div>
-    <div class="summary-day-head" style="margin-top:14px;">Ground-truth source mix (verified predictions)</div>
-    <div class="stat-row" id="verificationSourcesRow"></div>
+  <!-- ================= LAKE WATER TEMPERATURE ================= -->
+  <section class="card" aria-labelledby="watertemp-h">
+    <div class="section-head"><h2 id="watertemp-h">Lake temperature</h2></div>
+    <div class="stat-row" id="waterTempRow"></div>
   </section>
 
   <!-- ================= LIVE PERFORMANCE ================= -->
@@ -297,6 +327,36 @@
     <p class="explain">How the deployed model has actually done, checked against the real Silvaplana lake reading (kitesailing.ch primary, MeteoSwiss Samedan as fallback) as predictions get verified.</p>
     <div class="stat-row" id="liveStatRow"></div>
     <div id="provisionalNote"></div>
+  </section>
+
+  <!-- ================= STATION & INGESTION HEALTH (always shown - operational) ================= -->
+  <section class="card" aria-labelledby="ingestion-h">
+    <div class="section-head"><h2 id="ingestion-h">Station &amp; ingestion health</h2>
+      <div class="hint">Operational status of every data source behind the forecast above</div></div>
+
+    <!-- Quick-scan summary - always visible, never collapsed. A stale or
+         failed critical source shows here, not just in the detail below. -->
+    <div class="quick-summary" id="healthSummaryRow"></div>
+
+    <!-- Lake sampler detail -->
+    <div class="health-sub-head">Lake sampler <span class="hint">(kitesailing.ch, primary ground truth)</span></div>
+    <div class="stat-row" id="lakeHealthRow"></div>
+    <details class="health-detail" id="lakeDetail">
+      <summary>Attempt history, collection coverage &amp; failure categories</summary>
+      <div class="health-detail-body" id="lakeDetailBody"></div>
+    </details>
+
+    <!-- Summit station detail -->
+    <div class="health-sub-head">Summit stations <span class="hint">(Corvatsch, once confirmed)</span></div>
+    <div id="summitHealthRow"><div class="empty-state">No summit station data yet.</div></div>
+
+    <!-- Forecast data status -->
+    <div class="health-sub-head">Forecast station data</div>
+    <div class="stat-row" id="nowcastStatusRow"></div>
+
+    <!-- Ground-truth source mix -->
+    <div class="health-sub-head">Ground-truth source mix <span class="hint">(verified predictions)</span></div>
+    <div class="stat-row" id="verificationSourcesRow"></div>
   </section>
 
   <!-- ================= FROZEN HOLDOUT EVALUATION ================= -->
@@ -631,18 +691,88 @@ function renderSessionOutlook(d){
   ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
 }
 
+const fmtAge = m => m==null ? '—' : (m < 60 ? Math.round(m)+' min' : (m/60).toFixed(1)+' h');
+
+// Failure category strings come straight from whatever exception text the
+// sampler/browser raised - occasionally many lines long (e.g. a Playwright
+// setup error). Truncated to the first line and a fixed length purely for
+// this compact badge/list display; the full string is left untouched in
+// dashboard_data.json itself.
+function shortFailureCategory(cat){
+  if (!cat) return cat;
+  const firstLine = cat.split('\n')[0];
+  return firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine;
+}
+
+function badge(status, label){
+  return `<span class="badge ${status}"><i class="dot"></i>${label}</span>`;
+}
+
+function renderHealthSummary(d){
+  const lake = d.lake_station_health || {};
+  const summit = d.summit_station_health || {};
+  const nowcast = d.station_nowcast_status || {};
+  const vs = d.verification_sources || {};
+  const summitIds = Object.keys(summit);
+
+  const lakeBadge = badge(lake.status || 'no_data',
+    lake.status ? lake.status[0].toUpperCase()+lake.status.slice(1) : 'No data');
+
+  let corvatschStatus = 'no_data', corvatschLabel = 'No data yet';
+  if (summitIds.length){
+    const s = summit[summitIds[0]];
+    if (s.quality_flags && s.quality_flags.length){ corvatschStatus = 'degraded'; corvatschLabel = 'Degraded'; }
+    else { corvatschStatus = 'reporting'; corvatschLabel = 'Reporting'; }
+  }
+
+  let nowcastStatus = 'unknown', nowcastLabel = 'No issuance yet';
+  if (nowcast.snapshot_used === true){ nowcastStatus = 'fresh'; nowcastLabel = 'Live snapshot'; }
+  else if (nowcast.snapshot_used === false){ nowcastStatus = 'fallback'; nowcastLabel = 'Archive fallback'; }
+
+  const total = (vs.silvaplana_lake_count||0) + (vs.samedan_fallback_count||0);
+  let coverageStatus = 'no_data', coverageLabel = 'No verified data yet';
+  if (total){
+    coverageStatus = vs.lake_coverage_pct >= 0.5 ? 'healthy' : 'degraded';
+    coverageLabel = Math.round((vs.lake_coverage_pct||0)*100)+'% lake-sourced';
+  }
+  const unmatchedNote = vs.unmatched_count ? ` · ${vs.unmatched_count} unmatched` : '';
+
+  document.getElementById('healthSummaryRow').innerHTML = [
+    ['Lake station', lakeBadge],
+    ['Corvatsch (summit)', badge(corvatschStatus, corvatschLabel)],
+    ['Forecast data', badge(nowcastStatus, nowcastLabel)],
+    ['Ground-truth coverage', badge(coverageStatus, coverageLabel) + unmatchedNote],
+  ].map(([label,value])=>`<div class="qs-card"><div class="qs-label">${label}</div>${value}</div>`).join('');
+}
+
 function renderIngestionHealth(d){
+  renderHealthSummary(d);
+
   const lake = d.lake_station_health || {};
   const lakeRow = document.getElementById('lakeHealthRow');
-  const fmtAge = m => m==null ? '—' : (m < 60 ? Math.round(m)+' min' : (m/60).toFixed(1)+' h');
   lakeRow.innerHTML = [
-    ['Status', lake.status || '—'],
+    ['Status', badge(lake.status || 'no_data', lake.status || '—')],
     ['Last observation', fmtAge(lake.age_minutes)+' ago'],
     ['Observations today', lake.observations_today ?? '—'],
-    ['Failed attempts today', lake.failed_attempts_today ?? '—'],
     ['12:00-18:00 coverage', lake.coverage_12_18!=null ? Math.round(lake.coverage_12_18*100)+'%' : '—'],
-    ['Consecutive failures', lake.consecutive_failures ?? '—'],
   ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+
+  const failureCats = lake.failure_categories || {};
+  const failureCatItems = Object.entries(failureCats)
+    .map(([cat,count])=>`<li><span title="${cat.replace(/"/g,'&quot;')}">${shortFailureCategory(cat)}</span><span>${count}</span></li>`).join('');
+  document.getElementById('lakeDetailBody').innerHTML = `
+    <div class="metric-list">
+      ${metricRows([
+        ['Last attempt', lake.last_attempt_at ? lake.last_attempt_at.slice(0,16).replace('T',' ')+' UTC' : '—'],
+        ['Last successful observation', lake.last_success_at ? lake.last_success_at.slice(0,16).replace('T',' ')+' UTC' : '—'],
+        ['Successful attempts today', lake.successful_attempts_today ?? '—'],
+        ['Failed attempts today', lake.failed_attempts_today ?? '—'],
+        ['Consecutive failures', lake.consecutive_failures ?? '—'],
+        ['Expected vs. actual collection', `${lake.actual_collection_count ?? '—'} / ${lake.expected_collection_count ?? '—'} slots`],
+      ])}
+    </div>
+    ${failureCatItems ? `<div class="health-sub-head" style="margin:14px 0 6px;">Failure categories</div>
+      <ul class="failure-cat-list">${failureCatItems}</ul>` : ''}`;
 
   const summit = d.summit_station_health || {};
   const summitEl = document.getElementById('summitHealthRow');
@@ -651,15 +781,26 @@ function renderIngestionHealth(d){
     summitEl.innerHTML = '<div class="empty-state">No summit station data yet.</div>';
   } else {
     summitEl.innerHTML = `<div class="table-wrap"><table class="metrics-table"><thead><tr><th>Station</th><th>Wind</th><th>Gust</th><th>Direction</th>
-      <th>Temp</th><th>Coverage</th><th>Age</th></tr></thead><tbody>` +
+      <th>Temp</th><th>Coverage</th><th>Age</th><th>Source</th></tr></thead><tbody>` +
       summitIds.map(sid=>{
         const s = summit[sid];
+        const source = (s.source_assets && s.source_assets.length) ? s.source_assets[0].split(':')[0] : '—';
         return `<tr><td>${sid.toUpperCase()}</td><td>${s.wind_speed!=null?s.wind_speed.toFixed(1)+' m/s':'—'}</td>
           <td>${s.gust!=null?s.gust.toFixed(1)+' m/s':'—'}</td><td>${s.direction!=null?Math.round(s.direction)+'°':'—'}</td>
           <td>${s.temperature!=null?s.temperature.toFixed(1)+'°C':'—'}</td>
-          <td>${s.coverage!=null?Math.round(s.coverage*100)+'%':'—'}</td><td>${fmtAge(s.age_minutes)}</td></tr>`;
+          <td>${s.coverage!=null?Math.round(s.coverage*100)+'%':'—'}</td><td>${fmtAge(s.age_minutes)}</td>
+          <td title="reporting delay: ${s.reporting_delay_minutes ?? '—'} min">${source}</td></tr>`;
       }).join('') + `</tbody></table></div>`;
   }
+
+  const nowcast = d.station_nowcast_status || {};
+  const nowcastEl = document.getElementById('nowcastStatusRow');
+  const nowcastValue = nowcast.snapshot_used === true ? badge('fresh','Live snapshot used')
+    : nowcast.snapshot_used === false ? badge('fallback','Fell back to historical archive')
+    : badge('unknown','No forecast issuance yet');
+  nowcastEl.innerHTML = `
+    <div class="stat"><div class="st-label">station_nowcast.py status</div><div class="st-value">${nowcastValue}</div></div>
+    <div class="stat"><div class="st-label">Last issuance</div><div class="st-value">${nowcast.issued_at ? nowcast.issued_at.slice(0,16).replace('T',' ')+' UTC' : '—'}</div></div>`;
 
   const vs = d.verification_sources || {};
   const vsRow = document.getElementById('verificationSourcesRow');
@@ -667,7 +808,24 @@ function renderIngestionHealth(d){
     ['Silvaplana lake readings', vs.silvaplana_lake_count ?? 0],
     ['Samedan fallback readings', vs.samedan_fallback_count ?? 0],
     ['Lake coverage', vs.lake_coverage_pct!=null ? Math.round(vs.lake_coverage_pct*100)+'%' : '—'],
+    ['<span class="tip" title="Mature predictions (past the 20h verification window) for which neither the lake reading nor the Samedan fallback ever produced a match">Unmatched predictions</span>', vs.unmatched_count ?? 0],
   ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+}
+
+function renderLakeWaterTemperature(d){
+  const wt = d.lake_water_temperature || {};
+  const el = document.getElementById('waterTempRow');
+  if (wt.temp_c == null){
+    el.innerHTML = '<div class="empty-state">No lake temperature reading yet.</div>';
+    return;
+  }
+  const ageHours = wt.observed_at ? hoursAgo(wt.observed_at) : null;
+  const age = ageHours != null ? fmtAge(ageHours*60) : '—';
+  el.innerHTML = `
+    <div class="stat"><div class="st-label"><span class="tip" title="kitesailing.ch's widget reports one temperature figure alongside wind/humidity/pressure - not independently confirmed to be the water (vs. air) temperature.">Reading</span></div>
+      <div class="st-value">${wt.temp_c.toFixed(1)}°C</div>
+      <div class="st-sub">unconfirmed whether water or air temperature</div></div>
+    <div class="stat"><div class="st-label">Observed</div><div class="st-value">${age} ago</div></div>`;
 }
 
 function renderLivePerformance(d){
@@ -734,13 +892,13 @@ function renderFrozenEvaluation(d){
           ['Sample count', r.n ?? '—'],
           ['Accuracy', fmtPct(r.accuracy)],
           ['Majority baseline', fmtPct(r.majority_baseline_accuracy)],
-          ['Balanced accuracy', fmtPct(r.balanced_accuracy)],
+          ['<span class="tip" title="Average of recall and specificity - accuracy that isn\'t skewed by an imbalanced GOOD/not-GOOD split">Balanced accuracy</span>', fmtPct(r.balanced_accuracy)],
           ['Precision', fmtPct(r.precision)],
           ['Recall', fmtPct(r.recall)],
-          ['Specificity', fmtPct(r.specificity)],
-          ['ROC AUC', fmtNum(r.roc_auc, 3)],
-          ['PR AUC', fmtNum(r.pr_auc, 3)],
-          ['Brier score', fmtNum(r.brier_score, 3)],
+          ['<span class="tip" title="Of the hours that were NOT rideable, the fraction correctly predicted as such">Specificity</span>', fmtPct(r.specificity)],
+          ['<span class="tip" title="Area under the ROC curve - how well the model ranks rideable hours above non-rideable ones, independent of any threshold. 0.5 = random, 1.0 = perfect">ROC AUC</span>', fmtNum(r.roc_auc, 3)],
+          ['<span class="tip" title="Area under the precision-recall curve - more informative than ROC AUC when the positive class (rideable hours) is rarer">PR AUC</span>', fmtNum(r.pr_auc, 3)],
+          ['<span class="tip" title="Mean squared error between predicted probability and actual outcome - lower is better calibrated">Brier score</span>', fmtNum(r.brier_score, 3)],
         ])}
       </div>
     </div>`;
@@ -902,8 +1060,8 @@ async function init(){
   // loading) must not blank out the others, especially today's forecast,
   // which is the page's actual headline answer.
   for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
-                     renderIngestionHealth, renderLivePerformance, renderFrozenEvaluation, renderOperationalAndRepro,
-                     renderAblation, renderTimeline, renderMonthly, renderWeights]){
+                     renderLakeWaterTemperature, renderLivePerformance, renderIngestionHealth, renderFrozenEvaluation,
+                     renderOperationalAndRepro, renderAblation, renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
   }
   document.getElementById('genAt').textContent =
@@ -926,6 +1084,7 @@ window.__FALLBACK__ = {
   monthly_breakdown:{}, timeline:[],
   daily_diagnostics:{}, session_forecast:{}, station_health:{}, model_agreement:{}, data_provenance:{},
   lake_station_health:{}, summit_station_health:{}, verification_sources:{},
+  station_nowcast_status:{}, lake_water_temperature:{},
 };
 </script>
 </body>
