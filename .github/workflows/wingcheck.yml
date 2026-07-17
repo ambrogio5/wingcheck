@@ -99,6 +99,14 @@ on:
         description: "Optional: also explicitly probe one not-yet-enabled candidate station (e.g. 'cov') for real data - requires sync_historical_data above to also be ticked. Read-only bootstrap check per docs/STATION_RESEARCH.md; never flips enabled/verification itself."
         type: string
         default: ""
+      metadata_search:
+        description: "Optional: search official MeteoSwiss station names/abbreviations for a substring (e.g. 'bernina') - requires sync_historical_data above to also be ticked. Read-only discovery, never guesses/invents a station code."
+        type: string
+        default: ""
+      metadata_station:
+        description: "Optional: look up one exact official station abbreviation's metadata (e.g. 'cov') - requires sync_historical_data above to also be ticked."
+        type: string
+        default: ""
       run_station_analysis:
         description: "Run station_analysis.py's fixed family comparisons and refresh docs/research.html (never touches weights.json, never promotes a feature)"
         type: boolean
@@ -222,6 +230,12 @@ jobs:
       - name: Probe one not-yet-enabled candidate station (optional, read-only bootstrap check)
         if: inputs.probe_station != ''
         run: python historical_data.py sync --station "${{ inputs.probe_station }}"
+      - name: Search official MeteoSwiss station metadata by name (optional, read-only)
+        if: inputs.metadata_search != ''
+        run: python historical_data.py metadata --search "${{ inputs.metadata_search }}"
+      - name: Look up one exact official station's metadata (optional, read-only)
+        if: inputs.metadata_station != ''
+        run: python historical_data.py metadata --station "${{ inputs.metadata_station }}"
       - run: python historical_data.py validate || true  # diagnostic - flags issues, never blocks the commit
       - name: Commit historical archive manifests
         run: |

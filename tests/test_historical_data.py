@@ -4,10 +4,14 @@ timestamp handling, and full sync-integration behaviour against temp
 directories (never the real logs/historical/). No network calls -
 _attempt_live_fetch is monkeypatched to a no-op in every integration test."""
 
+import contextlib
+import io
 import json
 import os
 import shutil
+import sys
 import tempfile
+import types
 import unittest
 from datetime import datetime, timezone
 
@@ -266,6 +270,59 @@ class LiveFetchIsBestEffortTests(unittest.TestCase):
                 sys.modules["meteoswiss"] = orig
             else:
                 del sys.modules["meteoswiss"]
+
+
+class MetadataCliTests(unittest.TestCase):
+    """historical_data.py metadata --station/--search - a real network
+    fetch in production, mocked here via a fake meteoswiss module (same
+    sys.modules-patching technique as LiveFetchIsBestEffortTests above)."""
+
+    def setUp(self):
+        self._orig = sys.modules.get("meteoswiss")
+        self._fake = types.ModuleType("meteoswiss")
+        sys.modules["meteoswiss"] = self._fake
+
+    def tearDown(self):
+        if self._orig is not None:
+            sys.modules["meteoswiss"] = self._orig
+        else:
+            del sys.modules["meteoswiss"]
+
+    def test_station_lookup_prints_metadata(self):
+        self._fake.fetch_station_metadata = lambda station_id: {"station_abbr": "COV", "elevation_m": 3295}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            hd.main(["metadata", "--station", "cov"])
+        self.assertIn("3295", buf.getvalue())
+
+    def test_search_prints_matches(self):
+        self._fake.search_stations_by_name = lambda q: {"cov": {"name": "Piz Corvatsch"}}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            hd.main(["metadata", "--search", "corvatsch"])
+        self.assertIn("Piz Corvatsch", buf.getvalue())
+
+    def test_search_no_match_reports_honestly(self):
+        self._fake.search_stations_by_name = lambda q: {}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            hd.main(["metadata", "--search", "bernina"])
+        self.assertIn("No official MeteoSwiss station found", buf.getvalue())
+
+    def test_lookup_failure_reported_not_raised(self):
+        def _raise(station_id):
+            raise ValueError("station 'zzz' not found in official MeteoSwiss metadata CSV")
+        self._fake.fetch_station_metadata = _raise
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            hd.main(["metadata", "--station", "zzz"])
+        self.assertIn("[error]", buf.getvalue())
+
+    def test_neither_flag_given_reports_usage(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            hd.main(["metadata"])
+        self.assertIn("--station", buf.getvalue())
 
 
 if __name__ == "__main__":
