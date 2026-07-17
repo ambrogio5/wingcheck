@@ -30,13 +30,17 @@ class HonestyInvariantTests(unittest.TestCase):
     def setUp(self):
         self.stations = sr.load_registry()
 
-    def test_confirmed_set_is_exactly_sam_lug_sma_cov(self):
+    def test_confirmed_set_is_exactly_sam_lug_sma_cov_sils(self):
         # cov joined this set 2026-07-17 after a real network-enabled fetch
         # confirmed both its official metadata and 398,816 real historical
         # records - see config/stations.json's cov entry and
-        # docs/STATION_RESEARCH.md for the full evidence.
+        # docs/STATION_RESEARCH.md for the full evidence. sils joined the
+        # same day via a real user-provided historical CSV (22 records,
+        # 2014-04-02) - a different kind of "confirmed" (direct data
+        # inspection, not a live provider fetch), see docs/STATION_RESEARCH.md's
+        # "Sils / Segl (Silser See) manual import" section.
         confirmed = {sid for sid, s in self.stations.items() if s.verification == "confirmed"}
-        self.assertEqual(confirmed, {"sam", "lug", "sma", "cov"})
+        self.assertEqual(confirmed, {"sam", "lug", "sma", "cov", "sils"})
 
     def test_enabled_stations_are_all_confirmed(self):
         for sid, s in self.stations.items():
@@ -78,7 +82,7 @@ class LookupHelperTests(unittest.TestCase):
 
     def test_enabled_station_ids(self):
         ids = sr.enabled_station_ids(self.stations)
-        self.assertEqual(set(ids), {"sam", "lug", "sma", "cov"})
+        self.assertEqual(set(ids), {"sam", "lug", "sma", "cov", "sils"})
 
     def test_stations_by_role(self):
         pressure_stations = sr.stations_by_role("synoptic_pressure", self.stations)
@@ -181,6 +185,43 @@ class BerninaPassRegistrationTests(unittest.TestCase):
     def test_beh_available_variables_empty_pending_data_sync(self):
         beh = self.stations["beh"]
         self.assertEqual(beh.available_variables, ())
+
+
+class SilsRegistrationTests(unittest.TestCase):
+    """Sils / Segl (Silser See): the only confirmed station in this
+    registry with NO live/API source at all - confirmed via a real
+    user-provided historical CSV (22 hourly records, 2014-04-02), not a
+    MeteoSwiss fetch. See docs/STATION_RESEARCH.md's "Sils / Segl (Silser
+    See) manual import" section and historical_data.NO_LIVE_SOURCE_STATIONS."""
+
+    def setUp(self):
+        self.stations = sr.load_registry()
+
+    def test_sils_is_registered(self):
+        self.assertIn("sils", self.stations)
+
+    def test_sils_has_target_region_role(self):
+        self.assertIn("target_region", self.stations["sils"].roles)
+
+    def test_sils_is_enabled_and_confirmed(self):
+        sils = self.stations["sils"]
+        self.assertTrue(sils.enabled)
+        self.assertEqual(sils.verification, "confirmed")
+
+    def test_sils_historical_available_but_not_live(self):
+        sils = self.stations["sils"]
+        self.assertTrue(sils.historical_available)
+        self.assertFalse(sils.live_available)
+
+    def test_sils_provider_is_not_meteoswiss(self):
+        # This is real data, but not from MeteoSwiss - the provider field
+        # must say so honestly, never claim MeteoSwiss provenance for data
+        # that didn't come from there.
+        self.assertNotEqual(self.stations["sils"].provider, "meteoswiss")
+
+    def test_sils_is_in_no_live_source_stations(self):
+        import historical_data as hd
+        self.assertIn("sils", hd.NO_LIVE_SOURCE_STATIONS)
 
 
 class MergeOfficialMetadataTests(unittest.TestCase):

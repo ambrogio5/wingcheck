@@ -82,8 +82,15 @@ temperature_c, dew_point_c, relative_humidity_pct,
 pressure_station_hpa, pressure_sea_level_hpa,
 wind_speed_ms, wind_gust_ms, wind_direction_deg,
 precipitation_mm, sunshine_duration_min, global_radiation_wm2,
+clouds_raw,
 source_asset, retrieved_at, quality_flags
 ```
+
+`clouds_raw` (added for the Sils manual import - see "Manual imports"
+below) is a free-form provider-specific cloud-state string (e.g. a
+METAR-style code like `"SKC"`) with no normalized numeric mapping of its
+own - preserved as-is rather than discarded, `null` for every station that
+doesn't report it.
 
 Rules:
 - Missing values are `null`, never a fabricated placeholder.
@@ -144,6 +151,34 @@ Re-running `sync` with no new data reports `"added": 0` rather than
 rewriting anything. Every raw asset ingested (whether from `raw_cache` or
 a live fetch) is logged to `manifests/assets.jsonl`, deduped by
 `(station_id, checksum)`.
+
+## Manual imports (`manual_station_import.py`, `historical_data.py import-csv`)
+
+Not every real station has an API. A station in
+`historical_data.NO_LIVE_SOURCE_STATIONS` (currently just `sils` - see
+`docs/STATION_RESEARCH.md`'s "Sils / Segl (Silser See) manual import"
+section) has no live/API access at all, ever - `_attempt_live_fetch()` and
+`station_nowcast.py`'s `_fetch_normalized_recent()` both short-circuit for
+it before reaching the generic MeteoSwiss-fetch fallback that every other
+non-role-specific station goes through. Its only data source is a
+user-provided file, ingested via:
+
+```bash
+python3 historical_data.py import-csv --station <id> --file <path> --format <name>
+```
+
+`manual_station_import.PARSERS` registers parsers by FILE FORMAT (not
+station), since a future upload for a different station may share the
+exact same layout. Each parser returns the same
+`{datetime_utc: {normalized_field_name: value}}` shape
+`normalize_generic_observations()` already expects from a live MeteoSwiss
+fetch, so no new normalize function or storage format was needed - only a
+new parser. `import_manual_csv()` merges (never overwrites) the parsed
+result into the same durable, committed `logs/raw_cache/generic_<id>.json`
+convention already used for `cov`, then runs the normal `sync([id])` path.
+Because `sync` merges records instead of replacing the file, importing
+additional files later (more dates, or a different station) for the same
+manually-sourced id just accumulates.
 
 ## Data quality (`data_quality.py`)
 

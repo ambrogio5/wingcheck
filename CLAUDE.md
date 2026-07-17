@@ -79,6 +79,9 @@ python -m unittest discover -s tests   # offline test suite (stdlib only, no net
 python historical_data.py sync        # incrementally refresh the station archive (idempotent, no-op if nothing new)
 python historical_data.py validate    # data-quality + gap/staleness checks (non-blocking diagnostic)
 python historical_data.py coverage    # per-station record counts / date ranges
+python historical_data.py import-csv --station <id> --file <path> --format <name>
+                                       # ingest a one-off manually-provided file (no live API - see
+                                       # NO_LIVE_SOURCE_STATIONS / manual_station_import.py)
 python station_analysis.py            # ten fixed station-family comparisons + correlation screen + calibration
 python refresh_research_dashboard.py  # rebuild docs/research/research_data.json from the latest report (no network)
 ```
@@ -373,17 +376,23 @@ section is the short version.
     `validate_registry()` enforces the honesty invariant that an enabled
     station must be confirmed, tested by `tests/test_station_registry.py`.
 12. **`historical_data.py`** — the durable archive's CLI (`sync` /
-    `validate` / `coverage`). Normalizes every station's hourly data to
-    one canonical schema (`NORMALIZED_FIELDS`, 20 fields, explicit UTC +
-    Europe/Zurich timestamps, nulls not invented values) under
-    `logs/historical/`. `sync` is idempotent and never overwrites a richer
-    existing record with a sparser one (`merge_normalized_records()`); it
-    tries the already-committed `logs/raw_cache/*.json` first, then a
-    best-effort live fetch (catches all exceptions). **
-    `logs/historical/station_hourly/*.jsonl` is gitignored, deliberately**
-    - fully regenerable in seconds via `historical_data.py sync`, and
-    substantially more verbose per row than `raw_cache/`'s compact format
-    - see `docs/DATA_ARCHITECTURE.md`.
+    `validate` / `coverage` / `import-csv`). Normalizes every station's
+    hourly data to one canonical schema (`NORMALIZED_FIELDS`, 21 fields
+    including `clouds_raw`, explicit UTC + Europe/Zurich timestamps, nulls
+    not invented values) under `logs/historical/`. `sync` is idempotent and
+    never overwrites a richer existing record with a sparser one
+    (`merge_normalized_records()`); it tries the already-committed
+    `logs/raw_cache/*.json` first, then a best-effort live fetch (catches
+    all exceptions) - except for any station in `NO_LIVE_SOURCE_STATIONS`
+    (currently just `sils`, a real lake station with no API at all, only a
+    user-provided historical CSV - see `manual_station_import.py` and
+    `docs/STATION_RESEARCH.md`'s "Sils / Segl" section), which
+    `_attempt_live_fetch`/`station_nowcast.py`'s `_fetch_normalized_recent`
+    both short-circuit before ever reaching the generic MeteoSwiss-fetch
+    fallback. **`logs/historical/station_hourly/*.jsonl` is gitignored,
+    deliberately** - fully regenerable in seconds via `historical_data.py
+    sync`, and substantially more verbose per row than `raw_cache/`'s
+    compact format - see `docs/DATA_ARCHITECTURE.md`.
 13. **`data_quality.py`** — implausible-value, negative-speed,
     gust-less-than-speed, future-timestamp, duplicate, and gap/staleness
     checks (`STALE_ARCHIVE_DAYS = 30`), wired into `historical_data.py

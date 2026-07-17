@@ -43,6 +43,8 @@ def _fetch_normalized_recent(station):
     raises - a fetch failure for one station must not prevent the others
     from being written; the caller still gets an entry with an explicit
     quality flag rather than nothing at all."""
+    if station.station_id in hd.NO_LIVE_SOURCE_STATIONS:
+        return [], ["no_live_source:manual_import_only"]
     kind = hd._parser_kind_for(station.station_id)
     retrieved_at = datetime.now(timezone.utc).isoformat()
     flags = []

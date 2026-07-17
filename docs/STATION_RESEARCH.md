@@ -33,8 +33,9 @@ returned real data and a human has updated the entry's `verification` and
 | `lug` | Lugano | `synoptic_pressure` | 196,835 real hourly records in `logs/raw_cache/pressure_lug.json`; `pp0qffh0` confirmed live |
 | `sma` | Zürich / Fluntern | `synoptic_pressure` | 196,770 real hourly records in `logs/raw_cache/pressure_sma.json`; `pp0qffh0` confirmed live |
 | `cov` | Piz Corvatsch | `summit`, `competing_flow` | 398,816 real hourly records (1981-2026); official metadata (lat 46.418039, lon 9.821308, elev 3294m) and identity both confirmed live 2026-07-16/17 - see "Corvatsch (COV) integration" below |
+| `sils` | Sils / Segl (Silser See) | `target_region` | 22 real hourly records, 2014-04-02 only, from a user-provided CSV export (not MeteoSwiss) - see "Sils / Segl (Silser See) manual import" below |
 
-These four stations have `"verification": "confirmed"` and `"enabled":
+These five stations have `"verification": "confirmed"` and `"enabled":
 true` - enforced by `tests/test_station_registry.py`'s honesty invariants
 (an enabled station must be confirmed; an unverified station must never
 be enabled).
@@ -133,6 +134,73 @@ roles (`pass`, `competing_flow`) mirror the existing, still-unconfirmed
 the pass itself rather than the valley town beyond it - both entries can
 coexist; enabling one doesn't require retiring the other.
 
+## Sils / Segl (Silser See) manual import - complete, via a real user-provided file
+
+Unlike every other confirmed station in this registry, `sils` was never
+reached through a MeteoSwiss STAC/API fetch - the sandbox's blocked network
+access (see "Sandbox network constraint" above) was never even relevant
+here, since **no live/API access exists or is expected for this station at
+all**. Instead, the repo owner provided a real historical export file
+directly (`weatherdata_silser_see_*.csv`): semicolon-delimited, quoted
+columns `"date/time (local)"`, `"wind direction [degrees]"`, `"wind speed
+[kts]"`, `"air temperature [°C]"`, `"air pressure [hPa]"`, `"clouds"` - a
+completely different schema/units/naming convention from MeteoSwiss's own
+SwissMetNet OGD format, confirming this is genuinely a different,
+non-MeteoSwiss source. Its exact original provenance and licence were not
+stated by the user, so `config/stations.json`'s `licence` field says so
+honestly rather than guessing or defaulting to a MeteoSwiss attribution.
+
+Ingested 2026-07-17 via a new, reusable pipeline (not a one-off script,
+since more manually-provided files - for this or other stations - are
+expected later):
+
+1. **`manual_station_import.py`** (new module) - `parse_semicolon_weather_csv()`
+   parses this exact CSV layout into historical_data.py's normalized
+   `{datetime_utc: {field: value}}` shape: wind speed converted from knots
+   (not MeteoSwiss's km/h) to m/s, pressure mapped to `pressure_station_hpa`
+   (station-level/QFE, not sea-level/QFF - physically implausible as QFF at
+   any real elevation, but exactly right for a ~1800m lake-side station and
+   consistent with `data_quality.py`'s QFE-vs-QFF plausibility floors),
+   naive Europe/Zurich local timestamps converted to aware UTC. The
+   free-form METAR-style `"clouds"` code (e.g. `"SKC"`, `"SCT000"`) is
+   preserved as a new additive `clouds_raw` field on
+   `historical_data.NORMALIZED_FIELDS` (`None` everywhere else, backward
+   compatible) rather than silently discarded - consistent with this
+   codebase's "flags, never discards" data-quality philosophy.
+   Parsers are registered by file FORMAT name (`PARSERS["semicolon_weather"]`),
+   not by station, since a future upload for a different station could
+   share this exact layout.
+2. **`historical_data.NO_LIVE_SOURCE_STATIONS = ("sils",)`** - a new guard,
+   checked before `_parser_kind_for`'s generic MeteoSwiss-station fallback,
+   in both `_attempt_live_fetch()` and `station_nowcast.py`'s
+   `_fetch_normalized_recent()`. Without it, enabling `sils` would make
+   both wrongly attempt a real MeteoSwiss API call for a station that was
+   never a MeteoSwiss station in the first place.
+3. **`historical_data.py import-csv --station sils --file <path> --format
+   semicolon_weather`** (new CLI subcommand) - parses the file, merges
+   (never overwrites) the result into the same durable, committed
+   `logs/raw_cache/generic_sils.json` convention already used for `cov`,
+   then runs the normal `sync(["sils"])` path to populate the normalized
+   archive. Result: **22 real hourly records, all from 2014-04-02** (two
+   hourly gaps at 11:00 and 17:00 already present in the source file).
+
+A human (the repo owner) provided this data directly and reviewed the
+result - `sils` is `verification: "confirmed", enabled: true`, satisfying
+`station_registry.validate_registry()`'s invariant via
+`historical_available: true` / `live_available: false` (there is no live
+source to be available). This is a genuinely different kind of
+"confirmed" than every other station in this registry - confirmed by
+direct inspection of real user-provided data, not a live provider fetch -
+documented here so the distinction is never lost.
+
+**What this does and doesn't mean**: like COV and BEH, `sils` is
+research/archive infrastructure only. It is **not** added to
+`features.FEATURE_NAMES` and does **not** affect `weights.json` or model
+scoring. Its single day of data (2014-04-02) is far too sparse for any
+`station_analysis.py` family comparison on its own - it exists in the
+archive now so it accumulates correctly as more files arrive, per the
+repo owner's stated intent to load more data later.
+
 ## Unverified candidates
 
 | id | Name | Roles | Confidence note |
@@ -140,7 +208,6 @@ coexist; enabling one doesn't require retiring the other.
 | `beh` | Passo del Bernina | `pass`, `competing_flow` | **Identity and metadata confirmed live** (2026-07-17, see "Passo del Bernina (BEH)" above) - the single highest-confidence unenabled candidate in this table, since (unlike every other row here) its real official abbreviation and coordinates are already known, not guessed. Only a data sync remains. |
 | `piz_nair` | Piz Nair (St. Moritz) | `summit` | Investigated in this PR - see `docs/PIZ_NAIR_DATA_SOURCE.md`. Not a MeteoSwiss OGD station; no confirmed machine-readable feed found. |
 | `maloja` | Maloja | `pass`, `source_region` | One of Switzerland's oldest continuously operated climate stations - moderate confidence a MeteoSwiss station exists here, but the exact current API code was not confirmed. |
-| `sils` | Sils / Segl | `target_region` | The lake immediately upstream of Silvaplana - **the highest-priority candidate for the next real sync attempt among the still name-unconfirmed rows**, since it would be a genuinely new, non-redundant signal if it exists. |
 | `vicosoprano` | Vicosoprano | `source_region` | **Important**: these coordinates are already used in `features.py` as an Open-Meteo *forecast-model grid point*, not a real ground station - no evidence was found that Vicosoprano hosts an actual MeteoSwiss station. Do not conflate the two. |
 | `poschiavo` | Poschiavo | `competing_flow` | Eastern/Bernina-flow-suppression context candidate - see also `beh` above, a confirmed station covering similar context. |
 | `chur` | Chur | `synoptic_pressure`, `down_valley` | Well-known long-record station; moderate confidence it exists under some code, not confirmed. |

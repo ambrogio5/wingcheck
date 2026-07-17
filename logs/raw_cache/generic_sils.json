@@ -1,0 +1,136 @@
+{
+  "2014-04-01T22:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": 0.0,
+    "wind_direction_deg": 110.0,
+    "wind_speed_ms": 1.029
+  },
+  "2014-04-01T23:00:00+00:00": {
+    "pressure_station_hpa": 848.0,
+    "temperature_c": -1.0,
+    "wind_direction_deg": 260.0,
+    "wind_speed_ms": 1.029
+  },
+  "2014-04-02T00:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": -1.0,
+    "wind_direction_deg": 90.0,
+    "wind_speed_ms": 2.058
+  },
+  "2014-04-02T01:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": 0.0,
+    "wind_direction_deg": 160.0,
+    "wind_speed_ms": 1.543
+  },
+  "2014-04-02T02:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": -2.0,
+    "wind_direction_deg": 110.0,
+    "wind_speed_ms": 1.029
+  },
+  "2014-04-02T03:00:00+00:00": {
+    "pressure_station_hpa": 848.0,
+    "temperature_c": -6.0,
+    "wind_direction_deg": 120.0,
+    "wind_speed_ms": 0.514
+  },
+  "2014-04-02T04:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": -4.0,
+    "wind_direction_deg": 80.0,
+    "wind_speed_ms": 2.572
+  },
+  "2014-04-02T05:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": -4.0,
+    "wind_direction_deg": 100.0,
+    "wind_speed_ms": 1.543
+  },
+  "2014-04-02T06:00:00+00:00": {
+    "clouds_raw": "SKC",
+    "pressure_station_hpa": 847.0,
+    "temperature_c": -5.0,
+    "wind_direction_deg": 10.0,
+    "wind_speed_ms": 0.514
+  },
+  "2014-04-02T07:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": -3.0,
+    "wind_direction_deg": 90.0,
+    "wind_speed_ms": 1.029
+  },
+  "2014-04-02T08:00:00+00:00": {
+    "pressure_station_hpa": 847.0,
+    "temperature_c": 0.0,
+    "wind_direction_deg": 260.0,
+    "wind_speed_ms": 1.029
+  },
+  "2014-04-02T10:00:00+00:00": {
+    "pressure_station_hpa": 846.0,
+    "temperature_c": 4.0,
+    "wind_direction_deg": 240.0,
+    "wind_speed_ms": 3.087
+  },
+  "2014-04-02T11:00:00+00:00": {
+    "pressure_station_hpa": 846.0,
+    "temperature_c": 4.0,
+    "wind_direction_deg": 240.0,
+    "wind_speed_ms": 6.688
+  },
+  "2014-04-02T12:00:00+00:00": {
+    "pressure_station_hpa": 846.0,
+    "temperature_c": 5.0,
+    "wind_direction_deg": 240.0,
+    "wind_speed_ms": 5.659
+  },
+  "2014-04-02T13:00:00+00:00": {
+    "pressure_station_hpa": 846.0,
+    "temperature_c": 4.0,
+    "wind_direction_deg": 240.0,
+    "wind_speed_ms": 6.173
+  },
+  "2014-04-02T14:00:00+00:00": {
+    "pressure_station_hpa": 845.0,
+    "temperature_c": 4.0,
+    "wind_direction_deg": 240.0,
+    "wind_speed_ms": 4.63
+  },
+  "2014-04-02T16:00:00+00:00": {
+    "pressure_station_hpa": 845.0,
+    "temperature_c": 4.0,
+    "wind_direction_deg": 240.0,
+    "wind_speed_ms": 7.717
+  },
+  "2014-04-02T17:00:00+00:00": {
+    "pressure_station_hpa": 845.0,
+    "temperature_c": 3.0,
+    "wind_direction_deg": 220.0,
+    "wind_speed_ms": 4.63
+  },
+  "2014-04-02T18:00:00+00:00": {
+    "clouds_raw": "SCT000",
+    "pressure_station_hpa": 845.0,
+    "temperature_c": 2.0,
+    "wind_direction_deg": 300.0,
+    "wind_speed_ms": 1.543
+  },
+  "2014-04-02T19:00:00+00:00": {
+    "pressure_station_hpa": 846.0,
+    "temperature_c": 1.0,
+    "wind_direction_deg": 200.0,
+    "wind_speed_ms": 1.029
+  },
+  "2014-04-02T20:00:00+00:00": {
+    "pressure_station_hpa": 846.0,
+    "temperature_c": 1.0,
+    "wind_direction_deg": 210.0,
+    "wind_speed_ms": 2.572
+  },
+  "2014-04-02T21:00:00+00:00": {
+    "pressure_station_hpa": 846.0,
+    "temperature_c": 2.0,
+    "wind_direction_deg": 210.0,
+    "wind_speed_ms": 4.116
+  }
+}
