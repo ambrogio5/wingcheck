@@ -285,6 +285,39 @@ class LakeStationHealthTests(unittest.TestCase):
         self.assertEqual(health["status"], "degraded")
         self.assertGreater(health["age_minutes"], 60)
 
+    def test_no_data_case_includes_expected_and_failure_category_keys(self):
+        health = rd.lake_station_health()
+        self.assertEqual(health["expected_collection_count"], 13)
+        self.assertEqual(health["actual_collection_count"], 0)
+        self.assertEqual(health["failure_categories"], {})
+
+    def test_failure_categories_tallied_per_type(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        self._write(rd.KITESAILING_HEALTH_PATH, [
+            {"attempted_at": now, "success": False, "failure_category": "navigation_error:timeout"},
+            {"attempted_at": now, "success": False, "failure_category": "navigation_error:timeout"},
+            {"attempted_at": now, "success": False, "failure_category": "anti_bot_challenge_detected:cloudflare"},
+            {"attempted_at": now, "success": True, "failure_category": None},
+        ])
+        health = rd.lake_station_health()
+        self.assertEqual(health["failure_categories"], {
+            "navigation_error:timeout": 2,
+            "anti_bot_challenge_detected:cloudflare": 1,
+        })
+
+    def test_expected_and_actual_collection_counts_match_coverage(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        today_local = now.astimezone(rd.ZURICH_TZ).date()
+        slot_local = datetime(today_local.year, today_local.month, today_local.day, 12, 0, tzinfo=rd.ZURICH_TZ)
+        obs_time = slot_local.astimezone(timezone.utc).isoformat()
+        self._write(rd.KITESAILING_HEALTH_PATH, [{"attempted_at": obs_time, "success": True}])
+        self._write(rd.KITESAILING_OBSERVATIONS_PATH, [{"observed_at": obs_time}])
+        health = rd.lake_station_health()
+        self.assertEqual(health["expected_collection_count"], 13)
+        self.assertEqual(health["actual_collection_count"], round(health["coverage_12_18"] * 13))
+
 
 class SummitStationHealthTests(unittest.TestCase):
     def test_empty_when_no_issuance(self):
@@ -325,6 +358,103 @@ class SummitStationHealthTests(unittest.TestCase):
         health = rd.summit_station_health(issuance)
         self.assertEqual(health["cov"]["quality_flags"], ["summit_wind_missing_station_data"])
 
+    def test_provenance_fields_populated_from_issuance(self):
+        issuance = {
+            "station_inputs": {"cov": {"coverage": 1.0, "latest_wind_speed": 8.0}},
+            "station_input_age": {"cov": 12.5},
+            "diagnostics": {"summit_support": {
+                "source_station": "cov", "status": "supportive",
+                "explanation_key": "summit_wind_supportive", "raw_values": {},
+            }},
+            "station_source_assets": {"cov": ["meteoswiss:cov:recent"]},
+            "station_reporting_delay_minutes": {"cov": 15},
+        }
+        health = rd.summit_station_health(issuance)
+        self.assertEqual(health["cov"]["source_assets"], ["meteoswiss:cov:recent"])
+        self.assertEqual(health["cov"]["reporting_delay_minutes"], 15)
+
+    def test_provenance_fields_default_empty_when_absent(self):
+        issuance = {
+            "station_inputs": {"cov": {}},
+            "station_input_age": {"cov": None},
+            "diagnostics": {"summit_support": {
+                "source_station": "cov", "status": "missing",
+                "explanation_key": "summit_wind_missing_station_data", "raw_values": {},
+            }},
+        }
+        health = rd.summit_station_health(issuance)
+        self.assertEqual(health["cov"]["source_assets"], [])
+        self.assertIsNone(health["cov"]["reporting_delay_minutes"])
+
+
+class StationNowcastStatusTests(unittest.TestCase):
+    def test_none_when_no_issuance(self):
+        result = rd.station_nowcast_status(None)
+        self.assertIsNone(result["snapshot_used"])
+
+    def test_none_when_field_absent_from_older_issuance(self):
+        result = rd.station_nowcast_status({"issued_at": "2026-07-16T07:00:00+00:00"})
+        self.assertIsNone(result["snapshot_used"])
+
+    def test_true_when_snapshot_was_used(self):
+        result = rd.station_nowcast_status({
+            "station_nowcast_snapshot_used": True, "issued_at": "2026-07-16T07:00:00+00:00"})
+        self.assertTrue(result["snapshot_used"])
+        self.assertEqual(result["issued_at"], "2026-07-16T07:00:00+00:00")
+
+    def test_false_when_fallback_to_historical_archive(self):
+        result = rd.station_nowcast_status({"station_nowcast_snapshot_used": False})
+        self.assertFalse(result["snapshot_used"])
+
+
+class UnmatchedPredictionsCountTests(unittest.TestCase):
+    def test_mature_unverified_prediction_counted(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        old_target_local = (now - timedelta(hours=30)).astimezone(rd.ZURICH_TZ).replace(tzinfo=None)
+        predictions = [{"target_time": old_target_local.isoformat(), "verified": False}]
+        self.assertEqual(rd.unmatched_predictions_count(predictions, now), 1)
+
+    def test_verified_prediction_not_counted(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        old_target_local = (now - timedelta(hours=30)).astimezone(rd.ZURICH_TZ).replace(tzinfo=None)
+        predictions = [{"target_time": old_target_local.isoformat(), "verified": True}]
+        self.assertEqual(rd.unmatched_predictions_count(predictions, now), 0)
+
+    def test_too_recent_prediction_not_counted(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        recent_target_local = (now - timedelta(hours=2)).astimezone(rd.ZURICH_TZ).replace(tzinfo=None)
+        predictions = [{"target_time": recent_target_local.isoformat(), "verified": False}]
+        self.assertEqual(rd.unmatched_predictions_count(predictions, now), 0)
+
+
+class LakeWaterTemperatureTests(unittest.TestCase):
+    def setUp(self):
+        self._orig_obs = rd.KITESAILING_OBSERVATIONS_PATH
+        self._tmpdir = tempfile.mkdtemp()
+        rd.KITESAILING_OBSERVATIONS_PATH = os.path.join(self._tmpdir, "obs.jsonl")
+
+    def tearDown(self):
+        rd.KITESAILING_OBSERVATIONS_PATH = self._orig_obs
+
+    def test_none_when_no_observations(self):
+        result = rd.lake_water_temperature()
+        self.assertIsNone(result["temp_c"])
+        self.assertFalse(result["confirmed_water_temperature"])
+
+    def test_latest_reading_returned_honestly_unconfirmed(self):
+        with open(rd.KITESAILING_OBSERVATIONS_PATH, "w") as f:
+            f.write(json.dumps({"observed_at": "2026-07-16T10:00:00+00:00", "temp_c": 18.5}) + "\n")
+            f.write(json.dumps({"observed_at": "2026-07-16T14:00:00+00:00", "temp_c": 19.2}) + "\n")
+        result = rd.lake_water_temperature()
+        self.assertEqual(result["temp_c"], 19.2)
+        self.assertEqual(result["observed_at"], "2026-07-16T14:00:00+00:00")
+        # Never asserted as confirmed fact - the widget's field provenance
+        # (air vs. water) has never been independently verified.
+        self.assertFalse(result["confirmed_water_temperature"])
+
 
 class VerificationSourcesTests(unittest.TestCase):
     """Part 10's explicit rule: never combine lake-labelled and
@@ -345,6 +475,18 @@ class VerificationSourcesTests(unittest.TestCase):
         result = rd.verification_sources([])
         self.assertIsNone(result["lake_coverage_pct"])
         self.assertEqual(result["silvaplana_lake_count"], 0)
+
+    def test_unmatched_count_defaults_to_zero_without_predictions_arg(self):
+        result = rd.verification_sources([{"ground_truth_source": "kitesailing"}])
+        self.assertEqual(result["unmatched_count"], 0)
+
+    def test_unmatched_count_reflects_predictions_arg(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        old_target_local = (now - timedelta(hours=30)).astimezone(rd.ZURICH_TZ).replace(tzinfo=None)
+        predictions = [{"target_time": old_target_local.isoformat(), "verified": False}]
+        result = rd.verification_sources([], predictions)
+        self.assertEqual(result["unmatched_count"], 1)
 
 
 if __name__ == "__main__":

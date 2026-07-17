@@ -122,8 +122,21 @@ class LogIssuanceTests(unittest.TestCase):
             record = json.loads(f.readline())
         for key in ("issued_at", "model_version", "feature_schema_version", "calibration_version",
                     "station_cutoff", "station_inputs", "station_input_age", "station_quality_flags",
-                    "diagnostics", "session_forecast", "hourly_predictions", "raw_payload_checksums", "commit_sha"):
+                    "diagnostics", "session_forecast", "hourly_predictions", "raw_payload_checksums", "commit_sha",
+                    "station_nowcast_snapshot_used"):
             self.assertIn(key, record, f"missing field {key!r}")
+
+    def test_station_nowcast_snapshot_used_reflects_file_presence(self):
+        weights = load_weights()
+        orig_path = fal.NOWCAST_SNAPSHOT_PATH
+        fal.NOWCAST_SNAPSHOT_PATH = "/nonexistent/current_station_observations.json"
+        try:
+            fal._log_issuance({"silvaplana": {}}, self._results(), weights, datetime.now(timezone.utc), {"raw_payload_checksum": "abc"})
+        finally:
+            fal.NOWCAST_SNAPSHOT_PATH = orig_path
+        with open(fal.ISSUANCE_LOG_PATH) as f:
+            record = json.loads(f.readline())
+        self.assertFalse(record["station_nowcast_snapshot_used"])
 
     def test_session_forecast_keyed_by_date(self):
         weights = load_weights()

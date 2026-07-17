@@ -233,7 +233,9 @@ def lake_station_health() -> dict:
         return {
             "last_attempt_at": None, "last_success_at": None, "last_observation_at": None,
             "age_minutes": None, "observations_today": 0, "successful_attempts_today": 0,
-            "failed_attempts_today": 0, "coverage_12_18": 0.0, "consecutive_failures": 0,
+            "failed_attempts_today": 0, "coverage_12_18": 0.0,
+            "expected_collection_count": 13, "actual_collection_count": 0,
+            "consecutive_failures": 0, "failure_categories": {},
             "status": "no_data",
         }
 
@@ -283,6 +285,17 @@ def lake_station_health() -> dict:
     else:
         status = "healthy"
 
+    # Per-category tally of why an attempt failed (kitesailing_weather.py's
+    # attempt_reading() already records one of these per failed row) - a
+    # summary count alone can't distinguish "one dominant, explainable
+    # cause" from "many unrelated issues", same rationale as
+    # data_quality.flag_counts().
+    failure_categories = {}
+    for r in health_rows:
+        cat = r.get("failure_category")
+        if cat:
+            failure_categories[cat] = failure_categories.get(cat, 0) + 1
+
     return {
         "last_attempt_at": last_attempt_at, "last_success_at": last_success_at,
         "last_observation_at": last_observation_at, "age_minutes": age_minutes,
@@ -290,7 +303,10 @@ def lake_station_health() -> dict:
         "successful_attempts_today": successful_attempts_today,
         "failed_attempts_today": failed_attempts_today,
         "coverage_12_18": coverage_12_18,
+        "expected_collection_count": slot_count,
+        "actual_collection_count": covered,
         "consecutive_failures": consecutive_failures,
+        "failure_categories": failure_categories,
         "status": status,
     }
 
@@ -298,7 +314,9 @@ def lake_station_health() -> dict:
 def summit_station_health(issuance: dict) -> dict:
     """Section 10: per-summit-station health (today only cov, once
     enabled) from the latest forecast issuance record - {} when no
-    issuance exists yet, or when no summit-role station reported data."""
+    issuance exists yet, or when no summit-role station reported data.
+    Includes provenance (source assets, reporting delay) alongside the
+    physical readings, so a human can see not just "what" but "from where"."""
     if not issuance:
         return {}
     station_inputs = issuance.get("station_inputs", {})
@@ -319,14 +337,52 @@ def summit_station_health(issuance: dict) -> dict:
             "gust": feats.get("max_morning_gust"),
             "direction": summit.get("raw_values", {}).get("wind_direction_deg"),
             "temperature": feats.get("temperature_latest"),
+            "source_assets": issuance.get("station_source_assets", {}).get(sid, []),
+            "reporting_delay_minutes": issuance.get("station_reporting_delay_minutes", {}).get(sid),
         }
     }
 
 
-def verification_sources(verified: list) -> dict:
+def station_nowcast_status(issuance: dict) -> dict:
+    """Section 10 (Part 11): whether the latest forecast issuance actually
+    used station_nowcast.py's bounded live snapshot, or fell back to the
+    historical archive (a local research/dev run only - see
+    forecast_and_log.py's _station_records_for_inputs) - derived directly
+    from the same os.path.exists() check made at issuance time, never
+    guessed after the fact."""
+    if not issuance or "station_nowcast_snapshot_used" not in issuance:
+        return {"snapshot_used": None, "issued_at": None}
+    return {
+        "snapshot_used": issuance["station_nowcast_snapshot_used"],
+        "issued_at": issuance.get("issued_at"),
+    }
+
+
+def unmatched_predictions_count(predictions: list, now: datetime = None) -> int:
+    """Section 10: predictions old enough that verify_and_learn.py should
+    have checked them (past its own MIN_AGE_HOURS=20) but that are still
+    unverified - meaning neither the kitesailing.ch lake reading nor the
+    Samedan fallback ever produced a match for that hour (verify_and_learn.py
+    leaves these alone rather than fabricating a label - see its own
+    `else: continue` branch). A non-zero count is a real, visible gap in
+    ground-truth coverage, not a bug to hide."""
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=20)
+    count = 0
+    for r in predictions:
+        if r.get("verified"):
+            continue
+        target_utc = datetime.fromisoformat(r["target_time"]).replace(tzinfo=ZURICH_TZ).astimezone(timezone.utc)
+        if target_utc < cutoff:
+            count += 1
+    return count
+
+
+def verification_sources(verified: list, predictions: list = None) -> dict:
     """Section 10: how many verified predictions used the real lake
     reading vs. the Samedan fallback - never blended into one accuracy
-    number without these counts alongside it (see docs/DATA_ARCHITECTURE.md)."""
+    number without these counts alongside it (see docs/DATA_ARCHITECTURE.md).
+    Also reports how many mature predictions matched NEITHER source."""
     silvaplana_lake_count = sum(1 for r in verified if r.get("ground_truth_source") == "kitesailing")
     samedan_fallback_count = sum(1 for r in verified if r.get("ground_truth_source") == "samedan_fallback")
     total = silvaplana_lake_count + samedan_fallback_count
@@ -334,6 +390,29 @@ def verification_sources(verified: list) -> dict:
         "silvaplana_lake_count": silvaplana_lake_count,
         "samedan_fallback_count": samedan_fallback_count,
         "lake_coverage_pct": round(silvaplana_lake_count / total, 3) if total else None,
+        "unmatched_count": unmatched_predictions_count(predictions or []),
+    }
+
+
+def lake_water_temperature() -> dict:
+    """Section 11: the latest kitesailing.ch reading's temperature field.
+    kitesailing_weather.py's widget reports one temperature figure
+    alongside wind/humidity/pressure, but nothing in this codebase has
+    ever confirmed whether that figure is the lake's water temperature or
+    the air temperature at the spot - see kitesailing_weather.py's
+    docstring. Rather than either hiding a real, already-collected value
+    or asserting an unconfirmed label as fact, this reports the reading
+    plainly with an explicit confirmed=False flag so the dashboard can
+    show it honestly captioned."""
+    observations = read_jsonl(KITESAILING_OBSERVATIONS_PATH)
+    if not observations:
+        return {"temp_c": None, "observed_at": None, "confirmed_water_temperature": False}
+    observations.sort(key=lambda o: o["observed_at"])
+    latest = observations[-1]
+    return {
+        "temp_c": latest.get("temp_c"),
+        "observed_at": latest.get("observed_at"),
+        "confirmed_water_temperature": False,
     }
 
 
@@ -413,7 +492,9 @@ def main():
         **optional_issuance_fields(latest_issuance),
         "lake_station_health": lake_station_health(),
         "summit_station_health": summit_station_health(latest_issuance),
-        "verification_sources": verification_sources(verified),
+        "station_nowcast_status": station_nowcast_status(latest_issuance),
+        "verification_sources": verification_sources(verified, predictions),
+        "lake_water_temperature": lake_water_temperature(),
     }
 
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)

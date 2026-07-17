@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T20:51:06.051937+00:00",
+  "generated_at": "2026-07-17T08:26:42.322625+00:00",
   "total_samples": 3111,
   "samples_per_year": {
     "2024": 1288,
@@ -22389,21 +22389,36 @@
   "model_agreement": {},
   "data_provenance": {},
   "lake_station_health": {
-    "last_attempt_at": "2026-07-16T20:15:05.269282+00:00",
-    "last_success_at": null,
-    "last_observation_at": "2026-07-16T20:14:47.744093+00:00",
-    "age_minutes": 36.3,
-    "observations_today": 2,
-    "successful_attempts_today": 0,
-    "failed_attempts_today": 1,
+    "last_attempt_at": "2026-07-17T07:47:04.651792+00:00",
+    "last_success_at": "2026-07-17T07:47:04.651792+00:00",
+    "last_observation_at": "2026-07-17T07:47:04.651792+00:00",
+    "age_minutes": 39.6,
+    "observations_today": 1,
+    "successful_attempts_today": 1,
+    "failed_attempts_today": 0,
     "coverage_12_18": 0.0,
-    "consecutive_failures": 1,
-    "status": "degraded"
+    "expected_collection_count": 13,
+    "actual_collection_count": 0,
+    "consecutive_failures": 0,
+    "failure_categories": {
+      "navigation_error:BrowserType.launch: Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell\n\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n\u2551 Looks like Playwright was just installed or updated.       \u2551\n\u2551 Please run the following command to download new browsers: \u2551\n\u2551                                                            \u2551\n\u2551     playwright install                                     \u2551\n\u2551                                                            \u2551\n\u2551 <3 Playwright Team                                         \u2551\n\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d": 1
+    },
+    "status": "healthy"
   },
   "summit_station_health": {},
+  "station_nowcast_status": {
+    "snapshot_used": null,
+    "issued_at": null
+  },
   "verification_sources": {
     "silvaplana_lake_count": 0,
     "samedan_fallback_count": 0,
-    "lake_coverage_pct": null
+    "lake_coverage_pct": null,
+    "unmatched_count": 6
+  },
+  "lake_water_temperature": {
+    "temp_c": 12.9,
+    "observed_at": "2026-07-17T07:47:04.651792+00:00",
+    "confirmed_water_temperature": false
   }
 }
