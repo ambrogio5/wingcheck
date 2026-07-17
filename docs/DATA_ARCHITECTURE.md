@@ -268,15 +268,24 @@ analysis command never edits policy or production weights - any policy
 change is a reviewed edit of the versioned policy file citing a real
 calibration report.
 
-### SIA ingestion - real coverage, and a correction
+### SIA ingestion - real coverage across two distinct products
 
 Official SIA identity metadata is snapshotted in
 `config/sia_official_metadata.json`, verified against a real user-supplied
-copy of MeteoSwiss's `ogd-smn_meta_stations.csv`. **Correction**: an
-earlier draft claimed "108,116 hourly rows from 2014-03-18" for SIA - that
-figure could not be confirmed from any file actually supplied or fetched,
-and was removed everywhere. The real, verified coverage (two user-supplied
-raw 10-minute OGD files, preserved unmodified + sha256-checksummed under
+copy of MeteoSwiss's `ogd-smn_meta_stations.csv`.
+
+**The genuine HOURLY ("_h_") product** was confirmed by a real
+network-enabled CI fetch (GitHub Actions run 29616366900, 2026-07-17):
+**108,118 records** (50,760 from the 2010-2019 decade file + 52,608 from
+2020-2029 + 4,728 recent + 22 now), 0 quality flags, 0 gaps. An earlier
+"108,116 rows from 2014-03-18" figure - flagged unverifiable when only
+local files existed - is consistent with this product (±the moving
+recent/now tail). CI's `historical_data.py sync` re-fetches it on demand;
+the normalized output stays gitignored/regenerable, with real coverage
+figures recorded in `manifests/stations.json` on every CI sync.
+
+**The 10-MINUTE ("_t_") product** held locally (two user-supplied raw
+files, preserved unmodified + sha256-checksummed under
 `logs/historical/raw/meteoswiss/sia/`, ingested by `sia_import.py`):
 
 - `ogd-smn_sia_t_historical_2000-2009.csv`: 6,472 rows, 2004-02-01 through
@@ -287,20 +296,22 @@ raw 10-minute OGD files, preserved unmodified + sha256-checksummed under
   gust fu3010z1, direction dkl010z0, QFE prestas0, precipitation,
   radiation, sunshine; column meanings verified against the official
   `ogd-smn_meta_parameters.csv`, never guessed).
-- **Open gap: 2010 through 2025.** No supplied or fetched file spans it.
+- **Open gap in the LOCAL 10-minute holdings: 2010 through 2025** (the
+  `_t_historical_2010-2019` / `2020-2029` decade files have not been
+  acquired). The genuine HOURLY product above covers that span - the gap
+  applies to sub-hourly resolution only.
 
 `logs/historical/station_10min/sia.jsonl` holds the normalized real
-10-minute records; `logs/historical/station_hourly/sia.jsonl` holds
-top-of-hour aggregates honestly DERIVED from them (arithmetic mean for
-scalars, vector/circular mean for direction, max for gust; every record
-flagged `derived_from_10min_mean` + `n_10min_samples:N`; an hour with no
-real 10-minute data simply does not exist - never interpolated). They are
-NOT a genuine separately-published MeteoSwiss hourly ("_h_") product - none
-has been fetched for SIA yet; when one is, it should be ingested as its
-own source and the derived records retired, per this file's
-never-overwrite-richer-data rules. Both normalized files are gitignored/
-regenerable; the raw files + checksums in `manifests/assets.jsonl` are the
-committed source of truth.
+10-minute records; `logs/historical/station_hourly/sia.jsonl` holds, in a
+local-only checkout, top-of-hour aggregates honestly DERIVED from them
+(arithmetic mean for scalars, vector/circular mean for direction, max for
+gust; every record flagged `derived_from_10min_mean` + `n_10min_samples:N`;
+an hour with no real 10-minute data simply does not exist - never
+interpolated). A CI sync merges the genuine hourly ("_h_") product on top
+via the richer-record-wins merge, superseding derived records where both
+cover an hour. Both normalized files are gitignored/regenerable; the raw
+files + checksums in `manifests/assets.jsonl` are the committed source of
+truth.
 
 ### Station identity rules (sils / sia / kitesailing / windsurfcenter)
 

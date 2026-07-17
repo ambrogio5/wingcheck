@@ -53,20 +53,36 @@ def day_of(row) -> str:
     return row["date"][:10]
 
 
+def default_boundaries(rows):
+    """Fold boundaries chosen from the labeled data actually present:
+    with labels spanning multiple years, expanding-window YEAR folds
+    (train earlier years -> validate the next whole year - the standard
+    protocol this repo's backtest uses); with a single labeled year, fall
+    back to intra-year MONTH folds (all the data can support)."""
+    years = sorted({r["date"][:4] for r in rows})
+    if len(years) > 1:
+        return tuple(years[1:])
+    months = sorted({r["date"][:7] for r in rows})
+    return tuple(months[1:])
+
+
 def chronological_day_folds(rows, boundaries):
-    """Expanding-window folds: for each boundary (an ISO 'YYYY-MM' month
-    string), train on all days strictly before that month, validate on
-    that month's days. Day-grouped by construction (split on calendar
-    date, never on hourly rows)."""
+    """Expanding-window folds: each boundary is an ISO prefix ('YYYY' for
+    a whole validation year, 'YYYY-MM' for a validation month) - train on
+    all days strictly before it, validate on the days matching it.
+    Day-grouped by construction (split on calendar date, never on hourly
+    rows); ISO prefixes compare lexicographically so both granularities
+    use the same comparison."""
     folds = []
-    for month in boundaries:
-        train = [r for r in rows if r["date"][:7] < month]
-        validate = [r for r in rows if r["date"][:7] == month]
+    for boundary in boundaries:
+        width = len(boundary)
+        train = [r for r in rows if r["date"][:width] < boundary]
+        validate = [r for r in rows if r["date"][:width] == boundary]
         train_days = {day_of(r) for r in train}
         validate_days = {day_of(r) for r in validate}
         assert not (train_days & validate_days), "a calendar day crossed a fold boundary"
         if train and validate:
-            folds.append({"validation_month": month, "train": train, "validate": validate,
+            folds.append({"validation_period": boundary, "train": train, "validate": validate,
                           "n_train_days": len(train_days), "n_validate_days": len(validate_days)})
     return folds
 
@@ -88,14 +104,14 @@ def main(argv=None):
 
     production = model.load_weights()
 
-    folds = chronological_day_folds(rows, boundaries=("2026-06", "2026-07"))
+    folds = chronological_day_folds(rows, boundaries=default_boundaries(rows))
     fold_reports = []
     for fold in folds:
         fresh = model.new_weights()
         model.validate_schema(fresh)
         model.train_epochs(fresh, fold["train"], epochs=EPOCHS, seed=model.DEFAULT_TRAIN_SEED)
         fold_reports.append({
-            "validation_month": fold["validation_month"],
+            "validation_period": fold["validation_period"],
             "n_train": len(fold["train"]), "n_validate": len(fold["validate"]),
             "n_train_days": fold["n_train_days"], "n_validate_days": fold["n_validate_days"],
             "model_a_production_reference": evaluate(fold["validate"], production),
@@ -136,7 +152,7 @@ def main(argv=None):
     print(json.dumps({"report": out, "n_rows": len(rows), "n_folds": len(fold_reports)}, indent=2))
     for fr in fold_reports:
         a, b = fr["model_a_production_reference"], fr["model_b_fresh_sia_labels"]
-        print(f"\nfold validate={fr['validation_month']} "
+        print(f"\nfold validate={fr['validation_period']} "
               f"(train {fr['n_train']} rows/{fr['n_train_days']} days -> "
               f"validate {fr['n_validate']} rows/{fr['n_validate_days']} days)")
         for name, m in (("A(prod ref)", a), ("B(fresh SIA)", b)):
