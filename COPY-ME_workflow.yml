@@ -155,7 +155,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/backtest_dataset.jsonl weights.json docs/dashboard_data.json logs/raw_cache/
           git diff --staged --quiet || git commit -m "backtest retrain $(date -u +%F)"
-          git pull --rebase origin main
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push
 
   forecast:
@@ -191,7 +191,7 @@ jobs:
           git add logs/predictions.jsonl logs/forecast_issuances.jsonl docs/dashboard_data.json \
                   logs/historical/forecast_vintages/
           git diff --staged --quiet || git commit -m "log predictions and refresh dashboard $(date -u +%F)"
-          git pull --rebase origin main
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push
 
   learn:
@@ -214,7 +214,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/predictions.jsonl weights.json docs/dashboard_data.json
           git diff --staged --quiet || git commit -m "learn from outcomes $(date -u +%F)"
-          git pull --rebase origin main
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push
 
   sync_historical_data:
@@ -248,7 +248,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/historical/manifests/
           git diff --staged --quiet || git commit -m "sync historical station archive $(date -u +%F)"
-          git pull --rebase origin main
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push
 
   station_research:
@@ -272,7 +272,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/historical/reports/ logs/historical/manifests/ docs/research/research_data.json
           git diff --staged --quiet || git commit -m "station research run $(date -u +%F)"
-          git pull --rebase origin main
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push
 
   # Ground-truth / SIA calibration research: MANUAL ONLY. Rebuilds the
@@ -312,5 +312,5 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add logs/historical/reports/ logs/historical/manifests/
           git diff --staged --quiet || git commit -m "ground truth research run $(date -u +%F)"
-          git pull --rebase origin main
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push
