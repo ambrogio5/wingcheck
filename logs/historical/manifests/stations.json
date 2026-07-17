@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T23:20:10.148420+00:00",
+  "generated_at": "2026-07-17T09:23:44.614924+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -10,9 +10,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 399181,
+      "n_records": 399192,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-16T12:00:00+00:00"
+      "data_end": "2026-07-16T23:00:00+00:00"
     },
     "lug": {
       "name": "Lugano",
@@ -22,9 +22,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 196835,
+      "n_records": 196846,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-16T12:00:00+00:00"
+      "data_end": "2026-07-16T23:00:00+00:00"
     },
     "sma": {
       "name": "Z\u00fcrich / Fluntern",
@@ -34,9 +34,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 196770,
+      "n_records": 196781,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-16T12:00:00+00:00"
+      "data_end": "2026-07-16T23:00:00+00:00"
     },
     "cov": {
       "name": "Piz Corvatsch",
@@ -47,9 +47,9 @@
       ],
       "enabled": false,
       "verification": "unverified",
-      "n_records": 398817,
-      "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-16T22:00:00+00:00"
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null
     },
     "piz_nair": {
       "name": "Piz Nair (St. Moritz)",
