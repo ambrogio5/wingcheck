@@ -53,19 +53,40 @@ def circular_error(a, b):
     return abs((a - b + 180) % 360 - 180)
 
 
+PAIRING_TOLERANCE_MINUTES = 30
+
+
+def _nearest_hour(ts: datetime):
+    floored = ts.replace(minute=0, second=0, microsecond=0)
+    if ts - floored >= timedelta(minutes=30):
+        return floored + timedelta(hours=1), (floored + timedelta(hours=1)) - ts
+    return floored, ts - floored
+
+
 def pair_records(records, source_a="windsurfcenter", source_b="sia", lag_hours=0):
+    """Pairs source_a and source_b observations on the same UTC hour
+    (nearest-hour bucketing within PAIRING_TOLERANCE_MINUTES - real lake
+    scrapes land at arbitrary minutes, so exact-equality matching would
+    silently produce zero pairs). When several readings fall in one hour
+    bucket, the one closest to the top of the hour wins - never an
+    interpolated or forward-filled value."""
     by_source = defaultdict(dict)
     for row in records:
         if row.get("wind_speed_ms") is None:
             continue
         ts = datetime.fromisoformat(row["timestamp_utc"])
-        by_source[row["source"]][ts] = row
+        hour, distance = _nearest_hour(ts)
+        if distance > timedelta(minutes=PAIRING_TOLERANCE_MINUTES):
+            continue
+        bucket = by_source[row["source"]]
+        if hour not in bucket or distance < bucket[hour][1]:
+            bucket[hour] = (row, distance)
     pairs = []
     lag = timedelta(hours=lag_hours)
-    for ts, left in by_source[source_a].items():
-        right = by_source[source_b].get(ts + lag)
+    for hour, (left, _) in by_source[source_a].items():
+        right = by_source[source_b].get(hour + lag)
         if right:
-            pairs.append((left, right))
+            pairs.append((left, right[0]))
     return pairs
 
 
@@ -93,17 +114,48 @@ def metrics_for_pairs(pairs):
     }
 
 
-def classify_relationship(metrics, minimum_pairs=200):
-    """Conservative descriptive classification, never an automatic policy change."""
-    if metrics.get("n", 0) < minimum_pairs:
-        return "insufficient_overlap"
+# Minimum-reporting maturity gates by INDEPENDENT overlapping days (not raw
+# pair count - 100 pairs from 2 days is 2 days of weather, not 100 samples
+# of independent evidence). These gate what may be REPORTED, they never
+# automatically prove equivalence or change policy.
+MATURITY_INSUFFICIENT_DAYS = 14
+MATURITY_CALIBRATION_CANDIDATE_DAYS = 42
+
+
+def independent_days(pairs) -> int:
+    return len({datetime.fromisoformat(a["timestamp_utc"]).date() for a, _ in pairs})
+
+
+def calibration_maturity(n_days: int) -> str:
+    if n_days < MATURITY_INSUFFICIENT_DAYS:
+        return "insufficient"
+    if n_days < MATURITY_CALIBRATION_CANDIDATE_DAYS:
+        return "preliminary"
+    return "calibration_candidate"
+
+
+def classify_relationship(metrics, n_days=0):
+    """Conservative descriptive classification into the reviewed taxonomy
+    (near_equivalent / calibrated_equivalent / regime_dependent_reference /
+    predictor_only / insufficient_evidence) - never an automatic policy
+    change, and never a classification stronger than the maturity gate
+    allows. The suggestive thresholds below are candidates for human
+    review, not automatic rules - a passing number here still requires
+    seasonal coverage, stable bias direction, and regime analysis before
+    any policy edit (see config/ground_truth_policy.json's reviewer_note)."""
+    if n_days < MATURITY_INSUFFICIENT_DAYS or metrics.get("n", 0) == 0:
+        return "insufficient_evidence"
     corr = metrics.get("pearson")
     mae = metrics.get("mae_ms")
     bias = abs(metrics.get("bias_sia_minus_lake_ms", math.inf))
-    if corr is not None and corr >= 0.95 and mae <= 1.0 and bias <= 0.5:
-        return "effectively_equivalent_candidate"
-    if corr is not None and corr >= 0.85 and mae <= 2.0:
-        return "calibrated_substitute_candidate"
+    if corr is not None and corr >= 0.95 and mae <= 1.0 and bias <= 0.5 \
+            and n_days >= MATURITY_CALIBRATION_CANDIDATE_DAYS:
+        return "near_equivalent"
+    if corr is not None and corr >= 0.85 and mae <= 2.0 \
+            and n_days >= MATURITY_CALIBRATION_CANDIDATE_DAYS:
+        return "calibrated_equivalent"
+    if n_days < MATURITY_CALIBRATION_CANDIDATE_DAYS:
+        return "insufficient_evidence"
     return "predictor_only"
 
 
@@ -116,22 +168,26 @@ def analyze(records, source_a="windsurfcenter", source_b="sia", maximum_lag_hour
         lag_results[key].get("pearson") or -2,
         lag_results[key].get("n", 0),
     ))
+    zero_pairs = pair_records(records, source_a, source_b, 0)
     zero = lag_results["0"]
+    n_days = independent_days(zero_pairs)
     by_month = {}
     for month in range(1, 13):
-        pairs = [pair for pair in pair_records(records, source_a, source_b, 0)
+        pairs = [pair for pair in zero_pairs
                  if datetime.fromisoformat(pair[0]["timestamp_utc"]).month == month]
         by_month[str(month)] = metrics_for_pairs(pairs)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at": datetime.now().astimezone().isoformat(),
         "source_a": source_a,
         "source_b": source_b,
         "zero_lag": zero,
+        "independent_overlapping_days": n_days,
+        "calibration_maturity": calibration_maturity(n_days),
         "lag_results_hours": lag_results,
         "best_lag_hours": int(best_lag),
         "monthly": by_month,
-        "classification": classify_relationship(zero),
+        "classification": classify_relationship(zero, n_days),
         "policy_changed": False,
         "warning": "Exploratory report. Review overlap, seasonality and sensor definitions before enabling SIA substitution.",
     }

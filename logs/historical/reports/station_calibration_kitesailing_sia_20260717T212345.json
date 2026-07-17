@@ -1,0 +1,148 @@
+{
+  "schema_version": 2,
+  "generated_at": "2026-07-17T21:23:44.975287+00:00",
+  "source_a": "kitesailing",
+  "source_b": "sia",
+  "zero_lag": {
+    "n": 2,
+    "pearson": 1.0,
+    "spearman": 1.0,
+    "mae_ms": 3.0578703703703702,
+    "rmse_ms": 3.0698406956116586,
+    "bias_sia_minus_lake_ms": -3.0578703703703702,
+    "median_bias_ms": -3.0578703703703702,
+    "circular_direction_mae_deg": 14.213639482937609,
+    "direction_n": 2
+  },
+  "independent_overlapping_days": 1,
+  "calibration_maturity": "insufficient",
+  "lag_results_hours": {
+    "-3": {
+      "n": 2,
+      "pearson": 1.0,
+      "spearman": 1.0,
+      "mae_ms": 1.905092592592593,
+      "rmse_ms": 1.9328495785087083,
+      "bias_sia_minus_lake_ms": -1.905092592592593,
+      "median_bias_ms": -1.905092592592593,
+      "circular_direction_mae_deg": 27.522270790194625,
+      "direction_n": 2
+    },
+    "-2": {
+      "n": 2,
+      "pearson": 1.0,
+      "spearman": 1.0,
+      "mae_ms": 2.0486111111111107,
+      "rmse_ms": 2.052855772086206,
+      "bias_sia_minus_lake_ms": -2.0486111111111107,
+      "median_bias_ms": -2.0486111111111107,
+      "circular_direction_mae_deg": 23.753478432253743,
+      "direction_n": 2
+    },
+    "-1": {
+      "n": 2,
+      "pearson": 1.0,
+      "spearman": 1.0,
+      "mae_ms": 2.393518518518518,
+      "rmse_ms": 2.4387647961905934,
+      "bias_sia_minus_lake_ms": -2.393518518518518,
+      "median_bias_ms": -2.393518518518518,
+      "circular_direction_mae_deg": 24.32605612452386,
+      "direction_n": 2
+    },
+    "0": {
+      "n": 2,
+      "pearson": 1.0,
+      "spearman": 1.0,
+      "mae_ms": 3.0578703703703702,
+      "rmse_ms": 3.0698406956116586,
+      "bias_sia_minus_lake_ms": -3.0578703703703702,
+      "median_bias_ms": -3.0578703703703702,
+      "circular_direction_mae_deg": 14.213639482937609,
+      "direction_n": 2
+    },
+    "1": {
+      "n": 2,
+      "pearson": 1.0000000000000002,
+      "spearman": 1.0,
+      "mae_ms": 4.24537037037037,
+      "rmse_ms": 4.5056667756591215,
+      "bias_sia_minus_lake_ms": -4.24537037037037,
+      "median_bias_ms": -4.24537037037037,
+      "circular_direction_mae_deg": 63.33467074958783,
+      "direction_n": 2
+    },
+    "2": {
+      "n": 2,
+      "pearson": 1.0,
+      "spearman": 1.0,
+      "mae_ms": 4.016203703703703,
+      "rmse_ms": 4.060706446964924,
+      "bias_sia_minus_lake_ms": -4.016203703703703,
+      "median_bias_ms": -4.016203703703703,
+      "circular_direction_mae_deg": 52.79874534480592,
+      "direction_n": 2
+    },
+    "3": {
+      "n": 2,
+      "pearson": 1.0,
+      "spearman": 1.0,
+      "mae_ms": 3.6759259259259256,
+      "rmse_ms": 3.6818248451918723,
+      "bias_sia_minus_lake_ms": -3.6759259259259256,
+      "median_bias_ms": -3.6759259259259256,
+      "circular_direction_mae_deg": 75.37329769331421,
+      "direction_n": 2
+    }
+  },
+  "best_lag_hours": 1,
+  "monthly": {
+    "1": {
+      "n": 0
+    },
+    "2": {
+      "n": 0
+    },
+    "3": {
+      "n": 0
+    },
+    "4": {
+      "n": 0
+    },
+    "5": {
+      "n": 0
+    },
+    "6": {
+      "n": 0
+    },
+    "7": {
+      "n": 2,
+      "pearson": 1.0,
+      "spearman": 1.0,
+      "mae_ms": 3.0578703703703702,
+      "rmse_ms": 3.0698406956116586,
+      "bias_sia_minus_lake_ms": -3.0578703703703702,
+      "median_bias_ms": -3.0578703703703702,
+      "circular_direction_mae_deg": 14.213639482937609,
+      "direction_n": 2
+    },
+    "8": {
+      "n": 0
+    },
+    "9": {
+      "n": 0
+    },
+    "10": {
+      "n": 0
+    },
+    "11": {
+      "n": 0
+    },
+    "12": {
+      "n": 0
+    }
+  },
+  "classification": "insufficient_evidence",
+  "policy_changed": false,
+  "warning": "Exploratory report. Review overlap, seasonality and sensor definitions before enabling SIA substitution."
+}
