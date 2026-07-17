@@ -413,6 +413,10 @@ def main(argv=None):
     sub.add_parser("validate", help="Data-quality + continuity checks")
     p_cov = sub.add_parser("coverage", help="Report archive coverage")
     p_cov.add_argument("--station", default=None)
+    p_meta = sub.add_parser("metadata", help="Look up official MeteoSwiss station metadata (real network fetch, "
+                                              "never a guessed abbreviation)")
+    p_meta.add_argument("--station", default=None, help="Exact official abbreviation, e.g. cov")
+    p_meta.add_argument("--search", default=None, help="Case-insensitive substring match against station name/abbr")
 
     args = parser.parse_args(argv)
 
@@ -431,6 +435,21 @@ def main(argv=None):
     elif args.command == "coverage":
         cov = coverage_report(args.station)
         print(json.dumps(cov, indent=2))
+    elif args.command == "metadata":
+        import meteoswiss
+        try:
+            if args.search:
+                result = meteoswiss.search_stations_by_name(args.search)
+                print(json.dumps(result, indent=2))
+                if not result:
+                    print(f"No official MeteoSwiss station found matching {args.search!r}.")
+            elif args.station:
+                result = meteoswiss.fetch_station_metadata(args.station)
+                print(json.dumps(result, indent=2))
+            else:
+                print("Provide --station <abbr> for an exact lookup or --search <substring> to search by name.")
+        except Exception as e:
+            print(f"[error] metadata lookup failed: {e}")
     return 0
 
 

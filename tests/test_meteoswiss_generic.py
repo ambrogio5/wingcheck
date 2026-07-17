@@ -58,6 +58,33 @@ class MetadataParsingTests(unittest.TestCase):
         self.assertIn("sam", all_stations)
 
 
+class SearchStationsByNameTests(unittest.TestCase):
+    """search_stations_by_name() - the only sanctioned way to discover a
+    real station's official abbreviation, so a candidate is never assumed
+    to exist under a guessed code (see docs/STATION_RESEARCH.md)."""
+
+    def test_matches_by_name_substring(self):
+        with mock.patch("meteoswiss.requests.get", return_value=_fake_response(METADATA_CSV)):
+            result = ms.search_stations_by_name("corvatsch")
+        self.assertIn("cov", result)
+        self.assertNotIn("sam", result)
+
+    def test_matches_by_abbreviation_substring(self):
+        with mock.patch("meteoswiss.requests.get", return_value=_fake_response(METADATA_CSV)):
+            result = ms.search_stations_by_name("sam")
+        self.assertIn("sam", result)
+
+    def test_case_insensitive(self):
+        with mock.patch("meteoswiss.requests.get", return_value=_fake_response(METADATA_CSV)):
+            result = ms.search_stations_by_name("CORVATSCH")
+        self.assertIn("cov", result)
+
+    def test_no_match_returns_empty_dict(self):
+        with mock.patch("meteoswiss.requests.get", return_value=_fake_response(METADATA_CSV)):
+            result = ms.search_stations_by_name("bernina")
+        self.assertEqual(result, {})
+
+
 class GenericCsvParsingTests(unittest.TestCase):
     def test_parses_all_available_fields_by_default(self):
         result = ms.parse_generic_station_csv(STATION_CSV)

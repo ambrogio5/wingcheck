@@ -254,6 +254,24 @@ def fetch_station_metadata(station_id: str = None) -> dict:
     return stations
 
 
+def search_stations_by_name(query: str) -> dict:
+    """Fetches the full official metadata CSV and returns every station
+    whose name or abbreviation contains `query` (case-insensitive) -
+    {abbr: metadata_dict, ...}, possibly empty.
+
+    This is the ONLY sanctioned way to discover whether a real MeteoSwiss
+    station exists under a given name - it is never acceptable to guess a
+    plausible-looking abbreviation and try it directly (see
+    docs/STATION_RESEARCH.md's explicit prohibition, and the "cor" vs
+    "cov" mixup that prohibition exists because of)."""
+    all_stations = fetch_station_metadata(station_id=None)
+    q = query.strip().lower()
+    return {
+        abbr: meta for abbr, meta in all_stations.items()
+        if q in abbr or q in (meta.get("name") or "").lower()
+    }
+
+
 def _safe_float(raw):
     try:
         v = float(raw)
