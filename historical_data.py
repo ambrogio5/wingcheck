@@ -48,6 +48,8 @@ HIST_DIR = os.path.join(BASE_DIR, "logs", "historical")
 MANIFEST_DIR = os.path.join(HIST_DIR, "manifests")
 STATION_RAW_DIR = os.path.join(HIST_DIR, "station_raw")
 STATION_HOURLY_DIR = os.path.join(HIST_DIR, "station_hourly")
+STATION_10MIN_DIR = os.path.join(HIST_DIR, "station_10min")
+RAW_METEOSWISS_DIR = os.path.join(HIST_DIR, "raw", "meteoswiss")
 RAW_CACHE_DIR = os.path.join(BASE_DIR, "logs", "raw_cache")
 
 COVERAGE_MANIFEST_PATH = os.path.join(MANIFEST_DIR, "stations.json")
@@ -168,6 +170,10 @@ def _write_jsonl(path, records):
 
 def station_hourly_path(station_id: str) -> str:
     return os.path.join(STATION_HOURLY_DIR, f"{station_id}.jsonl")
+
+
+def station_10min_path(station_id: str) -> str:
+    return os.path.join(STATION_10MIN_DIR, f"{station_id}.jsonl")
 
 
 def _non_null_count(rec):
@@ -376,9 +382,17 @@ def sync(station_ids=None):
 def _coverage_for_station(station_id: str) -> dict:
     records = _read_jsonl(station_hourly_path(station_id))
     if not records:
-        return {"n_records": 0, "data_start": None, "data_end": None}
-    timestamps = sorted(r["timestamp_utc"] for r in records)
-    return {"n_records": len(records), "data_start": timestamps[0], "data_end": timestamps[-1]}
+        cov = {"n_records": 0, "data_start": None, "data_end": None}
+    else:
+        timestamps = sorted(r["timestamp_utc"] for r in records)
+        cov = {"n_records": len(records), "data_start": timestamps[0], "data_end": timestamps[-1]}
+    tenmin = _read_jsonl(station_10min_path(station_id))
+    if tenmin:
+        ts10 = sorted(r["timestamp_utc"] for r in tenmin)
+        cov.update({"n_records_10min": len(tenmin), "data_start_10min": ts10[0], "data_end_10min": ts10[-1]})
+    else:
+        cov.update({"n_records_10min": 0, "data_start_10min": None, "data_end_10min": None})
+    return cov
 
 
 def _rebuild_coverage_manifest(registry=None):
@@ -399,7 +413,9 @@ def _rebuild_coverage_manifest(registry=None):
         cov = _coverage_for_station(sid)
         old = previous.get(sid, {})
         if cov["n_records"] == 0 and old.get("n_records", 0) > 0:
-            cov = {key: old.get(key) for key in ("n_records", "data_start", "data_end")}
+            cov.update({key: old.get(key) for key in ("n_records", "data_start", "data_end")})
+        if cov.get("n_records_10min", 0) == 0 and old.get("n_records_10min", 0) > 0:
+            cov.update({key: old.get(key) for key in ("n_records_10min", "data_start_10min", "data_end_10min")})
         snapshot[sid] = {
             "name": s.name, "provider": s.provider, "roles": list(s.roles),
             "enabled": s.enabled, "verification": s.verification,

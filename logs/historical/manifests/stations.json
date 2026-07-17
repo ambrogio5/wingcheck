@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-17T20:04:15.159918+00:00",
+  "generated_at": "2026-07-17T21:36:07.451959+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -12,7 +12,10 @@
       "verification": "confirmed",
       "n_records": 399192,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-16T23:00:00+00:00"
+      "data_end": "2026-07-16T23:00:00+00:00",
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "sia": {
       "name": "Segl-Maria",
@@ -23,9 +26,12 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 108116,
-      "data_start": "2014-03-18T00:00:00+00:00",
-      "data_end": "2026-07-17T19:00:00+00:00"
+      "n_records": 11200,
+      "data_start": "2004-02-01T06:00:00+00:00",
+      "data_end": "2026-07-16T23:00:00+00:00",
+      "n_records_10min": 34840,
+      "data_start_10min": "2004-02-01T06:00:00+00:00",
+      "data_end_10min": "2026-07-16T23:50:00+00:00"
     },
     "lug": {
       "name": "Lugano",
@@ -37,7 +43,10 @@
       "verification": "confirmed",
       "n_records": 196846,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-16T23:00:00+00:00"
+      "data_end": "2026-07-16T23:00:00+00:00",
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "sma": {
       "name": "Z\u00fcrich / Fluntern",
@@ -49,7 +58,10 @@
       "verification": "confirmed",
       "n_records": 196781,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-16T23:00:00+00:00"
+      "data_end": "2026-07-16T23:00:00+00:00",
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "cov": {
       "name": "Piz Corvatsch",
@@ -58,11 +70,30 @@
         "summit",
         "competing_flow"
       ],
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
+    },
+    "beh": {
+      "name": "Passo del Bernina",
+      "provider": "meteoswiss",
+      "roles": [
+        "pass",
+        "competing_flow"
+      ],
       "enabled": false,
       "verification": "unverified",
       "n_records": 0,
       "data_start": null,
-      "data_end": null
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "piz_nair": {
       "name": "Piz Nair (St. Moritz)",
@@ -74,7 +105,10 @@
       "verification": "unverified",
       "n_records": 0,
       "data_start": null,
-      "data_end": null
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "maloja": {
       "name": "Maloja",
@@ -87,19 +121,41 @@
       "verification": "unverified",
       "n_records": 0,
       "data_start": null,
-      "data_end": null
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "sils": {
-      "name": "Sils / Segl",
-      "provider": "unknown",
+      "name": "Sils / Segl (Silser See)",
+      "provider": "user_provided",
       "roles": [
         "target_region"
+      ],
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 22,
+      "data_start": "2014-04-01T22:00:00+00:00",
+      "data_end": "2014-04-02T21:00:00+00:00",
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
+    },
+    "windsurfcenter_silvaplana": {
+      "name": "Windsurfcenter Silvaplana (lake station)",
+      "provider": "windsurfcenter",
+      "roles": [
+        "target_region",
+        "ground_truth"
       ],
       "enabled": false,
       "verification": "unverified",
       "n_records": 0,
       "data_start": null,
-      "data_end": null
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "vicosoprano": {
       "name": "Vicosoprano",
@@ -111,7 +167,10 @@
       "verification": "unverified",
       "n_records": 0,
       "data_start": null,
-      "data_end": null
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "poschiavo": {
       "name": "Poschiavo",
@@ -123,7 +182,10 @@
       "verification": "unverified",
       "n_records": 0,
       "data_start": null,
-      "data_end": null
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     },
     "chur": {
       "name": "Chur",
@@ -136,7 +198,10 @@
       "verification": "unverified",
       "n_records": 0,
       "data_start": null,
-      "data_end": null
+      "data_end": null,
+      "n_records_10min": 0,
+      "data_start_10min": null,
+      "data_end_10min": null
     }
   }
 }

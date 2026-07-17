@@ -27,14 +27,14 @@
       "longitude": 9.762325,
       "elevation_m": 1804.0,
       "roles": ["target_region", "ground_truth"],
-      "available_variables": ["wind_speed_ms", "wind_gust_ms", "wind_direction_deg", "temperature_c", "relative_humidity_pct", "precipitation_mm", "sunshine_duration_min", "global_radiation_wm2"],
+      "available_variables": ["wind_speed_ms", "wind_gust_ms", "wind_direction_deg", "temperature_c", "relative_humidity_pct", "dew_point_c", "pressure_station_hpa", "precipitation_mm", "sunshine_duration_min", "global_radiation_wm2"],
       "historical_available": true,
       "live_available": true,
       "licence": "MeteoSwiss Open Data (attribution required; verify metadata snapshot during sync)",
       "reporting_delay_minutes": 10,
       "enabled": true,
       "verification": "confirmed",
-      "notes": "Official MeteoSwiss Segl-Maria station SIA, WIGOS 0-20000-0-06779, close to the Sils/Silvaplana lake corridor. A verified sync on 2026-07-17 loaded 108,116 hourly rows from 2014-03-18 onward. It is a high-quality reference and potential substitute target only after overlap calibration against the Windsurfcenter station. It must not be silently treated as identical to the lake sensor."
+      "notes": "Official MeteoSwiss Segl-Maria station SIA, WIGOS 0-20000-0-06779, close to the Sils/Silvaplana lake corridor. Identity/coordinates confirmed against a real user-supplied copy of the official ogd-smn_meta_stations.csv (2026-07-17). Real verified coverage from two user-supplied raw 10-minute files (preserved+checksummed under logs/historical/raw/meteoswiss/sia/): 2004-2009 synoptic-hours temperature/humidity ONLY (no wind), plus full-variable 10-minute data (incl. wind confirmed via fkl010z0/fu3010z0, gust fu3010z1, direction dkl010z0, QFE prestas0) for 2026-01-01..2026-07-16. An earlier claim of '108,116 hourly rows from 2014-03-18' could not be confirmed from any real file and was removed - real coverage gap 2010..2025 remains open. Principal near-lake historical reference candidate; must not be silently treated as identical to the lake sensor - see config/ground_truth_policy.json and docs/DATA_ARCHITECTURE.md."
     },
     {
       "station_id": "lug",
@@ -153,7 +153,24 @@
       "reporting_delay_minutes": null,
       "enabled": true,
       "verification": "confirmed",
-      "notes": "Lake immediately upstream of Silvaplana. Not a MeteoSwiss station - no live/API access exists or is expected (see historical_data.NO_LIVE_SOURCE_STATIONS). Confirmed via a real user-provided historical CSV (weatherdata_silser_see_*.csv, semicolon-delimited, knots wind, station-level pressure), ingested 2026-07-17 via `historical_data.py import-csv --station sils --format semicolon_weather` into logs/raw_cache/generic_sils.json: 22 real hourly records, all from 2014-04-02. A one-day sample, not a multi-year archive - more files for this or other stations may be imported later the same way; import-csv merges rather than overwrites."
+      "notes": "Lake immediately upstream of Silvaplana. Not a MeteoSwiss station - no live/API access exists or is expected (see historical_data.NO_LIVE_SOURCE_STATIONS). Confirmed via a real user-provided historical CSV (weatherdata_silser_see_*.csv, semicolon-delimited, knots wind, station-level pressure), ingested 2026-07-17 via `historical_data.py import-csv --station sils --format semicolon_weather` into logs/raw_cache/generic_sils.json: 22 real hourly records, all from 2014-04-02. A one-day sample, not a multi-year archive - more files for this or other stations may be imported later the same way; import-csv merges rather than overwrites. NOT the official MeteoSwiss Segl-Maria (sia) station, despite the near-identical location: real evidence distinguishes them - this file's station-level pressure (845-848 hPa, implying roughly 1550m) is ~25 hPa above SIA's real measured QFE (~816-826 hPa at 1804m), and the format (knots, METAR cloud codes, semicolon+quotes) matches no MeteoSwiss product. Kept as its own distinct source identity per the station-identity rules in docs/DATA_ARCHITECTURE.md."
+    },
+    {
+      "station_id": "windsurfcenter_silvaplana",
+      "name": "Windsurfcenter Silvaplana (lake station)",
+      "provider": "windsurfcenter",
+      "latitude": null,
+      "longitude": null,
+      "elevation_m": null,
+      "roles": ["target_region", "ground_truth"],
+      "available_variables": [],
+      "historical_available": null,
+      "live_available": null,
+      "licence": "unknown - historical archive not yet acquired; determine redistribution terms at purchase/import time before committing any raw file",
+      "reporting_delay_minutes": null,
+      "enabled": false,
+      "verification": "unverified",
+      "notes": "Placeholder for the complete Windsurfcenter/Silvaplana historical archive (2014-present) - the intended highest-priority ground-truth source. NO data has been acquired yet; every field above stays null/empty until a real file is inspected. Import path once a real file exists: preserve the raw file under logs/historical/raw/windsurfcenter/ (checksummed; only if its licence permits redistribution - otherwise checksums+manifest only), add a format parser to manual_station_import.PARSERS named after the FILE FORMAT, then `historical_data.py import-csv --station windsurfcenter_silvaplana --file <path> --format <name>`. Do not conflate with the kitesailing.ch live widget (source 'kitesailing') - upstream sensor identity has not been demonstrated to be the same; see docs/DATA_ARCHITECTURE.md."
     },
     {
       "station_id": "vicosoprano",

@@ -6,10 +6,9 @@
   "longitude": 9.762325,
   "elevation_m": 1804.0,
   "data_since": "01.12.1863",
-  "hourly_archive_start": "2014-03-18T00:00:00+00:00",
-  "hourly_archive_verified_records": 108116,
   "wigos_id": "0-20000-0-06779",
   "verified_at": "2026-07-17T20:04:07+00:00",
   "source_url": "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ogd-smn_meta_stations.csv",
-  "note": "Small reproducibility snapshot. Raw/normalized archives are regenerable from official MeteoSwiss assets and remain outside Git because of size."
+  "identity_note": "Identity/coordinates/elevation/data_since/wigos_id above were verified directly against a real, user-supplied copy of MeteoSwiss's official ogd-smn_meta_stations.csv (checksum recorded in logs/historical/manifests/assets.jsonl) - all fields matched exactly.",
+  "coverage_note": "An earlier draft of this file claimed '108,116 hourly rows from 2014-03-18 onward' - that figure could not be confirmed from any file ever supplied or fetched in this session and has been removed. The real, verified coverage (from two user-supplied raw files, preserved under logs/historical/raw/meteoswiss/sia/ and checksummed in the assets manifest) is: a 2000s-decade 10-minute file with ONLY temperature/humidity/dew-point/vapour-pressure at three fixed synoptic hours/day (06:00, 12:00, 18:00), 2004-02-01 through 2009-12-31, NO wind data; and a 'recent' 10-minute file with the full variable set (wind, gust, direction, pressure, precipitation, radiation, sunshine, temperature), 2026-01-01 through 2026-07-16. There is a real, unresolved coverage gap from 2010 through end of 2025 - no file spanning that period has been supplied or fetched. See logs/historical/manifests/stations.json's 'sia' entry (n_records/n_records_10min + data_start/data_end pairs) for exact current figures, and docs/DATA_ARCHITECTURE.md's 'SIA ingestion' section for the full explanation, including why logs/historical/station_hourly/sia.jsonl is a DERIVED (mean-of-10-minute) aggregate, not a genuine separately-published MeteoSwiss hourly product."
 }

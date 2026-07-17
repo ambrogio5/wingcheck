@@ -13,7 +13,14 @@ PLAUSIBLE_RANGES = {
     "temperature_c": (-40.0, 45.0),
     "dew_point_c": (-50.0, 35.0),
     "relative_humidity_pct": (0.0, 100.0),
-    "pressure_station_hpa": (800.0, 1080.0),
+    # Floor lowered 800->740 on 2026-07-17: real SIA (Segl-Maria, 1804m) QFE
+    # readings from the official MeteoSwiss 10-minute file bottom out at
+    # 790.8 hPa during winter depressions - genuine high-elevation
+    # station-level pressure, not sensor error. The old 800 floor was
+    # calibrated before any station above ~1700m reported QFE here. 740
+    # still catches nonsense (a 1804m station can't plausibly reach it)
+    # while covering any realistic alpine depression.
+    "pressure_station_hpa": (740.0, 1080.0),
     "pressure_sea_level_hpa": (930.0, 1080.0),
     "wind_speed_ms": (0.0, 75.0),
     "wind_gust_ms": (0.0, 100.0),
