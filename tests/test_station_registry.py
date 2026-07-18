@@ -30,7 +30,7 @@ class HonestyInvariantTests(unittest.TestCase):
     def setUp(self):
         self.stations = sr.load_registry()
 
-    def test_confirmed_set_is_exactly_sam_lug_sma_cov_sils(self):
+    def test_confirmed_set_includes_official_sia(self):
         # cov joined this set 2026-07-17 after a real network-enabled fetch
         # confirmed both its official metadata and 398,816 real historical
         # records - see config/stations.json's cov entry and
@@ -40,7 +40,7 @@ class HonestyInvariantTests(unittest.TestCase):
         # inspection, not a live provider fetch), see docs/STATION_RESEARCH.md's
         # "Sils / Segl (Silser See) manual import" section.
         confirmed = {sid for sid, s in self.stations.items() if s.verification == "confirmed"}
-        self.assertEqual(confirmed, {"sam", "lug", "sma", "cov", "sils"})
+        self.assertEqual(confirmed, {"sam", "sia", "lug", "sma", "cov", "sils"})
 
     def test_enabled_stations_are_all_confirmed(self):
         for sid, s in self.stations.items():
@@ -82,7 +82,7 @@ class LookupHelperTests(unittest.TestCase):
 
     def test_enabled_station_ids(self):
         ids = sr.enabled_station_ids(self.stations)
-        self.assertEqual(set(ids), {"sam", "lug", "sma", "cov", "sils"})
+        self.assertEqual(set(ids), {"sam", "sia", "lug", "sma", "cov", "sils"})
 
     def test_stations_by_role(self):
         pressure_stations = sr.stations_by_role("synoptic_pressure", self.stations)

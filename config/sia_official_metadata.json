@@ -1,0 +1,16 @@
+{
+  "station_abbr": "SIA",
+  "name": "Segl-Maria",
+  "canton": "GR",
+  "latitude": 46.432331,
+  "longitude": 9.762325,
+  "elevation_m": 1804.0,
+  "data_since": "01.12.1863",
+  "wigos_id": "0-20000-0-06779",
+  "verified_at": "2026-07-17T20:04:07+00:00",
+  "source_url": "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ogd-smn_meta_stations.csv",
+  "identity_note": "Identity/coordinates/elevation/data_since/wigos_id above were verified directly against a real, user-supplied copy of MeteoSwiss's official ogd-smn_meta_stations.csv (checksum recorded in logs/historical/manifests/assets.jsonl) - all fields matched exactly.",
+  "hourly_archive_confirmed_records": 108118,
+  "hourly_archive_confirmed_via": "live CI fetch, GitHub Actions run 29616366900, 2026-07-17: ogd-smn_sia_h_historical_2010-2019.csv (50,760 rows) + ogd-smn_sia_h_historical_2020-2029.csv (52,608) + ogd-smn_sia_h_recent.csv (4,728) + ogd-smn_sia_h_now.csv (22), merged to 108,118 records with 0 quality flags and 0 gaps (historical_data.py validate in the same run)",
+  "coverage_note": "TWO distinct SIA products exist and must not be conflated. (1) The official HOURLY ('_h_') product: 108,118 records confirmed by a real network-enabled CI fetch (see hourly_archive_confirmed_via) - the genuine hourly archive, starting in the 2010-2019 decade bucket (the earlier '108,116 rows from 2014-03-18' figure, once flagged unverifiable from local files alone, is consistent with this product +/- the moving recent/now tail; exact data_start is recorded in logs/historical/manifests/stations.json after each CI sync). It is re-fetched by `historical_data.py sync` in CI (normalized output gitignored/regenerable). (2) The 10-MINUTE ('_t_') product held locally from two user-supplied raw files (preserved under logs/historical/raw/meteoswiss/sia/, checksummed in the assets manifest): 2004-2009 synoptic-hours temperature/humidity only (NO wind), plus full-variable 10-minute data 2026-01-01..2026-07-16. The 10-minute decade files for 2010-2019/2020-2029 have NOT been acquired - the local mean-of-10-minute derived hourly records (flagged derived_from_10min_mean) exist only where the local 10-minute data does, and CI's genuine hourly product richer-record merge supersedes them where both cover the same hour. See docs/DATA_ARCHITECTURE.md's 'SIA ingestion' section."
+}

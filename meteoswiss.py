@@ -214,6 +214,34 @@ GENERIC_FIELD_COLUMNS = {
 _KMH_TO_MS_FIELDS = ("wind_speed_ms", "wind_gust_ms")
 PARSER_VERSION = 1
 
+# 10-minute ("t") granularity counterpart of GENERIC_FIELD_COLUMNS above -
+# same normalized field names, "z0/z1/s0"-suffixed raw columns instead of
+# "h0/h1". Confirmed against a real uploaded SIA ogd-smn_sia_t_recent.csv
+# file (2026-07-17): every column below was independently verified in
+# config/... via ogdsmn_meta_parameters.csv's own English descriptions, not
+# guessed from the hourly table by pattern-matching alone - see
+# docs/DATA_ARCHITECTURE.md's "SIA 10-minute ingestion" section.
+# pressure_sea_level_hpa's column (pp0qffs0, QFF) exists in the schema but
+# was NOT populated for SIA in that real file (SIA reports QFE/prestas0 and
+# QNH/pp0qnhs0 instead) - left mapped here since another station may
+# populate it; for SIA it will simply parse to None, which is honest, not
+# a bug.
+CONFIRMED_COLUMNS_10MIN = ("fu3010z0", "fu3010z1", "dkl010z0", "tre200s0", "prestas0")
+
+GENERIC_FIELD_COLUMNS_10MIN = {
+    "temperature_c": ("tre200s0", "degC"),
+    "relative_humidity_pct": ("ure200s0", "percent"),
+    "dew_point_c": ("tde200s0", "degC"),
+    "wind_speed_ms": ("fu3010z0", "km/h"),   # converted to m/s during parsing
+    "wind_gust_ms": ("fu3010z1", "km/h"),    # converted to m/s during parsing
+    "wind_direction_deg": ("dkl010z0", "degrees"),
+    "precipitation_mm": ("rre150z0", "mm"),
+    "global_radiation_wm2": ("gre000z0", "W/m2"),
+    "sunshine_duration_min": ("sre000z0", "min"),
+    "pressure_station_hpa": ("prestas0", "hPa"),
+    "pressure_sea_level_hpa": ("pp0qffs0", "hPa"),
+}
+
 
 def fetch_station_metadata(station_id: str = None) -> dict:
     """Fetches the official MeteoSwiss station metadata CSV
@@ -280,12 +308,16 @@ def _safe_float(raw):
     return v if v == v else None  # NaN check
 
 
-def parse_generic_station_csv(text: str, requested_variables=None) -> dict:
-    """Generic multi-variable parser. requested_variables=None parses
-    whatever's available (best-effort); pass an explicit list of
-    normalized field names to REQUIRE them - a variable requested but
-    whose column isn't in this CSV's header raises ValueError immediately
-    rather than silently returning None for it forever.
+def _parse_generic_station_csv(text: str, field_columns: dict, confirmed_columns: tuple,
+                                requested_variables=None) -> dict:
+    """Shared core behind parse_generic_station_csv (hourly, 'h0/h1'
+    columns) and parse_generic_station_csv_10min (10-minute, 'z0/z1/s0'
+    columns) - identical parsing/validation logic, only the field->column
+    table differs. requested_variables=None parses whatever's available
+    (best-effort); pass an explicit list of normalized field names to
+    REQUIRE them - a variable requested but whose column isn't in this
+    CSV's header raises ValueError immediately rather than silently
+    returning None for it forever.
 
     Returns {"observations": {datetime_utc: {field: value}},
              "raw_column_map": {field: raw_column_code},
@@ -294,11 +326,11 @@ def parse_generic_station_csv(text: str, requested_variables=None) -> dict:
     reader = csv.DictReader(io.StringIO(text), delimiter=";")
     header_lower = {h.lower() for h in (reader.fieldnames or [])}
 
-    wanted = requested_variables if requested_variables is not None else list(GENERIC_FIELD_COLUMNS)
+    wanted = requested_variables if requested_variables is not None else list(field_columns)
     raw_column_map = {}
     missing = []
     for field in wanted:
-        spec = GENERIC_FIELD_COLUMNS.get(field)
+        spec = field_columns.get(field)
         if spec is None:
             missing.append(field)  # not a recognized normalized field name at all
             continue
@@ -336,11 +368,25 @@ def parse_generic_station_csv(text: str, requested_variables=None) -> dict:
     return {
         "observations": obs,
         "raw_column_map": raw_column_map,
-        "units": {f: ("m/s" if f in _KMH_TO_MS_FIELDS else GENERIC_FIELD_COLUMNS[f][1]) for f in raw_column_map},
-        "confirmed_columns": sorted(used_columns & set(CONFIRMED_COLUMNS)),
-        "unconfirmed_columns": sorted(used_columns - set(CONFIRMED_COLUMNS)),
+        "units": {f: ("m/s" if f in _KMH_TO_MS_FIELDS else field_columns[f][1]) for f in raw_column_map},
+        "confirmed_columns": sorted(used_columns & set(confirmed_columns)),
+        "unconfirmed_columns": sorted(used_columns - set(confirmed_columns)),
         "parser_version": PARSER_VERSION,
     }
+
+
+def parse_generic_station_csv(text: str, requested_variables=None) -> dict:
+    """Generic multi-variable HOURLY ('h0/h1'-suffixed columns) parser -
+    see _parse_generic_station_csv for the shared behaviour/return shape."""
+    return _parse_generic_station_csv(text, GENERIC_FIELD_COLUMNS, CONFIRMED_COLUMNS, requested_variables)
+
+
+def parse_generic_station_csv_10min(text: str, requested_variables=None) -> dict:
+    """Generic multi-variable 10-MINUTE ('z0/z1/s0'-suffixed columns)
+    parser, for MeteoSwiss's ogd-smn_<station>_t_*.csv files - see
+    _parse_generic_station_csv for the shared behaviour/return shape."""
+    return _parse_generic_station_csv(text, GENERIC_FIELD_COLUMNS_10MIN, CONFIRMED_COLUMNS_10MIN,
+                                       requested_variables)
 
 
 def fetch_station_observations(station_id: str, include_historical: bool = True, variables=None) -> dict:

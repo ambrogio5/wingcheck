@@ -242,7 +242,102 @@ via any `sync`/`coverage` call.
 
 ## Licensing and provenance
 
-All three confirmed stations (`sam`, `lug`, `sma`) are MeteoSwiss
+### Ground-truth registry and SIA calibration
+
+`logs/historical/ground_truth/observations.jsonl` is the derived canonical
+registry used to prepare labels. It deliberately supports several records per
+UTC timestamp: lake/Windsurfcenter, SIA and Samedan are not collapsed during
+ingestion. Each row retains station ID, original source asset/retrieval
+metadata, quality flags, validation status and confidence.
+
+Selection is a separate policy operation (`config/ground_truth_policy.json`,
+policy_version 2 - the provisional SIA-first policy): direct lake
+measurements (source `kitesailing`) always win; SIA is the principal
+reference when no lake reading exists; a missing lake+SIA hour stays
+UNLABELED. **Samedan is deliberately no longer a default label**
+(`allow_samedan_fallback: false`) - it stays in the registry as preserved
+context and may only be re-enabled inside an explicitly named research
+experiment (`legacy_samedan_proxy`), never silently. SIA's measurement
+quality (official MeteoSwiss station) is kept separate from its
+equivalence to the Windsurfcenter/lake target, which is UNMEASURED - the
+policy's `sia_confidence` is null on purpose, and
+`station_calibration.py`'s maturity gates (fewer than 14 independent
+overlapping days = insufficient; 14-41 = preliminary; 42+ = calibration
+candidate) govern what may even be *reported*, let alone acted on. The
+analysis command never edits policy or production weights - any policy
+change is a reviewed edit of the versioned policy file citing a real
+calibration report.
+
+### SIA ingestion - real coverage across two distinct products
+
+Official SIA identity metadata is snapshotted in
+`config/sia_official_metadata.json`, verified against a real user-supplied
+copy of MeteoSwiss's `ogd-smn_meta_stations.csv`.
+
+**The genuine HOURLY ("_h_") product** was confirmed by a real
+network-enabled CI fetch (GitHub Actions run 29616366900, 2026-07-17):
+**108,118 records** (50,760 from the 2010-2019 decade file + 52,608 from
+2020-2029 + 4,728 recent + 22 now), 0 quality flags, 0 gaps. An earlier
+"108,116 rows from 2014-03-18" figure - flagged unverifiable when only
+local files existed - is consistent with this product (±the moving
+recent/now tail). CI's `historical_data.py sync` re-fetches it on demand;
+the normalized output stays gitignored/regenerable, with real coverage
+figures recorded in `manifests/stations.json` on every CI sync.
+
+**The 10-MINUTE ("_t_") product** held locally (two user-supplied raw
+files, preserved unmodified + sha256-checksummed under
+`logs/historical/raw/meteoswiss/sia/`, ingested by `sia_import.py`):
+
+- `ogd-smn_sia_t_historical_2000-2009.csv`: 6,472 rows, 2004-02-01 through
+  2009-12-31, at three fixed synoptic hours per day (06/12/18) -
+  temperature/humidity/dew point/vapour pressure ONLY, **no wind**.
+- `ogd-smn_sia_t_recent.csv`: 28,368 rows, true 10-minute cadence,
+  2026-01-01 through 2026-07-16 - full variable set (wind fu3010z0/fkl010z0,
+  gust fu3010z1, direction dkl010z0, QFE prestas0, precipitation,
+  radiation, sunshine; column meanings verified against the official
+  `ogd-smn_meta_parameters.csv`, never guessed).
+- **Open gap in the LOCAL 10-minute holdings: 2010 through 2025** (the
+  `_t_historical_2010-2019` / `2020-2029` decade files have not been
+  acquired). The genuine HOURLY product above covers that span - the gap
+  applies to sub-hourly resolution only.
+
+`logs/historical/station_10min/sia.jsonl` holds the normalized real
+10-minute records; `logs/historical/station_hourly/sia.jsonl` holds, in a
+local-only checkout, top-of-hour aggregates honestly DERIVED from them
+(arithmetic mean for scalars, vector/circular mean for direction, max for
+gust; every record flagged `derived_from_10min_mean` + `n_10min_samples:N`;
+an hour with no real 10-minute data simply does not exist - never
+interpolated). A CI sync merges the genuine hourly ("_h_") product on top
+via the richer-record-wins merge, superseding derived records where both
+cover an hour. Both normalized files are gitignored/regenerable; the raw
+files + checksums in `manifests/assets.jsonl` are the committed source of
+truth.
+
+### Station identity rules (sils / sia / kitesailing / windsurfcenter)
+
+Nearby names are NOT merged without conclusive evidence: `sils` (a 22-row
+user-provided sample, 2014-04-02) is kept distinct from `sia` - its
+station-level pressure (845-848 hPa, ~1550m equivalent) is ~25 hPa above
+SIA's real measured QFE (~816-826 hPa at 1804m), and its format (knots,
+METAR cloud codes) matches no MeteoSwiss product. Likewise the live
+`kitesailing` scrape is NOT labeled `windsurfcenter` - the widget is
+embedded on kitesailing.ch and its upstream sensor identity has not been
+demonstrated; `windsurfcenter_silvaplana` exists in the registry as an
+explicitly unverified, dataless placeholder until the real archive is
+acquired. If two names are ever proven aliases of one physical station,
+document the evidence and introduce a canonical ID with preserved source
+aliases - never silently collapse them.
+
+`retraining_dataset.py` joins the current feature rows to approved registry
+labels, writes label provenance (source, station, confidence,
+policy_version, source provenance) into every output row and reports
+exclusions plus coverage by source/year/month/confidence. It stops before
+model training so calibration can be reviewed first.
+`model_comparison_sia.py` is the research-only comparison harness (fresh
+`model.new_weights()` per fold, day-grouped chronological splits, asserts
+`weights.json` is byte-identical before/after).
+
+Confirmed MeteoSwiss stations (`sam`, `sia`, `lug`, `sma`, `cov`) are
 SwissMetNet stations under MeteoSwiss Open Data (opendata.swiss terms of
 use - attribution required, commercial use permitted). Every candidate
 station's presumed licence is recorded in `config/stations.json`'s

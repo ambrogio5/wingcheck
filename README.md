@@ -7,6 +7,48 @@ from 20+ raw data points, sends Telegram alerts, verifies itself against the
 real kitesailing.ch Silvaplana lake reading (MeteoSwiss's Samedan station as
 fallback + secondary signal), and retrains its weights nightly.
 
+## SIA and auditable ground truth
+
+Segl-Maria (`SIA`, WIGOS 0-20000-0-06779) is a confirmed official MeteoSwiss
+station ~4km up-corridor from the Silvaplana lake at the same elevation band -
+the principal near-lake historical reference while direct lake coverage is
+still sparse. Real verified coverage (from user-supplied official OGD files,
+preserved + checksummed under `logs/historical/raw/meteoswiss/sia/`):
+2004-2009 synoptic-hours temperature/humidity only (no wind), plus
+full-variable 10-minute data (wind, gust, direction, QFE pressure,
+precipitation, radiation, sunshine) for 2026-01-01 onward. **There is a real,
+open coverage gap from 2010 through 2025** - see
+`docs/DATA_ARCHITECTURE.md`'s SIA section. Hourly records are honest
+mean-of-10-minute aggregates, flagged as derived.
+
+The live ground-truth priority (`config/ground_truth_policy.json`, v2) is:
+
+1. direct lake measurement (kitesailing.ch scrape) - always wins
+2. SIA - principal reference when no lake reading exists
+3. missing label - never fabricated; **Samedan is context only, no longer a
+   default label** (re-enable only inside an explicitly named research
+   experiment)
+
+Training-data preparation now has explicit, inspectable steps:
+
+```bash
+python3 sia_import.py --historical <ogd-smn_sia_t_historical_*.csv> --recent <ogd-smn_sia_t_recent.csv>
+python3 ground_truth.py build \
+  --source kitesailing=logs/kitesailing_observations.jsonl \
+  --source sia=logs/historical/station_hourly/sia.jsonl \
+  --source sam=logs/historical/station_hourly/sam.jsonl
+python3 station_calibration.py --source-a kitesailing --source-b sia
+python3 retraining_dataset.py
+python3 model_comparison_sia.py
+```
+
+`ground_truth.py` preserves multiple observations per timestamp with full
+provenance. SIA's equivalence to the lake target is UNMEASURED (calibration
+maturity: insufficient - fewer than 14 independent overlapping days) - its
+label confidence is deliberately null, not guessed. None of these scripts
+ever writes `weights.json`; production retraining stays a separate,
+human-reviewed step gated on real calibration and label coverage.
+
 ## Setup (once, ~15 minutes)
 
 ### 1. Create the repo

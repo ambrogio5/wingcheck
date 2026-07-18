@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-17T20:39:18.071123+00:00",
+  "generated_at": "2026-07-18T03:21:38.012348+00:00",
   "total_samples": 3118,
   "samples_per_year": {
     "2024": 1288,
@@ -22395,13 +22395,13 @@
     "last_attempt_at": "2026-07-17T16:42:43.949919+00:00",
     "last_success_at": "2026-07-17T16:42:43.949919+00:00",
     "last_observation_at": "2026-07-17T16:42:43.949919+00:00",
-    "age_minutes": 236.6,
-    "observations_today": 3,
-    "successful_attempts_today": 3,
+    "age_minutes": 638.9,
+    "observations_today": 0,
+    "successful_attempts_today": 0,
     "failed_attempts_today": 0,
-    "coverage_12_18": 0.077,
+    "coverage_12_18": 0.0,
     "expected_collection_count": 13,
-    "actual_collection_count": 1,
+    "actual_collection_count": 0,
     "consecutive_failures": 0,
     "failure_categories": {
       "navigation_error:BrowserType.launch: Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell\n\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n\u2551 Looks like Playwright was just installed or updated.       \u2551\n\u2551 Please run the following command to download new browsers: \u2551\n\u2551                                                            \u2551\n\u2551     playwright install                                     \u2551\n\u2551                                                            \u2551\n\u2551 <3 Playwright Team                                         \u2551\n\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d": 1
@@ -22415,13 +22415,87 @@
   },
   "verification_sources": {
     "silvaplana_lake_count": 0,
+    "sia_reference_count": 0,
+    "legacy_samedan_fallback_count": 7,
     "samedan_fallback_count": 7,
     "lake_coverage_pct": 0.0,
+    "sia_coverage_pct": 0.0,
     "unmatched_count": 0
   },
   "lake_water_temperature": {
     "temp_c": 19.7,
     "observed_at": "2026-07-17T16:42:43.949919+00:00",
     "confirmed_water_temperature": false
+  },
+  "reference_stations": {
+    "windsurfcenter_silvaplana": {
+      "name": "Windsurfcenter Silvaplana (lake station)",
+      "role": "intended primary target (no data acquired yet)",
+      "enabled": false,
+      "verification": "unverified",
+      "n_records": 0,
+      "data_start": null,
+      "data_end": null,
+      "n_records_10min": 0
+    },
+    "sia": {
+      "name": "Segl-Maria",
+      "role": "principal near-lake historical reference",
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 108118,
+      "data_start": "2014-03-18T00:00:00+00:00",
+      "data_end": "2026-07-17T21:00:00+00:00",
+      "n_records_10min": 34840
+    },
+    "sils": {
+      "name": "Sils / Segl (Silser See)",
+      "role": "distinct user-provided lake-adjacent sample",
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 22,
+      "data_start": "2014-04-01T22:00:00+00:00",
+      "data_end": "2014-04-02T21:00:00+00:00",
+      "n_records_10min": 0
+    },
+    "sam": {
+      "name": "Samedan",
+      "role": "contextual down-valley station (no longer the default label)",
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 399192,
+      "data_start": "1981-01-01T00:00:00+00:00",
+      "data_end": "2026-07-16T23:00:00+00:00",
+      "n_records_10min": 0
+    },
+    "cov": {
+      "name": "Piz Corvatsch",
+      "role": "summit / competing-flow predictor",
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 398840,
+      "data_start": "1981-01-01T00:00:00+00:00",
+      "data_end": "2026-07-17T21:00:00+00:00",
+      "n_records_10min": 0
+    }
+  },
+  "ground_truth_policy": {
+    "policy_version": 2,
+    "priority": [
+      "direct_lake",
+      "sia_reference"
+    ],
+    "samedan_reference_allowed": false,
+    "sia_calibration_status": "insufficient_evidence",
+    "relationship_classification": "insufficient_evidence"
+  },
+  "station_agreement": {
+    "source_a": "kitesailing",
+    "source_b": "sia",
+    "independent_overlapping_days": 2,
+    "calibration_maturity": "insufficient",
+    "classification": "insufficient_evidence",
+    "generated_at": "2026-07-17T22:05:00.601702+00:00",
+    "n_pairs": 5
   }
 }
