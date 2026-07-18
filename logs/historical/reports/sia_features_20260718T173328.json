@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-18T17:33:28.369383+00:00",
+  "candidate_features": [
+    "sia_morning_wind_score",
+    "sia_morning_trend",
+    "sia_gust_factor"
+  ],
+  "n_rows": 3122,
+  "n_days": 446,
+  "n_days_missing_morning_obs": 0,
+  "epochs": 40,
+  "seed": 20260716,
+  "folds": [
+    {
+      "validation_year": "2025",
+      "n_train": 1288,
+      "n_validate": 1288,
+      "model_c0_production_features": {
+        "n": 1288,
+        "threshold": 0.5,
+        "accuracy": 0.7438,
+        "balanced_accuracy": 0.7484,
+        "precision": 0.6724,
+        "recall": 0.78,
+        "specificity": 0.7168,
+        "f1": 0.7222,
+        "true_positive": 429,
+        "false_positive": 209,
+        "true_negative": 529,
+        "false_negative": 121,
+        "positive_rate": 0.427,
+        "majority_baseline_accuracy": 0.573,
+        "brier_score": 0.1812,
+        "roc_auc": 0.82,
+        "pr_auc": 0.7424
+      },
+      "model_c_plus_sia_features": {
+        "n": 1288,
+        "threshold": 0.5,
+        "accuracy": 0.7531,
+        "balanced_accuracy": 0.7582,
+        "precision": 0.6813,
+        "recall": 0.7927,
+        "specificity": 0.7236,
+        "f1": 0.7328,
+        "true_positive": 436,
+        "false_positive": 204,
+        "true_negative": 534,
+        "false_negative": 114,
+        "positive_rate": 0.427,
+        "majority_baseline_accuracy": 0.573,
+        "brier_score": 0.1749,
+        "roc_auc": 0.8287,
+        "pr_auc": 0.7521
+      },
+      "sia_feature_weights_learned": {
+        "sia_morning_wind_score": 1.3275,
+        "sia_morning_trend": -0.1318,
+        "sia_gust_factor": -0.7962
+      }
+    },
+    {
+      "validation_year": "2026",
+      "n_train": 2576,
+      "n_validate": 546,
+      "model_c0_production_features": {
+        "n": 546,
+        "threshold": 0.5,
+        "accuracy": 0.7601,
+        "balanced_accuracy": 0.7562,
+        "precision": 0.6724,
+        "recall": 0.7393,
+        "specificity": 0.7731,
+        "f1": 0.7043,
+        "true_positive": 156,
+        "false_positive": 76,
+        "true_negative": 259,
+        "false_negative": 55,
+        "positive_rate": 0.3864,
+        "majority_baseline_accuracy": 0.6136,
+        "brier_score": 0.1682,
+        "roc_auc": 0.8264,
+        "pr_auc": 0.7769
+      },
+      "model_c_plus_sia_features": {
+        "n": 546,
+        "threshold": 0.5,
+        "accuracy": 0.7527,
+        "balanced_accuracy": 0.7485,
+        "precision": 0.6638,
+        "recall": 0.7299,
+        "specificity": 0.7672,
+        "f1": 0.6953,
+        "true_positive": 154,
+        "false_positive": 78,
+        "true_negative": 257,
+        "false_negative": 57,
+        "positive_rate": 0.3864,
+        "majority_baseline_accuracy": 0.6136,
+        "brier_score": 0.1699,
+        "roc_auc": 0.8247,
+        "pr_auc": 0.7752
+      },
+      "sia_feature_weights_learned": {
+        "sia_morning_wind_score": 1.488,
+        "sia_morning_trend": -0.1154,
+        "sia_gust_factor": -0.7423
+      }
+    }
+  ],
+  "weights_modified": false
+}
