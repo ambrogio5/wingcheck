@@ -179,6 +179,8 @@ jobs:
       - run: pip install requests
       - run: python -m unittest discover -s tests
       - run: python station_nowcast.py
+      - run: python candidate_signals.py   # log-only probation signals (unscored) - reuses the SIA/COV fetch host
+        continue-on-error: true             # a probation-signal fetch hiccup must never fail the real forecast
       - run: python forecast_and_log.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -189,7 +191,7 @@ jobs:
           git config user.name "wingcheck-bot"
           git config user.email "actions@users.noreply.github.com"
           git add logs/predictions.jsonl logs/forecast_issuances.jsonl docs/dashboard_data.json \
-                  logs/historical/forecast_vintages/
+                  logs/historical/forecast_vintages/ logs/candidate_signals.jsonl
           git diff --staged --quiet || git commit -m "log predictions and refresh dashboard $(date -u +%F)"
           git pull --rebase origin "$GITHUB_REF_NAME"
           git push
@@ -242,11 +244,13 @@ jobs:
         if: inputs.metadata_station != ''
         run: python historical_data.py metadata --station "${{ inputs.metadata_station }}"
       - run: python historical_data.py validate || true  # diagnostic - flags issues, never blocks the commit
+      - run: python candidate_signals.py   # log-only probation signals (unscored), same SIA/COV fetch host
+        continue-on-error: true
       - name: Commit historical archive manifests
         run: |
           git config user.name "wingcheck-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add logs/historical/manifests/
+          git add logs/historical/manifests/ logs/candidate_signals.jsonl
           git diff --staged --quiet || git commit -m "sync historical station archive $(date -u +%F)"
           git pull --rebase origin "$GITHUB_REF_NAME"
           git push

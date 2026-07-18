@@ -180,6 +180,57 @@ Because `sync` merges records instead of replacing the file, importing
 additional files later (more dates, or a different station) for the same
 manually-sourced id just accumulates.
 
+## Candidate signals on probation (`candidate_signals.py`)
+
+Three new signals are being **logged but NOT scored** while we accumulate
+enough real history to evaluate them honestly. They are candidates on
+probation, subject to the same maturity discipline as the SIA/lake ratio
+in `config/ground_truth_policy.json`: nothing here touches
+`features.py`, `weights.json`, model scoring, or the dashboard tiers.
+`candidate_signals.py` fetches the 10-minute recent files for the
+user-verified official MeteoSwiss stations via
+`meteoswiss.fetch_station_raw_10min` (a low-level, raw-column-addressed
+extension of the existing fetch pattern — needed because QNH pressure has
+no `NORMALIZED_FIELDS` slot), derives the three signals, and appends one
+record per 10-minute UTC observation timestamp (deduped, forward-only) to
+`logs/candidate_signals.jsonl` — committed, small, append-only. It runs in
+the existing `forecast` job (right after `station_nowcast.py`, which
+already fetches SIA/COV/SAM), `continue-on-error` so a probation-signal
+hiccup can never fail the real forecast.
+
+The signals (every raw component is stored beside every derived value so
+they can be re-derived differently later, no re-fetch):
+
+1. **`corvatsch_wind`** — COV (Piz Corvatsch, 3294 m) `fu3010z0` speed /
+   `fu3010z1` gust / `dkl010z0` direction. Free-air flow aloft; the
+   hypothesis is it gates whether the valley thermal establishes.
+2. **`bregaglia_engadin_gradient`** — sea-level-reduced pressure
+   difference VIO (Vicosoprano, 1089 m, warm south side of the Maloja
+   pass) minus SAM (Samedan, 1709 m) and minus SIA (Segl-Maria, 1804 m).
+   **Uses a sea-level-reduced field (QFF `pp0qffs0` preferred, QNH
+   `pp0qnhs0` fallback), never the raw station pressure `prestas0`** — the
+   raw difference is ~62 hPa of pure altitude offset (VIO sits 620 m below
+   SAM) and is meteorologically meaningless. The reduction field actually
+   used is recorded per station in each record's provenance.
+3. **`valley_summit_temp_spread`** — `tre200s0`(SIA) minus `tre200s0`(COV),
+   a thermal-buildup proxy that showed a faint ~1 h lead on lake wind in
+   the initial 2-day sample.
+
+**Why probation (do not trust the 2-day sample):** the 2-day correlations
+(COV daytime wind r≈0.80, VIO−SAM gradient r≈0.66) are almost entirely a
+*between-day* artifact — Friday was windy, Saturday was not, so anything
+that also differs Fri/Sat correlates by coincidence rather than mechanism.
+COV free-air wind even flips sign within a single afternoon. None of these
+is trustworthy until there are ~2 weeks of **independent days**, at which
+point they can be evaluated against the lake reading the same way any
+candidate feature must be before promotion. `vio` is fetched by its
+official abbreviation and kept strictly separate from the pre-existing
+`vicosoprano` entry in `config/stations.json`, which is an Open-Meteo
+forecast-grid point, **not** this MeteoSwiss ground station — they are not
+conflated, and `vio` is deliberately not added to the station registry
+until a human confirms the fetch (see that entry's own note and
+`docs/STATION_RESEARCH.md`'s no-guessing rule).
+
 ## Data quality (`data_quality.py`)
 
 Wired into `historical_data.py validate`. Checks, per record: implausible

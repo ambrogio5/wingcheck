@@ -46,6 +46,44 @@ def _recent_url(station: str) -> str:
     return f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station}/ogd-smn_{station}_h_recent.csv"
 
 
+def _recent_url_10min(station: str) -> str:
+    """The 10-minute ('_t_') recent file, same host/naming family as the
+    hourly '_h_' recent file above - confirmed by the real uploaded SIA
+    files (ogd-smn_sia_t_recent.csv). Used by fetch_station_raw_10min."""
+    return f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station}/ogd-smn_{station}_t_recent.csv"
+
+
+def fetch_station_raw_10min(station: str, column_codes) -> dict:
+    """Fetches a station's 10-minute recent CSV and returns
+    {datetime_utc: {raw_column_code: float or None}} for exactly the raw
+    column codes requested (e.g. 'fu3010z0', 'pp0qnhs0'). Deliberately
+    low-level and code-addressed (NOT normalized into NORMALIZED_FIELDS):
+    it exists for research/candidate-signal logging that needs raw columns
+    with no normalized slot (QNH pressure has none). Reuses the same
+    request + timestamp-parsing + _safe_float path as the normalized
+    parsers so there is only one CSV-reading implementation, and NEVER
+    invents a value - a column absent from the header, or an unparseable
+    cell, is None for that tick. Raises on network/HTTP failure; callers
+    that must stay best-effort catch it (candidate_signals.py does)."""
+    r = requests.get(_recent_url_10min(station), timeout=120)
+    r.raise_for_status()
+    text = r.content.decode("utf-8", errors="replace")
+    reader = csv.DictReader(io.StringIO(text), delimiter=";")
+    wanted = [c.lower() for c in column_codes]
+    out = {}
+    for row in reader:
+        row = {k.lower(): v for k, v in row.items()}
+        ts_raw = row.get("reference_timestamp") or row.get("time")
+        if not ts_raw:
+            continue
+        try:
+            dt = datetime.strptime(ts_raw.strip(), "%d.%m.%Y %H:%M").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        out[dt] = {code: _safe_float(row.get(code)) for code in wanted}
+    return out
+
+
 def _parse_wind_csv(text: str) -> dict:
     """Returns {datetime_utc: {"speed_kmh":..., "gust_kmh":...}}."""
     reader = csv.DictReader(io.StringIO(text), delimiter=";")
