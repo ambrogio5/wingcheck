@@ -363,6 +363,9 @@
   <section class="card" id="refStationsSection" aria-labelledby="refstations-h" style="display:none;">
     <div class="section-head"><h2 id="refstations-h">Historical reference stations</h2>
       <div class="hint">Ground-truth sources, coverage and the current label policy</div></div>
+    <div class="health-sub-head">Latest SIA reading <span class="hint">(Segl-Maria — the label reference station)</span></div>
+    <div class="stat-row" id="latestSiaRow"></div>
+    <div class="health-sub-head">Label policy</div>
     <div class="stat-row" id="groundTruthPolicyRow"></div>
     <div class="health-sub-head">Station coverage</div>
     <div id="refStationsTable"></div>
@@ -831,6 +834,20 @@ function renderReferenceStations(d){
   if (!Object.keys(rs).length){ return; }
   section.style.display = '';
 
+  const sia = d.latest_sia_observation || {};
+  const siaRow = document.getElementById('latestSiaRow');
+  if (sia.wind_kt != null){
+    const ageH = sia.observed_at ? hoursAgo(sia.observed_at) : null;
+    siaRow.innerHTML = [
+      ['Wind', sia.wind_kt+' kt' + (sia.wind_dir ? ' '+sia.wind_dir : '')],
+      ['Gust', sia.gust_kt != null ? sia.gust_kt+' kt' : '—'],
+      ['Temp', sia.temp_c != null ? sia.temp_c.toFixed(1)+'°C' : '—'],
+      ['Observed', ageH != null ? fmtAge(ageH*60)+' ago' : '—'],
+    ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
+  } else {
+    siaRow.innerHTML = '<div class="empty-state">No SIA reading cached yet.</div>';
+  }
+
   document.getElementById('groundTruthPolicyRow').innerHTML = [
     ['Policy version', policy.policy_version ?? '—'],
     ['Label priority', (policy.priority||[]).join(' → ') || '—'],
@@ -1146,7 +1163,7 @@ window.__FALLBACK__ = {
   daily_diagnostics:{}, session_forecast:{}, station_health:{}, model_agreement:{}, data_provenance:{},
   lake_station_health:{}, summit_station_health:{}, verification_sources:{},
   station_nowcast_status:{}, lake_water_temperature:{},
-  reference_stations:{}, ground_truth_policy:{}, station_agreement:{},
+  reference_stations:{}, ground_truth_policy:{}, station_agreement:{}, latest_sia_observation:{},
 };
 </script>
 </body>
