@@ -35,6 +35,17 @@ DEFAULT_POLICY_PATH = os.path.join(BASE_DIR, "config", "ground_truth_policy.json
 
 SOURCE_PRIORITY = {"kitesailing": 0, "windsurfcenter": 0, "silvaplana_lake": 0, "sia": 1, "sam": 2}
 
+# The rideability threshold applied to a SIA-sourced label, in knots - the
+# same 10kt criterion as the direct lake reading (SILVAPLANA_MARGINAL_KT),
+# deliberately with no offset/correction: SIA<->lake equivalence is
+# unmeasured (see station_calibration.py's maturity gates), so any
+# "calibrated" adjustment now would be invented. Both verify_and_learn.py
+# (live) and backtest.py (historical retrain) import THIS constant so the
+# live and historical labeling criteria can never silently drift apart
+# again - that split (SAM_PROXY_KT vs SILVAPLANA_MARGINAL_KT) was exactly
+# the documented labeling-criterion mismatch the SIA-first policy closed.
+SIA_REFERENCE_KT = 10.0
+
 # Provenance/derivation markers that describe HOW a record was produced, not
 # a problem with it - they must never disqualify an observation from
 # labeling the way a real data-quality flag (implausible value, gust <

@@ -10,17 +10,25 @@ builds the training set directly from history:
     this is still 0-hour archive data, not a genuine multi-day-ahead
     forecast with real lead-time error - see the "Known limitations"
     section of README.md.
-  - Ground truth: MeteoSwiss's real Samedan (SAM) station observations.
-    This is a DIFFERENT source than verify_and_learn.py now uses live (the
-    kitesailing.ch Silvaplana lake reading) - there's no historical archive
-    for that station, only Samedan has multi-year history, so this is the
-    only ground truth a full historical retrain can use. That means the
-    weights this script produces are labeled on the SAM_PROXY_KT criterion,
-    while the live loop's online updates are labeled on the real lake
-    threshold (SILVAPLANA_MARGINAL_KT in verify_and_learn.py) - a real
-    labeling-criterion mismatch to be aware of until enough live
-    kitesailing history accumulates to backtest against directly. See
-    CLAUDE.md.
+  - Ground truth: MeteoSwiss's real Segl-Maria (SIA) station observations,
+    selected through the same SIA-first policy (`ground_truth.select_label`,
+    config/ground_truth_policy.json v2) the live loop uses - SIA's genuine
+    hourly archive (108k+ records, 2014->present, fetched/cached via
+    historical_cache.get_sia_archive) fully covers every backtest season.
+    The kitesailing.ch lake reading, the live loop's top-priority source,
+    has no historical archive yet, so historically SIA (the policy's
+    principal reference, ~4km from the lake at the same elevation band) is
+    the effective label source; an hour with no acceptable SIA observation
+    is EXCLUDED, never silently Samedan-labeled. Both this script and
+    verify_and_learn.py label on the shared ground_truth.SIA_REFERENCE_KT
+    criterion, closing the historical-vs-live labeling-criterion mismatch
+    that existed while this script still labeled on Samedan/SAM_PROXY_KT
+    (see CLAUDE.md's "Ground truth and retraining gate", and the
+    model_comparison_sia.py report that justified this switch: consistent
+    chronological improvement across 2025/2026 folds). Samedan observations
+    are still fetched - as a model FEATURE (samedan_morning_score) and as
+    per-row context (samedan_wind_kt/samedan_gust_kt) - just never as the
+    label.
 
 Seasons covered: May-October, for 2024, 2025, and 2026 (up to today) -
 i.e. wingfoil season only, matching how you'd actually use this.
@@ -100,8 +108,9 @@ from zoneinfo import ZoneInfo
 
 from ablation import run_ablation
 from features import engineer_features
-from historical_cache import get_season_raw, get_samedan_archive, get_pressure_archive
-from meteoswiss import LUGANO_STATION, ZURICH_STATION, SAM_PROXY_KT
+import ground_truth
+from historical_cache import get_season_raw, get_samedan_archive, get_pressure_archive, get_sia_archive
+from meteoswiss import LUGANO_STATION, ZURICH_STATION
 from metrics import (
     build_session_samples,
     calibrate_good_threshold,
@@ -138,7 +147,32 @@ def kt(kmh: float) -> float:
     return kmh / 1.852
 
 
-def build_samples_for_season(start_date, end_date, year, sam_obs, lugano_obs, zurich_obs, is_closed):
+MS_TO_KT = 1.943844
+
+
+def select_backtest_label(dt_utc, sia_obs, policy):
+    """SIA-first label for one target hour, selected through the same
+    ground_truth.select_label policy machinery the live loop uses. Returns
+    the selected canonical observation, or None when no acceptable
+    observation exists - the hour is then EXCLUDED, never proxy-labeled."""
+    vals = sia_obs.get(dt_utc)
+    if vals is None or vals.get("wind_speed_ms") is None:
+        return None
+    candidate = ground_truth.canonical_observation(
+        timestamp_utc=dt_utc.isoformat(),
+        source="sia", station_id="sia",
+        wind_speed_ms=vals.get("wind_speed_ms"),
+        wind_gust_ms=vals.get("wind_gust_ms"),
+        wind_direction_deg=vals.get("wind_direction_deg"),
+        temperature_c=vals.get("temperature_c"),
+        provenance={"source_asset": "meteoswiss:sia:hourly_archive (historical_cache.get_sia_archive)"},
+        validation_status="source_validated",
+    )
+    return ground_truth.select_label([candidate], policy)
+
+
+def build_samples_for_season(start_date, end_date, year, sia_obs, policy,
+                              sam_obs, lugano_obs, zurich_obs, is_closed):
     raw = get_season_raw(start_date, end_date, year, is_closed)
     # fetch_raw_historical doesn't fetch these itself (would re-download
     # the whole multi-year archives per season) - inject the copies we
@@ -150,22 +184,25 @@ def build_samples_for_season(start_date, end_date, year, sam_obs, lugano_obs, zu
     times = raw["silvaplana"]["time"]
 
     samples = []
+    excluded_no_label = 0
     for idx, t in enumerate(times):
         dt_local = datetime.fromisoformat(t).replace(tzinfo=ZURICH_TZ)
         if not (WINDOW_START_HOUR <= dt_local.hour <= WINDOW_END_HOUR):
             continue
 
         dt_utc = dt_local.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
-        obs = sam_obs.get(dt_utc)
-        if obs is None:
-            continue  # no ground truth for this hour, skip
+        label = select_backtest_label(dt_utc, sia_obs, policy)
+        if label is None:
+            # no acceptable SIA observation - excluded, never Samedan-labeled
+            excluded_no_label += 1
+            continue
 
         feats = engineer_features(raw, idx)
-        actual_kt = kt(obs["speed_kmh"])
-        actual_gust_kt = kt(obs["gust_kmh"])
-        outcome = 1.0 if actual_kt >= SAM_PROXY_KT else 0.0
+        actual_kt = label["wind_speed_ms"] * MS_TO_KT
+        actual_gust_kt = (label["wind_gust_ms"] or 0.0) * MS_TO_KT
+        outcome = 1.0 if actual_kt >= ground_truth.SIA_REFERENCE_KT else 0.0
 
-        samples.append({
+        sample = {
             "date": t,
             "year": year,
             "features": feats,
@@ -173,8 +210,21 @@ def build_samples_for_season(start_date, end_date, year, sam_obs, lugano_obs, zu
             "actual_wind_kt": round(actual_kt, 1),
             "actual_gust_kt": round(actual_gust_kt, 1),
             "outcome": outcome,
-        })
-    print(f"  -> {len(samples)} labeled hours")
+            "ground_truth_source": label["source"],
+            "label_provenance": {
+                "source": label["source"], "station_id": label["station_id"],
+                "confidence": label.get("confidence"),
+                "policy_version": label.get("policy_version"),
+            },
+        }
+        # Samedan context, preserved on every row regardless of label source
+        # (the long-running correlation-study convention from the live loop).
+        sam = sam_obs.get(dt_utc)
+        if sam is not None:
+            sample["samedan_wind_kt"] = round(kt(sam["speed_kmh"]), 1)
+            sample["samedan_gust_kt"] = round(kt(sam["gust_kmh"]), 1)
+        samples.append(sample)
+    print(f"  -> {len(samples)} labeled hours ({excluded_no_label} excluded: no acceptable ground truth)")
     return samples
 
 
@@ -245,7 +295,13 @@ def monthly_breakdown(samples):
 
 
 def main():
-    print("Fetching MeteoSwiss Samedan ground truth (historical + recent)...")
+    print("Fetching MeteoSwiss Segl-Maria (SIA) ground truth (historical + recent)...")
+    sia_obs = get_sia_archive()
+    print(f"  -> {len(sia_obs)} hourly observations available")
+    policy = ground_truth.load_policy()
+    print(f"  labeling policy: v{policy.policy_version}, samedan_fallback={policy.allow_samedan_fallback}")
+
+    print("Fetching MeteoSwiss Samedan (feature + per-row context, no longer the label)...")
     sam_obs = get_samedan_archive()
     print(f"  -> {len(sam_obs)} hourly observations available")
 
@@ -263,7 +319,7 @@ def main():
             continue
         is_closed = end != today_str
         all_samples[year] = build_samples_for_season(
-            start, end, year, sam_obs, lugano_obs, zurich_obs, is_closed)
+            start, end, year, sia_obs, policy, sam_obs, lugano_obs, zurich_obs, is_closed)
 
     os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)
@@ -376,11 +432,16 @@ def main():
         "reproducibility": {
             "seed": DEFAULT_TRAIN_SEED,
             "epochs": EPOCHS,
+            "label_source": "sia",
+            "label_policy_version": policy.policy_version,
+            "label_threshold_kt": ground_truth.SIA_REFERENCE_KT,
             "note": (
                 "train_epochs() uses a locally-scoped random.Random(seed) instance "
                 "(not the global random module), so re-running this script against "
                 "identical cached raw data (logs/raw_cache/) reproduces identical "
-                "weights and metrics."
+                "weights and metrics. Labels are SIA-first (ground_truth policy "
+                "above), never Samedan-proxy - metrics are NOT comparable to "
+                "pre-SIA-labeling runs."
             ),
         },
         "evaluation": evaluation,

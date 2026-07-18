@@ -5,6 +5,7 @@ main(), which these tests never call."""
 
 import random
 import unittest
+from datetime import datetime, timezone
 
 import backtest
 from features import FEATURE_NAMES
@@ -145,6 +146,42 @@ class MonthlyBreakdownTests(unittest.TestCase):
         self.assertAlmostEqual(breakdown["2026-07"]["session_rate"], 0.5)
         self.assertAlmostEqual(breakdown["2026-07"]["avg_wind_kt"], 9.0)
         self.assertEqual(breakdown["2026-08"]["n"], 1)
+
+
+class SelectBacktestLabelTests(unittest.TestCase):
+    """SIA-first historical labeling (select_backtest_label): the label
+    goes through the same ground_truth policy machinery as the live loop,
+    a missing/invalid SIA hour is excluded (never proxy-labeled), and the
+    threshold constant is shared with verify_and_learn.py."""
+
+    def setUp(self):
+        import ground_truth
+        self.gt = ground_truth
+        self.policy = ground_truth.load_policy()
+        self.dt = datetime(2025, 7, 1, 13, 0, tzinfo=timezone.utc)
+
+    def test_sia_hour_labels_through_policy(self):
+        sia_obs = {self.dt: {"wind_speed_ms": 6.0, "wind_gust_ms": 9.0}}
+        label = backtest.select_backtest_label(self.dt, sia_obs, self.policy)
+        self.assertIsNotNone(label)
+        self.assertEqual(label["source"], "sia")
+        self.assertEqual(label["policy_version"], self.policy.policy_version)
+
+    def test_missing_hour_returns_none_not_a_proxy_label(self):
+        self.assertIsNone(backtest.select_backtest_label(self.dt, {}, self.policy))
+
+    def test_hour_with_null_wind_returns_none(self):
+        sia_obs = {self.dt: {"wind_speed_ms": None, "temperature_c": 15.0}}
+        self.assertIsNone(backtest.select_backtest_label(self.dt, sia_obs, self.policy))
+
+    def test_threshold_shared_with_live_loop(self):
+        import verify_and_learn
+        self.assertEqual(verify_and_learn.SIA_REFERENCE_KT, self.gt.SIA_REFERENCE_KT)
+
+    def test_sam_proxy_constant_no_longer_used_for_labeling(self):
+        import inspect
+        source = inspect.getsource(backtest.build_samples_for_season)
+        self.assertNotIn("SAM_PROXY_KT", source)
 
 
 if __name__ == "__main__":

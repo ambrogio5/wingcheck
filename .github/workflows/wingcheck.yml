@@ -29,7 +29,7 @@
 #    updates weights.json, and refreshes the dashboard again (verified
 #    outcomes + live_metrics only change here, not in the forecast job)
 #  - backtest: MANUAL ONLY (workflow_dispatch). Retrains from 2024-2026
-#    history (Samedan-labeled - kitesailing has no historical archive) and
+#    history (SIA-labeled via the ground-truth policy - see CLAUDE.md) and
 #    regenerates the dashboard. Run this once to start, and again any time
 #    you want a from-scratch retrain. The only job that ever writes
 #    weights.json.

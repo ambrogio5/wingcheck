@@ -43,7 +43,7 @@ from model import update as model_update
 LOG_PATH = os.path.join(os.path.dirname(__file__), "logs", "predictions.jsonl")
 
 SILVAPLANA_MARGINAL_KT = 10  # real lake threshold - no proxy correction needed
-SIA_REFERENCE_KT = 10  # provisional: same threshold as the lake, calibration pending (see docstring)
+SIA_REFERENCE_KT = ground_truth.SIA_REFERENCE_KT  # shared with backtest.py - see ground_truth.py
 OBSERVATION_TOLERANCE_MINUTES = 30  # max drift between a target hour and the nearest scrape
 ZURICH_TZ = ZoneInfo("Europe/Zurich")
 MIN_AGE_HOURS = 20  # only verify predictions at least this old (data lag safety margin)
