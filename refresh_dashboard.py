@@ -450,6 +450,34 @@ def reference_stations() -> dict:
     return out
 
 
+def latest_sia_observation() -> dict:
+    """Newest real SIA reading from the committed raw cache (no network) -
+    refreshed whenever a backtest/sync run recommits generic_sia.json.
+    Empty dict when the cache doesn't exist yet."""
+    path = os.path.join(BASE_DIR, "logs", "raw_cache", "generic_sia.json")
+    try:
+        with open(path) as f:
+            cached = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    ts = max(cached)
+    vals = cached[ts]
+    if vals.get("wind_speed_ms") is None:
+        return {}
+    out = {
+        "observed_at": ts,
+        "wind_kt": round(vals["wind_speed_ms"] * 1.943844, 1),
+        "station": "Segl-Maria (SIA)",
+    }
+    if vals.get("wind_gust_ms") is not None:
+        out["gust_kt"] = round(vals["wind_gust_ms"] * 1.943844, 1)
+    if vals.get("wind_direction_deg") is not None:
+        out["wind_dir"] = compass_direction(vals["wind_direction_deg"])
+    if vals.get("temperature_c") is not None:
+        out["temp_c"] = vals["temperature_c"]
+    return out
+
+
 def station_agreement() -> dict:
     """Latest SIA/lake calibration summary - shown only with its maturity
     label attached, and only the small headline fields (the full report
@@ -590,6 +618,7 @@ def main():
         "reference_stations": reference_stations(),
         "ground_truth_policy": _ground_truth_policy(),
         "station_agreement": station_agreement(),
+        "latest_sia_observation": latest_sia_observation(),
     }
 
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)
