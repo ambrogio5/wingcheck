@@ -35,16 +35,29 @@ DEFAULT_POLICY_PATH = os.path.join(BASE_DIR, "config", "ground_truth_policy.json
 
 SOURCE_PRIORITY = {"kitesailing": 0, "windsurfcenter": 0, "silvaplana_lake": 0, "sia": 1, "sam": 2}
 
-# The rideability threshold applied to a SIA-sourced label, in knots - the
-# same 10kt criterion as the direct lake reading (SILVAPLANA_MARGINAL_KT),
-# deliberately with no offset/correction: SIA<->lake equivalence is
-# unmeasured (see station_calibration.py's maturity gates), so any
-# "calibrated" adjustment now would be invented. Both verify_and_learn.py
-# (live) and backtest.py (historical retrain) import THIS constant so the
-# live and historical labeling criteria can never silently drift apart
-# again - that split (SAM_PROXY_KT vs SILVAPLANA_MARGINAL_KT) was exactly
-# the documented labeling-criterion mismatch the SIA-first policy closed.
-SIA_REFERENCE_KT = 10.0
+# The rideability threshold applied to a SIA-sourced label, in knots.
+# PROVISIONAL (owner-approved 2026-07-19, "assume it's right and correct
+# later"): 8.0kt at SIA is treated as equivalent to the 10kt lake criterion
+# (SILVAPLANA_MARGINAL_KT), i.e. an assumed SIA/lake speed ratio of ~0.8.
+# Evidence, both thin but consistent:
+#   1. 100 aligned 20-min points, kitesailing.ch chart vs SIA 10-min data,
+#      2026-07-17 15:30 -> 2026-07-19 00:50 CEST: mean SIA/lake ratio 0.80
+#      (n=60 points with lake wind >= 10 km/h), r=0.51 overall, near-lockstep
+#      (both 100% SW) through the Jul 17 thermal afternoon.
+#   2. logs/historical/reports/station_calibration_kitesailing_sia_*.json:
+#      bias_sia_minus_lake ~= -1.16 m/s (~-2.2kt), pearson 0.88, n=5 - same
+#      direction and similar magnitude at ~10kt lake wind.
+# Neither dataset passes station_calibration.py's 14-independent-day
+# maturity gate - this is explicitly an assumption to be re-derived (and
+# this constant re-tuned) once the kitesailing sampler has ~2 weeks of
+# overlap. If the model starts missing days the owner actually rides,
+# lower this; if it flags dead days, raise it.
+# Both verify_and_learn.py (live) and backtest.py (historical retrain)
+# import THIS constant so the live and historical labeling criteria can
+# never silently drift apart again - that split (SAM_PROXY_KT vs
+# SILVAPLANA_MARGINAL_KT) was exactly the documented labeling-criterion
+# mismatch the SIA-first policy closed.
+SIA_REFERENCE_KT = 8.0
 
 # Provenance/derivation markers that describe HOW a record was produced, not
 # a problem with it - they must never disqualify an observation from

@@ -532,7 +532,11 @@ this PR.
   108k-record hourly archive (`historical_cache.get_sia_archive`) through
   the same `ground_truth.select_label` machinery, excluding (never
   proxy-labeling) hours without an acceptable observation. Both use the
-  shared `ground_truth.SIA_REFERENCE_KT` (10kt) criterion — the old
+  shared `ground_truth.SIA_REFERENCE_KT` criterion (8kt as of policy v3,
+  2026-07-19 — a provisional owner-approved SIA/lake speed ratio of ~0.8
+  vs the 10kt lake threshold, to be re-derived once the sampler has
+  ~14 overlapping days; see `config/ground_truth_policy.json`'s
+  `approved_transformations`) — the old
   `SAM_PROXY_KT`-vs-`SILVAPLANA_MARGINAL_KT` labeling-criterion mismatch
   is CLOSED (2026-07-18). Samedan is still fetched by `backtest.py` — as
   a feature input (`samedan_morning_score`) and per-row context

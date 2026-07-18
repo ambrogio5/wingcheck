@@ -538,7 +538,7 @@
           <span><i class="swatch" style="background:#B9C6D2"></i>Actual wind (knots)</span>
           <span><i class="swatch" style="background:#2273C3"></i>Model confidence</span>
           <span><i class="swatch dot2" style="background:#0E9F6E"></i>Verified live forecasts</span>
-          <span><i class="swatch" style="background:#D98E04;height:2px"></i>10 kt rideable line</span>
+          <span><i class="swatch" style="background:#D98E04;height:2px"></i>rideable-threshold line (label criterion)</span>
         </div>
       </div>
       <div class="tech-sub">
@@ -1150,10 +1150,11 @@ function renderVisuals(d){
   const palette = [v('--good'), v('--bad-ink'), v('--blue'), v('--warn'), v('--crit'), v('--blue-deep')];
 
   const tl = d.timeline || [];
-  const rideable = tl.filter(p=>p.actual_kt>=10).length;
+  const thr = (d.reproducibility||{}).label_threshold_kt ?? 10;
+  const rideable = tl.filter(p=> p.outcome!=null ? p.outcome===1 : p.actual_kt>=thr).length;
   vizCharts.push(new Chart(document.getElementById('vizDonut'), {
     type:'doughnut',
-    data:{ labels:['Rideable (≥10kt)','Not rideable'],
+    data:{ labels:['Rideable (label criterion)','Not rideable'],
       datasets:[{ data:[rideable, tl.length-rideable],
         backgroundColor:[palette[0], line], borderWidth:0, hoverOffset:6 }] },
     options:{ responsive:true, maintainAspectRatio:false, cutout:'62%',
@@ -1216,7 +1217,7 @@ function renderTimeline(d){
           borderWidth:1.4, tension:.3, fill:true, yAxisID:'y' },
         { label:'Model confidence', data:s.map(p=>p.probability),
           borderColor:'#2273C3', pointRadius:0, borderWidth:2, tension:.3, yAxisID:'y2' },
-        { label:'10 kt line', data:s.map(()=>10),
+        { label:'threshold', data:s.map(()=> (d.reproducibility||{}).label_threshold_kt ?? 10),
           borderColor:'rgba(217,142,4,.55)', borderDash:[5,6], pointRadius:0, borderWidth:1.2, yAxisID:'y' },
       ]
     },
