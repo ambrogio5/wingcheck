@@ -21,13 +21,16 @@ beat a trivial baseline (67.9% vs 53.6% accuracy, AUC 0.75) — 15 of the then
 0.743). Root cause: the forecast-to-groundtruth correlation was only ~0.52
 (Samedan is 10km from the target lake) and ~31% of hours land within ±2kt of
 the labeling threshold, an inherent noise floor no amount of feature/model
-tuning removes. The larger lever — swapping Samedan for the real lake
-station — is now done for the *live* loop (`kitesailing_weather.py`, scraped
-since no API exists, see its docstring), but **not** for `backtest.py`'s
-historical retrain, since that station has no historical archive. This is a
-real, currently-open labeling-criterion mismatch between the
-historically-trained weights and the live online updates — see the
-"Conventions" section below and `backtest.py`'s docstring.
+tuning removes. The larger lever — replacing Samedan as the label — has
+since been pulled TWICE: the live loop verifies against the real
+kitesailing.ch lake reading (`kitesailing_weather.py`, scraped since no API
+exists), and as of 2026-07-18 `backtest.py`'s historical retrain labels
+from MeteoSwiss Segl-Maria (SIA, ~4km from the lake, real 108k-record
+hourly archive) under the shared SIA-first ground-truth policy — closing
+the old historical-vs-live labeling-criterion mismatch. All pre-2026-07-18
+accuracy figures in this file were measured against Samedan-proxy labels
+and are NOT comparable to SIA-labeled runs — see the "Ground truth and
+retraining gate" section below and `backtest.py`'s docstring.
 
 **2026-07-16 leakage fix, and what it changed (and didn't)**: that original
 67.9%/53.6% figure came from a `backtest.py` that loaded the already-trained
@@ -181,13 +184,12 @@ for exactly this reason. Don't hoist it back to module level.
    against the live API on 2026-07-16 — a prior version of this docstring
    guessed wrong values (`fu3010z0`/`z1`, `pp0qffs0`) that were never
    actually used/tested; don't reintroduce guessed column names, verify
-   against a real fetch. `SAM_PROXY_KT` (default 8.0) is the calibration
-   knob converting "wind at Samedan" into "rideable at the lake" for the
-   fallback path only — tune it after real sessions, then re-run the
-   backtest so labels regenerate consistently. Samedan is also still the
-   ONLY source with a multi-year historical archive, so `backtest.py` has
-   to keep using it as the sole (not just fallback) ground truth for
-   historical retraining.
+   against a real fetch. `SAM_PROXY_KT` (default 8.0) survives only for
+   any explicitly named legacy research experiment - since 2026-07-18
+   Samedan is no longer a label source anywhere (see the ground-truth
+   conventions below): `backtest.py` labels from Segl-Maria (SIA)'s real
+   108k-record hourly archive, and Samedan serves as a model feature
+   (`samedan_morning_score`) and per-row context only.
 5. **`forecast_and_log.py`** (scheduled 07:00 & 10:00 CEST) — runs
    `features.py` + `model.py` over the live forecast, tiers each hour in the
    12:00-18:00 window into GOOD/MARGINAL/UNLIKELY via thresholds in
@@ -243,8 +245,11 @@ for exactly this reason. Don't hoist it back to module level.
    performance.
 9. **`backtest.py`** (manual only, `workflow_dispatch`) — the only way to
    retrain from scratch. Builds a labeled dataset for May–Oct 2024/2025/2026
-   from Open-Meteo's historical archive + real SAM obs (still the only
-   ground truth available historically — see `meteoswiss.py` above). Trains
+   from Open-Meteo's historical archive, labeled SIA-first through
+   `ground_truth.select_label` against SIA's real hourly archive
+   (`historical_cache.get_sia_archive`; hours without an acceptable
+   observation are excluded, never Samedan-labeled - see the ground-truth
+   conventions below). Trains
    TWO separate models, both from `model.new_weights()` (never by loading
    `weights.json` and partially resetting it — see the "2026-07-16 leakage
    fix" note above and the Conventions bullet below): an EVALUATION model
@@ -519,18 +524,24 @@ this PR.
   12-18h) — **do not let `forecast_and_log.py` run against this until
   `backtest.py` has been re-run**, or it'll alert on a flat, untrained
   probability for every hour.
-- Two ground-truth sources, two different roles — don't conflate them.
-  `kitesailing_weather.py` (the real Silvaplana lake reading) is the
-  PRIMARY label for the live loop (`verify_and_learn.py`), with `meteoswiss.py`
-  (Samedan) as fallback + a secondary feature. But `backtest.py`'s historical
-  retrain can ONLY use Samedan, since kitesailing has no historical archive.
-  This means the weights `backtest.py` produces and the weights
-  `verify_and_learn.py` nudges afterward are labeled on different criteria
-  (`SAM_PROXY_KT` vs `SILVAPLANA_MARGINAL_KT`) — a real, currently-open
-  mismatch, not an oversight. Resolve it by re-running `backtest.py`
-  periodically as `logs/kitesailing_observations.jsonl` accumulates enough
-  history to backtest against directly (not yet implemented — there's
-  nothing to backtest until that log has real depth).
+- Ground-truth roles, live and historical, are now ALIGNED on the same
+  SIA-first policy (`config/ground_truth_policy.json` v2 — see the
+  "Ground truth and retraining gate" section below): the live loop
+  (`verify_and_learn.py`) labels kitesailing lake reading → SIA →
+  unverified; `backtest.py`'s historical retrain labels from SIA's real
+  108k-record hourly archive (`historical_cache.get_sia_archive`) through
+  the same `ground_truth.select_label` machinery, excluding (never
+  proxy-labeling) hours without an acceptable observation. Both use the
+  shared `ground_truth.SIA_REFERENCE_KT` (10kt) criterion — the old
+  `SAM_PROXY_KT`-vs-`SILVAPLANA_MARGINAL_KT` labeling-criterion mismatch
+  is CLOSED (2026-07-18). Samedan is still fetched by `backtest.py` — as
+  a feature input (`samedan_morning_score`) and per-row context
+  (`samedan_wind_kt`/`samedan_gust_kt`) — but never as the label.
+  `SAM_PROXY_KT` survives in `meteoswiss.py` only for any explicitly
+  named legacy research experiment. Backtest metrics from SIA-labeled
+  runs are NOT comparable to older Samedan-labeled figures (the
+  `reproducibility.label_source` field in `docs/dashboard_data.json`
+  records which criterion produced the current numbers).
 - Timestamps: raw feature times are naive local (`Europe/Zurich`); ground
   truth timestamps from MeteoSwiss are UTC; `kitesailing_weather.py`
   observations store `observed_at` as UTC ISO strings (`datetime.now
@@ -620,10 +631,15 @@ this PR.
   research-only comparison harness (asserts `weights.json` untouched);
   there is deliberately NO workflow option that promotes a model - the
   `run_ground_truth_research` dispatch job commits reports/manifests only.
-- The retraining gate is currently FAILED, honestly: SIA-first labels
-  cover only 535 of 3,111 backtest rows (May-Jul 2026 - SIA has no wind
-  data before 2026 in any real supplied file), lake/SIA calibration is
-  `insufficient_evidence` (1 overlapping day), and one partial season
-  cannot support the multi-year rolling-origin protocol. Production
-  weights stay Samedan-labeled (`backtest.py`, unchanged) until the gap
-  closes or lake coverage accumulates.
+- The retraining gate was PASSED and acted on (2026-07-18, human-approved):
+  once the real CI fetch of SIA's full 108k-record hourly archive closed
+  the label-coverage gap (3,111/3,111 backtest rows SIA-labelable, all
+  three seasons), the research comparison showed consistent chronological
+  improvement across both expanding-window year folds (validate-2025 acc
+  0.744 vs 0.651, validate-2026 0.755 vs 0.583, Brier improved on both -
+  `model_comparison_sia_20260717T220508.json`), and the repo owner
+  approved. `backtest.py` now labels SIA-first (see the aligned-roles
+  bullet in "Conventions" above). Lake/SIA calibration itself remains
+  `insufficient_evidence` - the SIA-first policy does not claim
+  equivalence, it claims SIA is the best available reference until lake
+  overlap accumulates past the 14-independent-day gate.

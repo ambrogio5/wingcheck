@@ -29,10 +29,15 @@ import os
 from datetime import datetime, timezone
 
 from features import fetch_raw_historical
-from meteoswiss import fetch_pressure_observations, fetch_sam_hourly_observations
+from meteoswiss import fetch_pressure_observations, fetch_sam_hourly_observations, fetch_station_observations
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "logs", "raw_cache")
 SAMEDAN_CACHE_PATH = os.path.join(CACHE_DIR, "samedan_archive.json")
+# Deliberately the same file historical_data._generic_raw_cache_path("sia")
+# reads, so one committed cache serves BOTH backtest.py's labeling and an
+# offline `historical_data.py sync` (the same double duty
+# samedan_archive.json already performs for sam).
+SIA_CACHE_PATH = os.path.join(CACHE_DIR, "generic_sia.json")
 
 
 def _season_cache_path(year):
@@ -88,6 +93,16 @@ def _get_station_archive(cache_path: str, label: str, fetch_fn) -> dict:
 def get_samedan_archive() -> dict:
     """Full {datetime_utc: {speed_kmh, gust_kmh}} Samedan archive."""
     return _get_station_archive(SAMEDAN_CACHE_PATH, "Samedan", fetch_sam_hourly_observations)
+
+
+def get_sia_archive() -> dict:
+    """Full {datetime_utc: {normalized_field: value}} Segl-Maria (SIA)
+    hourly archive - wind already in m/s (meteoswiss.parse_generic_station_csv
+    converts during parsing, unlike the sam archive's raw km/h). The
+    ground-truth source for backtest.py's SIA-first labeling."""
+    def fetch_fn(include_historical):
+        return fetch_station_observations("sia", include_historical=include_historical)["observations"]
+    return _get_station_archive(SIA_CACHE_PATH, "Segl-Maria (SIA)", fetch_fn)
 
 
 def get_pressure_archive(station: str) -> dict:
