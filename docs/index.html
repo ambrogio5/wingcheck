@@ -281,6 +281,35 @@
   html[data-skin="tech"] .badge{border-radius:2px; text-transform:uppercase;}
   html[data-skin="tech"] .st-value{color:var(--blue-deep);}
   html[data-skin="tech"] .eval-btn{box-shadow:0 0 12px rgba(0,229,255,.35);}
+
+  /* tech skin v2: CRT scanlines, clipped corners, animated glows */
+  html[data-skin="tech"] body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  html[data-skin="tech"] .card{
+    clip-path:polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+    position:relative;
+  }
+  html[data-skin="tech"] .card::before{
+    content:""; position:absolute; top:0; left:0; width:34px; height:2px;
+    background:var(--blue); box-shadow:0 0 8px var(--blue);
+  }
+  html[data-skin="tech"] .section-head h2::before{content:"// "; color:var(--blue);}
+  @keyframes techPulse{0%,100%{text-shadow:0 0 12px rgba(0,229,255,.55);}50%{text-shadow:0 0 26px rgba(0,229,255,.95);}}
+  html[data-skin="tech"] h1 em{animation:techPulse 2.6s ease-in-out infinite;}
+  @keyframes techBlink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+  html[data-skin="tech"] .status-line::after{
+    content:"▊"; color:var(--blue); margin-left:6px; animation:techBlink 1.1s step-end infinite;
+  }
+  html[data-skin="tech"] .card:hover{box-shadow:0 0 0 1px rgba(0,229,255,.35), 0 0 26px rgba(0,229,255,.18);}
+  html[data-skin="tech"] .skin-toggle{border-color:var(--blue);}
+
+  .viz-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px;}
+  .viz-box{height:240px; position:relative;}
+  .viz-title{font-family:var(--mono); font-size:11px; color:var(--ink-3); letter-spacing:.08em;
+    text-transform:uppercase; margin-bottom:6px; text-align:center;}
 </style>
 </head>
 <body>
@@ -300,6 +329,9 @@
       try { localStorage.setItem('wingcheck-skin', s); } catch(e){}
       document.getElementById('skinClassic').classList.toggle('active', s !== 'tech');
       document.getElementById('skinTech').classList.toggle('active', s === 'tech');
+      if (window.__DASH_DATA && typeof renderVisuals === 'function'){
+        try { renderVisuals(window.__DASH_DATA); } catch(e){}
+      }
     }
     setSkin((function(){ try { return localStorage.getItem('wingcheck-skin') || 'classic'; } catch(e){ return 'classic'; } })());
   </script>
@@ -437,6 +469,17 @@
     <div id="refStationsTable"></div>
     <div class="health-sub-head">Station agreement <span class="hint">(SIA vs. lake — shown with maturity label)</span></div>
     <div class="stat-row" id="stationAgreementRow"></div>
+  </section>
+
+  <!-- ================= SIGNAL VISUALS ================= -->
+  <section class="card" aria-labelledby="viz-h">
+    <div class="section-head"><h2 id="viz-h">Signal visuals</h2>
+      <div class="hint">The dataset at a glance — rideability mix, seasonal shape, and what the model weighs</div></div>
+    <div class="viz-grid">
+      <div><div class="viz-title">Rideable vs not (all labeled hours)</div><div class="viz-box"><canvas id="vizDonut"></canvas></div></div>
+      <div><div class="viz-title">Session rate by calendar month</div><div class="viz-box"><canvas id="vizPolar"></canvas></div></div>
+      <div><div class="viz-title">Top model weights (|magnitude|)</div><div class="viz-box"><canvas id="vizRadar"></canvas></div></div>
+    </div>
   </section>
 
   <!-- ================= FROZEN HOLDOUT EVALUATION ================= -->
@@ -1096,6 +1139,66 @@ function renderAblation(d){
   el.innerHTML = head + body;
 }
 
+let vizCharts = [];
+function renderVisuals(d){
+  if (typeof Chart === 'undefined') return;
+  vizCharts.forEach(c=>{ try{c.destroy();}catch(e){} });
+  vizCharts = [];
+  const css = getComputedStyle(document.documentElement);
+  const v = n => css.getPropertyValue(n).trim();
+  const ink3 = v('--ink-3'), line = v('--line-soft');
+  const palette = [v('--good'), v('--bad-ink'), v('--blue'), v('--warn'), v('--crit'), v('--blue-deep')];
+
+  const tl = d.timeline || [];
+  const rideable = tl.filter(p=>p.actual_kt>=10).length;
+  vizCharts.push(new Chart(document.getElementById('vizDonut'), {
+    type:'doughnut',
+    data:{ labels:['Rideable (≥10kt)','Not rideable'],
+      datasets:[{ data:[rideable, tl.length-rideable],
+        backgroundColor:[palette[0], line], borderWidth:0, hoverOffset:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'bottom', labels:{color:ink3, font:{size:10.5}, boxWidth:10}} } }
+  }));
+
+  const mb = d.monthly_breakdown || {};
+  const byCal = {};
+  for (const [ym, s] of Object.entries(mb)){
+    const m = ym.slice(5);
+    (byCal[m] = byCal[m] || {n:0, sessions:0});
+    byCal[m].n += s.n; byCal[m].sessions += s.sessions;
+  }
+  const months = Object.keys(byCal).sort();
+  const monthName = m => new Date('2026-'+m+'-01').toLocaleDateString('en',{month:'short'});
+  vizCharts.push(new Chart(document.getElementById('vizPolar'), {
+    type:'polarArea',
+    data:{ labels: months.map(monthName),
+      datasets:[{ data: months.map(m=>Math.round(100*byCal[m].sessions/byCal[m].n)),
+        backgroundColor: months.map((_,i)=>palette[i%palette.length]+'99'),
+        borderColor: months.map((_,i)=>palette[i%palette.length]), borderWidth:1.5 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom', labels:{color:ink3, font:{size:10.5}, boxWidth:10}},
+        tooltip:{callbacks:{label:c=>` ${c.parsed.r}% of hours rideable`}} },
+      scales:{ r:{ ticks:{color:ink3, backdropColor:'transparent', callback:x=>x+'%', font:{size:9}},
+                   grid:{color:line}, angleLines:{color:line} } } }
+  }));
+
+  const w = (d.final_weights||{}).weights || {};
+  const top = Object.entries(w).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,8);
+  vizCharts.push(new Chart(document.getElementById('vizRadar'), {
+    type:'radar',
+    data:{ labels: top.map(([k])=>k.replace(/_/g,' ').slice(0,18)),
+      datasets:[{ data: top.map(([,x])=>Math.abs(x)),
+        backgroundColor: palette[2]+'33', borderColor: palette[2],
+        pointBackgroundColor: palette[2], pointRadius:2.5, borderWidth:1.6 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:c=>` |weight| ${c.parsed.r.toFixed(2)} (${w[Object.keys(w).find(k=>k.replace(/_/g,' ').slice(0,18)===c.label)]?.toFixed?.(2) ?? ''} signed)`}} },
+      scales:{ r:{ ticks:{color:ink3, backdropColor:'transparent', font:{size:9}},
+                   grid:{color:line}, angleLines:{color:line},
+                   pointLabels:{color:ink3, font:{size:9, family:v('--mono')}} } } }
+  }));
+}
+
 function renderTimeline(d){
   if (typeof Chart === 'undefined') return;
   const pts = d.timeline || [];
@@ -1208,9 +1311,10 @@ async function init(){
   for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
                      renderLakeWaterTemperature, renderLivePerformance, renderIngestionHealth, renderReferenceStations,
                      renderFrozenEvaluation,
-                     renderOperationalAndRepro, renderAblation, renderTimeline, renderMonthly, renderWeights]){
+                     renderOperationalAndRepro, renderAblation, renderVisuals, renderTimeline, renderMonthly, renderWeights]){
     try { fn(d); } catch(e) { console.error(`${fn.name} failed:`, e); }
   }
+  window.__DASH_DATA = d;
   document.getElementById('genAt').textContent =
     'Updated ' + (d.generated_at||'').slice(0,16).replace('T',' ') + ' UTC';
   document.getElementById('sampleCount').textContent =
