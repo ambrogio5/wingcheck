@@ -40,7 +40,13 @@ def prepare(feature_rows, observations, policy):
         row = dict(sample)
         speed_ms = label["wind_speed_ms"]
         row["actual_wind_kt"] = round(speed_ms * 1.943844, 2)
-        row["outcome"] = 1.0 if row["actual_wind_kt"] >= 10.0 else 0.0
+        # Per-source rideability criterion: direct lake readings use the
+        # 10kt lake threshold; SIA labels use the shared (provisional,
+        # ratio-adjusted) SIA_REFERENCE_KT - keep in lockstep with
+        # verify_and_learn.py/backtest.py.
+        threshold = 10.0 if label["source"] in ("kitesailing", "windsurfcenter", "silvaplana_lake") \
+            else ground_truth.SIA_REFERENCE_KT
+        row["outcome"] = 1.0 if row["actual_wind_kt"] >= threshold else 0.0
         row["label_provenance"] = {
             "source": label["source"], "station_id": label["station_id"],
             "confidence": label.get("confidence"), "quality_flags": label.get("quality_flags", []),

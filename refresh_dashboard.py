@@ -602,7 +602,7 @@ def main():
         "final_weights": weights,
         "monthly_breakdown": monthly_breakdown(entries),
         "timeline": [
-            {"date": e["date"], "actual_kt": e["actual_kt"],
+            {"date": e["date"], "actual_kt": e["actual_kt"], "outcome": e["outcome"],
              "probability": e["probability"], "year": e["year"], "source": e["source"]}
             for e in entries
         ],

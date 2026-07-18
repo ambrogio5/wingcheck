@@ -1,7 +1,10 @@
 {
-  "policy_version": 2,
-  "effective_date": "2026-07-17",
-  "priority": ["direct_lake", "sia_reference"],
+  "policy_version": 3,
+  "effective_date": "2026-07-19",
+  "priority": [
+    "direct_lake",
+    "sia_reference"
+  ],
   "allow_sia_substitution": true,
   "sia_confidence": null,
   "sia_calibration_status": "insufficient_evidence",
@@ -11,8 +14,20 @@
   "calibration_dataset_checksum": null,
   "overlap_period": null,
   "independent_day_count": 0,
-  "relationship_classification": "insufficient_evidence",
-  "approved_transformations": [],
+  "relationship_classification": "provisional_ratio",
+  "approved_transformations": [
+    {
+      "type": "threshold_ratio",
+      "sia_over_lake_speed_ratio": 0.8,
+      "implemented_as": "ground_truth.SIA_REFERENCE_KT = 8.0 (was 10.0)",
+      "status": "provisional_owner_approved",
+      "evidence": [
+        "chat analysis 2026-07-19: 100 aligned 20-min points kitesailing-chart vs SIA, ratio 0.80 (n=60 windy)",
+        "logs/historical/reports/station_calibration_kitesailing_sia_20260717T220500.json (n=5, bias -1.16 m/s, pearson 0.88)"
+      ],
+      "review_due": "once >=14 independent overlapping days exist in the sampler logs"
+    }
+  ],
   "excluded_regimes": [],
-  "reviewer_note": "Provisional SIA-first policy (v2): direct lake measurements (kitesailing/windsurfcenter/silvaplana_lake) always outrank SIA; SIA is the principal reference when no lake reading exists; a missing SIA hour stays UNLABELED - Samedan is deliberately excluded as a default label (allow_samedan_fallback=false) and may only be re-enabled inside an explicitly named research experiment (legacy_samedan_proxy), never silently. sia_confidence is null on purpose: SIA's measurement quality (official MeteoSwiss station) is a separate question from its equivalence to the Windsurfcenter/lake target, which is UNMEASURED - only 5 lake readings exist as of 2026-07-17, far below the 14-independent-day minimum reporting gate in station_calibration.py. Any future change to relationship_classification/approved_transformations requires a reviewed edit of this file citing a real station_calibration.py report - never an automatic write by any script."
+  "reviewer_note": "Provisional SIA-first policy (v2): direct lake measurements (kitesailing/windsurfcenter/silvaplana_lake) always outrank SIA; SIA is the principal reference when no lake reading exists; a missing SIA hour stays UNLABELED - Samedan is deliberately excluded as a default label (allow_samedan_fallback=false) and may only be re-enabled inside an explicitly named research experiment (legacy_samedan_proxy), never silently. sia_confidence is null on purpose: SIA's measurement quality (official MeteoSwiss station) is a separate question from its equivalence to the Windsurfcenter/lake target, which is UNMEASURED - only 5 lake readings exist as of 2026-07-17, far below the 14-independent-day minimum reporting gate in station_calibration.py. Any future change to relationship_classification/approved_transformations requires a reviewed edit of this file citing a real station_calibration.py report - never an automatic write by any script. | v3 (2026-07-19): owner explicitly approved a PROVISIONAL SIA/lake ratio of 0.8 (\"assume it's right and correct later if needed\"), implemented solely as SIA_REFERENCE_KT 10.0->8.0 in ground_truth.py. This does NOT claim calibration maturity: sia_calibration_status stays insufficient_evidence and the 14-day gate still applies for any formal relationship classification. Re-derive the ratio from station_calibration.py once the kitesailing sampler has ~2 weeks of overlap, then either confirm or correct this constant and bump the policy version again."
 }

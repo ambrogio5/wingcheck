@@ -65,7 +65,7 @@ class SiaFirstPriorityTests(unittest.TestCase):
         self.assertTrue(records[0]["verified"])
         self.assertEqual(records[0]["ground_truth_source"], "sia_reference")
         self.assertEqual(records[0]["ground_truth_station_id"], "sia")
-        # 6 m/s = 11.7kt >= 10kt threshold
+        # 6 m/s = 11.7kt >= SIA_REFERENCE_KT (8kt, policy v3)
         self.assertEqual(records[0]["outcome"], 1.0)
 
     def test_samedan_alone_never_labels(self):
@@ -115,7 +115,7 @@ class SiaFirstPriorityTests(unittest.TestCase):
     def test_sia_below_threshold_labels_negative(self):
         r = _prediction()
         hour = _target_hour_utc()
-        records, _ = _run([r], sia={hour: {"wind_speed_ms": 2.0}})  # 3.9kt < 10kt
+        records, _ = _run([r], sia={hour: {"wind_speed_ms": 2.0}})  # 3.9kt < SIA_REFERENCE_KT (8kt)
         self.assertEqual(records[0]["outcome"], 0.0)
 
 
