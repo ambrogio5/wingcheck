@@ -233,10 +233,76 @@
     }
     .eval-btn{box-shadow:0 2px 8px rgba(0,0,0,.4);}
   }
+
+  /* ============ SKIN TOGGLE + "TECH" SKIN ============ */
+  .skin-toggle{
+    position:absolute; top:14px; right:16px; z-index:5;
+    display:flex; gap:0; border:1px solid var(--line); border-radius:999px;
+    overflow:hidden; background:var(--card); box-shadow:var(--shadow);
+    font-family:var(--mono); font-size:11px;
+  }
+  .skin-toggle button{
+    border:0; background:transparent; color:var(--ink-2);
+    padding:6px 12px; cursor:pointer; letter-spacing:.06em;
+  }
+  .skin-toggle button.active{background:var(--blue); color:#fff;}
+
+  html[data-skin="tech"]{
+    --ice:#04070C; --card:#0A111C; --line:#123047; --line-soft:#0D2233;
+    --ink:#D8FDF4; --ink-2:#5FD4C0; --ink-3:#2E7A6E;
+    --blue:#00E5FF; --blue-soft:#062A36; --blue-deep:#7CF6FF;
+    --good:#39FF8E; --good-soft:#042B18; --good-ink:#5CFFA6;
+    --warn:#FFB300; --warn-soft:#2E2102; --warn-ink:#FFC94D;
+    --bad-soft:#101B27; --bad-ink:#5FD4C0;
+    --crit:#FF3D5A; --crit-soft:#320812; --crit-ink:#FF7A8E;
+    --display:'JetBrains Mono',monospace; --body:'JetBrains Mono',monospace;
+    --radius:2px; --radius-lg:2px;
+    --shadow:0 0 0 1px rgba(0,229,255,.12), 0 0 18px rgba(0,229,255,.10);
+    color-scheme: dark;
+  }
+  html[data-skin="tech"] body{
+    background:
+      linear-gradient(rgba(0,229,255,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.035) 1px, transparent 1px),
+      var(--ice);
+    background-size:28px 28px, 28px 28px, auto;
+  }
+  html[data-skin="tech"] h1, html[data-skin="tech"] h2{
+    text-transform:uppercase; letter-spacing:.08em;
+  }
+  html[data-skin="tech"] h1 em{color:var(--blue); font-style:normal; text-shadow:0 0 14px rgba(0,229,255,.6);}
+  html[data-skin="tech"] .site-header{
+    border:1px solid var(--line);
+    box-shadow:inset 0 0 40px rgba(0,229,255,.06), 0 0 24px rgba(0,229,255,.08);
+  }
+  html[data-skin="tech"] .hero-wind path{stroke:rgba(0,229,255,.35); filter:drop-shadow(0 0 6px rgba(0,229,255,.5));}
+  html[data-skin="tech"] .card{border:1px solid var(--line);}
+  html[data-skin="tech"] .kicker{color:var(--blue); text-shadow:0 0 10px rgba(0,229,255,.5);}
+  html[data-skin="tech"] .badge{border-radius:2px; text-transform:uppercase;}
+  html[data-skin="tech"] .st-value{color:var(--blue-deep);}
+  html[data-skin="tech"] .eval-btn{box-shadow:0 0 12px rgba(0,229,255,.35);}
 </style>
 </head>
 <body>
 <div class="wrap">
+
+  <!-- Skin toggle: classic vs "tech". Pure CSS variables, persisted in
+       localStorage, applied before first paint by the inline script in
+       <head>-adjacent position below to avoid a flash. -->
+  <div class="skin-toggle" role="group" aria-label="Dashboard style">
+    <button id="skinClassic" onclick="setSkin('classic')">CLASSIC</button>
+    <button id="skinTech" onclick="setSkin('tech')">TECH</button>
+  </div>
+  <script>
+    function setSkin(s){
+      if (s === 'tech') document.documentElement.setAttribute('data-skin','tech');
+      else document.documentElement.removeAttribute('data-skin');
+      try { localStorage.setItem('wingcheck-skin', s); } catch(e){}
+      document.getElementById('skinClassic').classList.toggle('active', s !== 'tech');
+      document.getElementById('skinTech').classList.toggle('active', s === 'tech');
+    }
+    setSkin((function(){ try { return localStorage.getItem('wingcheck-skin') || 'classic'; } catch(e){ return 'classic'; } })());
+  </script>
 
   <!-- ================= HEADER ================= -->
   <header class="site-header">
@@ -324,7 +390,7 @@
       <h2 id="live-h">Live performance</h2>
       <div class="hint">Verified real-world forecasts</div>
     </div>
-    <p class="explain">How the deployed model has actually done, checked against the real Silvaplana lake reading (kitesailing.ch primary, MeteoSwiss Samedan as fallback) as predictions get verified.</p>
+    <p class="explain">How the deployed model has actually done, checked against the real Silvaplana lake reading (kitesailing.ch primary) with MeteoSwiss Segl-Maria (SIA), ~4km from the lake, as the reference when no lake reading exists.</p>
     <div class="stat-row" id="liveStatRow"></div>
     <div id="provisionalNote"></div>
   </section>
@@ -435,7 +501,7 @@
       <div class="tech-sub">
         <h3>Known limitations</h3>
         <ul class="limitations">
-          <li>Historical retraining still labels against MeteoSwiss Samedan (kitesailing.ch has no historical archive), while the live loop labels against the real Silvaplana lake reading - a real, currently-open labeling-criterion mismatch.</li>
+          <li>Historical retraining and the live loop now share the same SIA-first labeling criterion (lake reading first, Segl-Maria/SIA as reference). SIA is ~4km from the lake; its exact equivalence to the spot is still being measured as lake readings accumulate.</li>
           <li>Backtest features come from Open-Meteo's 0-hour archive, not a genuine 1-3 day-ahead forecast - expect live accuracy below the frozen holdout's.</li>
           <li>The 2026 holdout is a partial season; trust the live accuracy number as it accumulates.</li>
         </ul>
@@ -446,7 +512,7 @@
   <footer>
     <div id="genAt">—</div>
     <div class="mono" id="sampleCount">—</div>
-    <div class="mono">Data: Open-Meteo · Ground truth: kitesailing.ch (primary), MeteoSwiss Samedan (fallback + secondary signal)</div>
+    <div class="mono">Data: Open-Meteo · Ground truth: kitesailing.ch lake reading (primary), MeteoSwiss Segl-Maria/SIA (reference) · Samedan: context only</div>
   </footer>
 </div>
 
@@ -743,11 +809,13 @@ function renderHealthSummary(d){
   if (nowcast.snapshot_used === true){ nowcastStatus = 'fresh'; nowcastLabel = 'Live snapshot'; }
   else if (nowcast.snapshot_used === false){ nowcastStatus = 'fallback'; nowcastLabel = 'Archive fallback'; }
 
-  const total = (vs.silvaplana_lake_count||0) + (vs.samedan_fallback_count||0);
+  const total = (vs.silvaplana_lake_count||0) + (vs.sia_reference_count||0) + (vs.samedan_fallback_count||0);
   let coverageStatus = 'no_data', coverageLabel = 'No verified data yet';
   if (total){
-    coverageStatus = vs.lake_coverage_pct >= 0.5 ? 'healthy' : 'degraded';
-    coverageLabel = Math.round((vs.lake_coverage_pct||0)*100)+'% lake-sourced';
+    const lakeSia = (vs.lake_coverage_pct||0) + (vs.sia_coverage_pct||0);
+    coverageStatus = lakeSia >= 0.5 ? 'healthy' : 'degraded';
+    coverageLabel = Math.round((vs.lake_coverage_pct||0)*100)+'% lake · '
+                  + Math.round((vs.sia_coverage_pct||0)*100)+'% SIA';
   }
   const unmatchedNote = vs.unmatched_count ? ` · ${vs.unmatched_count} unmatched` : '';
 
@@ -820,9 +888,10 @@ function renderIngestionHealth(d){
   const vsRow = document.getElementById('verificationSourcesRow');
   vsRow.innerHTML = [
     ['Silvaplana lake readings', vs.silvaplana_lake_count ?? 0],
-    ['Samedan fallback readings', vs.samedan_fallback_count ?? 0],
+    ['SIA reference readings', vs.sia_reference_count ?? 0],
+    ['Legacy Samedan rows (pre-SIA policy)', vs.samedan_fallback_count ?? 0],
     ['Lake coverage', vs.lake_coverage_pct!=null ? Math.round(vs.lake_coverage_pct*100)+'%' : '—'],
-    ['<span class="tip" title="Mature predictions (past the 20h verification window) for which neither the lake reading nor the Samedan fallback ever produced a match">Unmatched predictions</span>', vs.unmatched_count ?? 0],
+    ['<span class="tip" title="Mature predictions (past the 20h verification window) for which neither the lake reading nor SIA ever produced a match">Unmatched predictions</span>', vs.unmatched_count ?? 0],
   ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
 }
 
