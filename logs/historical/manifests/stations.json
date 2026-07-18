@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-17T16:26:59.079789+00:00",
+  "generated_at": "2026-07-18T07:21:10.866434+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -10,9 +10,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 399192,
+      "n_records": 399216,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-16T23:00:00+00:00"
+      "data_end": "2026-07-17T23:00:00+00:00"
     },
     "lug": {
       "name": "Lugano",
@@ -22,9 +22,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 196846,
+      "n_records": 196870,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-16T23:00:00+00:00"
+      "data_end": "2026-07-17T23:00:00+00:00"
     },
     "sma": {
       "name": "Z\u00fcrich / Fluntern",
@@ -34,15 +34,28 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 196781,
+      "n_records": 196805,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-16T23:00:00+00:00"
+      "data_end": "2026-07-17T23:00:00+00:00"
     },
     "cov": {
       "name": "Piz Corvatsch",
       "provider": "meteoswiss",
       "roles": [
         "summit",
+        "competing_flow"
+      ],
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 398849,
+      "data_start": "1981-01-01T00:00:00+00:00",
+      "data_end": "2026-07-18T06:00:00+00:00"
+    },
+    "beh": {
+      "name": "Passo del Bernina",
+      "provider": "meteoswiss",
+      "roles": [
+        "pass",
         "competing_flow"
       ],
       "enabled": false,
@@ -77,16 +90,16 @@
       "data_end": null
     },
     "sils": {
-      "name": "Sils / Segl",
-      "provider": "unknown",
+      "name": "Sils / Segl (Silser See)",
+      "provider": "user_provided",
       "roles": [
         "target_region"
       ],
-      "enabled": false,
-      "verification": "unverified",
-      "n_records": 0,
-      "data_start": null,
-      "data_end": null
+      "enabled": true,
+      "verification": "confirmed",
+      "n_records": 22,
+      "data_start": "2014-04-01T22:00:00+00:00",
+      "data_end": "2014-04-02T21:00:00+00:00"
     },
     "vicosoprano": {
       "name": "Vicosoprano",
