@@ -82,5 +82,55 @@ class TodayTomorrowMarkupTests(unittest.TestCase):
         self.assertIn('id="tomorrowRecommendation"', self.html)
 
 
+class RetroDashboardSkinTests(unittest.TestCase):
+    def setUp(self):
+        self.html = _read()
+        css_path = os.path.join(REPO_ROOT, "docs", "retro-dashboard.css")
+        with open(css_path) as f:
+            self.css = f.read()
+
+    def test_retro_skin_is_default_and_classic_remains_rollback(self):
+        self.assertIn('id="skinClassic"', self.html)
+        self.assertIn('id="skinRetro"', self.html)
+        self.assertIn("stored === 'tech' ? 'retro'", self.html)
+        self.assertIn('data-skin="retro"', self.css)
+
+    def test_approved_semantic_tokens_are_centralized(self):
+        for token in (
+            "--surface-0:#050705", "--surface-1:#090c09",
+            "--amber:#ff9e18", "--gold:#d4af61",
+            "--phosphor:#9edb82", "--signal-red:#f04428",
+        ):
+            self.assertIn(token, self.css)
+
+    def test_real_dashboard_sections_are_mapped_to_panel_grid(self):
+        for panel_class in (
+            "panel-forecast", "panel-summary", "panel-water", "panel-live",
+            "panel-health", "panel-reference", "panel-viz", "panel-eval",
+            "panel-ablation", "panel-tech",
+        ):
+            self.assertIn(panel_class, self.html)
+        self.assertIn('id="dashboardMain"', self.html)
+
+    def test_prototype_art_and_fake_metro_telemetry_are_not_shipped(self):
+        self.assertNotIn("design-reference.png", self.html)
+        for placeholder in ("Civic Center", "Central Line", "Motor temp", "Brake press"):
+            self.assertNotIn(placeholder, self.html)
+
+    def test_accessibility_and_reduced_motion_hooks_exist(self):
+        self.assertIn('class="skip-link"', self.html)
+        self.assertIn('aria-live="polite"', self.html)
+        self.assertIn("prefers-reduced-motion:reduce", self.css)
+        self.assertIn(":focus-visible", self.css)
+
+    def test_all_charts_have_accessible_names(self):
+        for chart_id in ("vizDonut", "vizPolar", "vizRadar", "monthlyChart", "timelineChart"):
+            marker = f'id="{chart_id}"'
+            start = self.html.index(marker)
+            canvas = self.html[start:self.html.index(">", start)]
+            self.assertIn('role="img"', canvas)
+            self.assertIn('aria-label=', canvas)
+
+
 if __name__ == "__main__":
     unittest.main()
