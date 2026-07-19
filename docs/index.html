@@ -161,6 +161,8 @@
   .eval-btn:hover{background:var(--blue-deep);}
   .eval-btn svg{width:14px;height:14px;flex:none;}
   .eval-btn-wrap{margin-top:16px;}
+  .action-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 16px;}
+  .action-bar .eval-btn-tip{margin-top:0;}
   .eval-btn-tip{font-size:12px;color:var(--ink-3);margin-top:8px;max-width:420px;}
 
   .window-tables{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;}
@@ -369,6 +371,24 @@
       <div class="status-line" id="statusLine" role="status" aria-live="polite"></div>
     </div>
   </header>
+
+  <!-- Top-of-page one-tap lake sampler. A static GitHub Pages page can't hold
+       a token to dispatch a workflow itself (that would leak a credential in
+       public frontend code - the same reason the evaluation button is just a
+       link), so this deep-links to the sampler workflow's Run page. On a phone
+       already signed in to GitHub it's two taps to force a fresh real lake
+       reading - handy when the throttled cron hasn't fired during a session. -->
+  <div class="action-bar">
+    <a class="eval-btn" id="lakeSampleBtn"
+       href="https://github.com/ambrogio5/wingcheck/actions/workflows/kitesailing-sampler.yml"
+       target="_blank" rel="noopener noreferrer" aria-describedby="lakeSampleTip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M12 20v-8M12 12a4 4 0 0 1 4-4M12 12a4 4 0 0 0-4-4M12 4a8 8 0 0 1 8 8M12 4a8 8 0 0 0-8 8"/>
+      </svg>
+      Sample the lake now
+    </a>
+    <span class="eval-btn-tip" id="lakeSampleTip">Opens the sampler workflow on GitHub — tap “Run workflow” to capture a fresh Silvaplana lake reading (active 09:00–19:00 CEST).</span>
+  </div>
 
   <main class="dashboard-console" id="dashboardMain">
 

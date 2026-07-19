@@ -1,0 +1,65 @@
+# Save as .github/workflows/telegram-ingest.yml
+#
+# Manual lake-reading BACKUP path. Drains the Telegram bot's inbox and logs
+# any `/lake ...` readings the owner texted (telegram_ingest.py) into
+# logs/kitesailing_observations.jsonl - exactly where verify_and_learn.py
+# reads the real Silvaplana lake ground truth, so a texted reading feeds
+# verification identically to a scraped one.
+#
+# Kept in its OWN workflow, deliberately NOT folded into
+# kitesailing-sampler.yml, so that the low-privilege scraper job stays free
+# of the Telegram credentials (asserted by tests/test_workflow.py) - only
+# THIS job ever holds them.
+#
+# Best-effort by construction: telegram_ingest.py never raises out of
+# main(), only the configured TELEGRAM_CHAT_ID is trusted (nobody else can
+# inject a label), and every reading is plausibility-checked before it is
+# logged. The cron is a broad UTC every-30-minutes schedule; GitHub
+# throttles scheduled workflows in practice, but that is fine here because
+# each reading is stamped with the Telegram message's OWN send-time
+# (message.date), so ingesting it hours late never corrupts the timestamp.
+# Commits the observations log plus the getUpdates offset
+# (logs/telegram_offset.json) so no message is ever processed twice.
+#
+# Pure stdlib (urllib) - no pip install step needed.
+#
+# Required repo setting: Settings -> Actions -> General -> Workflow
+# permissions -> "Read and write permissions" (shared with the other
+# workflows). Optional: set TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets;
+# without them the job exits cleanly as a no-op.
+
+name: telegram-ingest
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"  # broad UTC, every 30 min; throttled in practice - see header
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-ingest
+  cancel-in-progress: false   # never cancel mid-commit (like the main workflow)
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Drain Telegram inbox for manual /lake readings (best-effort)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python telegram_ingest.py
+      - name: Commit any new manual reading and the inbox offset (always)
+        if: always()
+        run: |
+          git config user.name "wingcheck-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs/kitesailing_observations.jsonl logs/telegram_offset.json
+          git diff --staged --quiet || git commit -m "telegram lake ingest $(date -u +%FT%H:%M)"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push

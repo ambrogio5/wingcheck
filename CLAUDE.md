@@ -72,6 +72,7 @@ pip install -r requirements.txt   # only dependency: requests
 
 python forecast_and_log.py        # fetch forecast, score, send Telegram alert, log predictions
 python kitesailing_weather.py     # scrape one live Silvaplana reading, append to logs/ (needs playwright, see below)
+python telegram_ingest.py         # drain Telegram inbox: log manual `/lake` lake readings (backup path; needs TELEGRAM_* env, stdlib-only)
 python verify_and_learn.py        # check past predictions against real observations, update weights.json
 python refresh_dashboard.py       # rebuild docs/dashboard_data.json from logs on disk (no network)
 python backtest.py                # full historical retrain (2024-2026), rewrites weights.json + dashboard data
@@ -114,6 +115,27 @@ lightweight. Its `load_observations()`/`closest_observation()` helpers
 playwright installed — only `fetch_current_reading()` needs the browser,
 and its `playwright` import is deliberately deferred inside that function
 for exactly this reason. Don't hoist it back to module level.
+`telegram_ingest.py` is a **manual backup path** for the same lake ground
+truth: when the scraper is throttled or the site is unreachable, texting
+the Telegram bot `/lake mean=5 gust=16 dir=90 …` logs a real reading into
+the *same* `logs/kitesailing_observations.jsonl` (so `verify_and_learn.py`
+consumes it identically), stamped with the Telegram **message's own
+send-time** (`message.date`) so a throttled poller ingesting it hours later
+doesn't corrupt the timestamp. It is stdlib-only (`urllib`, no `requests`
+or playwright), only accepts messages from the configured
+`TELEGRAM_CHAT_ID` (no one else can inject labels), plausibility-checks
+every reading before logging, and tags each `source: "telegram_manual"` for
+auditability. It runs from its **own** `telegram-ingest.yml` workflow
+(deliberately NOT folded into `kitesailing-sampler.yml`, so the
+low-privilege scraper job stays free of the Telegram secrets — asserted by
+`tests/test_workflow.py`), draining the inbox via `getUpdates` with a
+committed offset (`logs/telegram_offset.json`) so nothing is processed
+twice. Like the other workflows it has a byte-identical
+`COPY-ME_telegram-ingest.yml` template twin. The dashboard also carries a top-of-page
+**“Sample the lake now”** button (`#lakeSampleBtn`) that deep-links to the
+sampler workflow's Run page — a static page can't hold a token to dispatch
+a workflow itself, so it's a one-tap link, same safe pattern as the
+evaluation button.
 
 ## Architecture
 

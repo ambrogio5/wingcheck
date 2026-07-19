@@ -23,11 +23,25 @@ mean-of-10-minute aggregates, flagged as derived.
 
 The live ground-truth priority (`config/ground_truth_policy.json`, v2) is:
 
-1. direct lake measurement (kitesailing.ch scrape) - always wins
+1. direct lake measurement (kitesailing.ch scrape, or a `telegram_manual`
+   backup reading - see below) - always wins
 2. SIA - principal reference when no lake reading exists
 3. missing label - never fabricated; **Samedan is context only, no longer a
    default label** (re-enable only inside an explicitly named research
    experiment)
+
+**Getting more lake readings.** The kitesailing.ch scraper is throttled by
+GitHub's scheduled-workflow limits, so two manual boosters exist for the
+days you're at the spot: a top-of-page **“Sample the lake now”** button on
+the dashboard (one-tap deep-link to the sampler workflow's *Run* page), and
+a **Telegram backup** — text the bot `/lake mean=5 gust=16 dir=90` (or just
+`/lake 5`) and `telegram_ingest.py` logs it as a real lake reading stamped
+with your message's own send-time, feeding verification exactly like a
+scrape. Only your `TELEGRAM_CHAT_ID` is accepted, readings are
+plausibility-checked and echoed back, and each is tagged
+`source: telegram_manual` for auditability. It runs from its own
+`telegram-ingest.yml` workflow — kept separate from the scraper so that
+low-privilege job never holds the Telegram secrets.
 
 Training-data preparation now has explicit, inspectable steps:
 
