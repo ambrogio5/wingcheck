@@ -137,5 +137,66 @@ class RetroDashboardSkinTests(unittest.TestCase):
             self.assertIn('aria-label=', canvas)
 
 
+class RetroInstrumentClusterTests(unittest.TestCase):
+    """The retro skin's operator-console hero: a real-data instrument
+    cluster (dial, animated area map, route, systems, next window, day
+    profile). Every value is driven from dashboard_data.json - no
+    fabricated metro telemetry, no design-reference artwork."""
+
+    def setUp(self):
+        self.html = _read()
+        css_path = os.path.join(REPO_ROOT, "docs", "retro-dashboard.css")
+        with open(css_path) as f:
+            self.css = f.read()
+
+    def test_cluster_markup_present(self):
+        for marker in (
+            'id="retroCluster"', 'class="rc-panel rc-route"', 'id="rcDial"',
+            'id="rcMapSvg"', 'id="rcStations"', 'id="rcSysList"',
+            'id="rcNextHour"', 'id="rcSpark"', 'id="rcTimeline"',
+        ):
+            self.assertIn(marker, self.html, marker)
+
+    def test_cluster_is_hidden_off_retro_and_shown_on_retro(self):
+        # base stylesheet hides it; the retro skin turns it back on.
+        self.assertIn(".retro-cluster{display:none;}", self.html.replace(" ", ""))
+        self.assertRegex(
+            self.css.replace("\n", " "),
+            r'html\[data-skin="retro"\]\s*\.retro-cluster\s*\{[^}]*display:grid',
+        )
+
+    def test_render_function_defined_and_wired(self):
+        self.assertIn("function renderRetroCluster(d){", self.html)
+        # runs on load in the init render loop...
+        self.assertIn("renderStatus, renderRetroCluster,", self.html)
+        # ...and again on skin switch so animations restart.
+        self.assertIn("renderRetroCluster(window.__DASH_DATA)", self.html)
+
+    def test_map_has_real_places_and_animated_flow(self):
+        # Real geography of the Maloja wind - not the prototype metro line.
+        for place in ("MALOJA PASS", "SILVAPLANA", "SAMEDAN", "CORVATSCH"):
+            self.assertIn(place, self.html, place)
+        # animated wind streamlines + the guide path the particles ride
+        self.assertIn('class="rc-stream"', self.html)
+        self.assertIn('id="rcFlowPath"', self.html)
+        self.assertIn("@keyframes rcStream", self.css)
+        # flow speed is a CSS variable the renderer scales to the forecast wind
+        self.assertIn("animation:rcStream var(--flow", self.css)
+        self.assertIn("--flow", self.html)  # renderer sets it
+
+    def test_dial_and_readouts_come_from_real_fields(self):
+        # gauge peak == session_forecast event_probability; wind/agreement/gust
+        # all read from real optional fields, never invented.
+        for token in ("event_probability", "expected_wind_max_kt",
+                      "expected_gust_max_kt", "model_agreement",
+                      "station_input_age_minutes"):
+            self.assertIn(token, self.html, token)
+
+    def test_no_fabricated_metro_telemetry_in_cluster(self):
+        for placeholder in ("Civic Center", "Central Line", "Motor temp",
+                            "Brake press", "design-reference.png"):
+            self.assertNotIn(placeholder, self.html)
+
+
 if __name__ == "__main__":
     unittest.main()

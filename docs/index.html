@@ -310,6 +310,10 @@
   .viz-box{height:240px; position:relative;}
   .viz-title{font-family:var(--mono); font-size:11px; color:var(--ink-3); letter-spacing:.08em;
     text-transform:uppercase; margin-bottom:6px; text-align:center;}
+
+  /* The retro instrument cluster is a retro-skin-only hero; the CLASSIC and
+     TECH skins never show it (retro-dashboard.css flips it back on). */
+  .retro-cluster{display:none;}
 </style>
 <link rel="stylesheet" href="./retro-dashboard.css">
 </head>
@@ -339,6 +343,7 @@
           renderVisuals(window.__DASH_DATA);
           renderTimeline(window.__DASH_DATA);
           renderMonthly(window.__DASH_DATA);
+          if (typeof renderRetroCluster === 'function') renderRetroCluster(window.__DASH_DATA);
         } catch(e){}
       }
     }
@@ -366,6 +371,157 @@
   </header>
 
   <main class="dashboard-console" id="dashboardMain">
+
+  <!-- ============ RETRO INSTRUMENT CLUSTER (retro skin only) ============
+       A late-1970s automotive / operator-console reimagining of the SAME
+       real data. The central dial is the model's own peak "estimated
+       likelihood" for the day; the map is the actual Maloja-wind valley
+       (Bregaglia source -> Maloja Pass -> Sils -> Silvaplana lake ->
+       Samedan) with a wind-flow animation whose speed scales with the
+       forecast wind; every readout is populated by renderRetroCluster()
+       from dashboard_data.json. Hidden in the CLASSIC and TECH skins
+       (display:none), shown only when data-skin="retro". No fabricated
+       telemetry - if a value is missing it reads "--". -->
+  <section class="retro-cluster" id="retroCluster" aria-label="Instrument cluster">
+
+    <!-- ROUTE / AIRFLOW: the wind's real path down-valley -->
+    <div class="rc-panel rc-route">
+      <div class="rc-head"><span>Airflow</span><span class="rc-head-r" id="rcRouteNext">--</span></div>
+      <ol class="rc-stations" id="rcStations"></ol>
+    </div>
+
+    <!-- CENTRAL DIAL: peak estimated session likelihood -->
+    <div class="rc-panel rc-gauge">
+      <div class="rc-head"><span>Session likelihood</span><span class="rc-head-r" id="rcGaugeDay">TODAY</span></div>
+      <div class="rc-gauge-body">
+        <div class="rc-dial-wrap">
+          <svg class="rc-dial" id="rcDial" viewBox="0 0 320 196" role="img" aria-label="Peak estimated session likelihood dial"></svg>
+          <div class="rc-readout">
+            <div class="rc-digits" id="rcGaugeVal">--</div>
+            <div class="rc-unit">% peak est. likelihood</div>
+          </div>
+        </div>
+        <div class="rc-side">
+          <div class="rc-bar">
+            <div class="rc-k">Peak wind</div>
+            <div class="rc-bar-track"><div class="rc-bar-fill" id="rcWindFill"></div></div>
+            <div class="rc-bar-val" id="rcWindVal">-- kt</div>
+          </div>
+          <div class="rc-energy">
+            <div class="rc-k">Model agreement</div>
+            <div class="rc-energy-val" id="rcAgree">--</div>
+          </div>
+          <div class="rc-energy">
+            <div class="rc-k">Expected gust</div>
+            <div class="rc-energy-val alt" id="rcGust">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AREA MAP: animated wireframe of the Engadin / Bregaglia valley -->
+    <div class="rc-panel rc-map">
+      <div class="rc-head"><span>Area map</span><span class="rc-head-r" id="rcMapWind">FLOW --</span></div>
+      <div class="rc-map-frame">
+        <svg class="rc-map-svg" id="rcMapSvg" viewBox="0 0 480 300" preserveAspectRatio="xMidYMid meet"
+             role="img" aria-label="Wireframe map of the Maloja-wind valley: Maloja Pass, lakes Sils and Silvaplana, Corvatsch and Samedan, with animated down-valley wind flow">
+          <defs>
+            <linearGradient id="rcValley" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#1d2a12" stop-opacity=".55"/>
+              <stop offset="1" stop-color="#0a1207" stop-opacity=".15"/>
+            </linearGradient>
+            <radialGradient id="rcGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0" stop-color="#ff9e18" stop-opacity=".8"/>
+              <stop offset="1" stop-color="#ff9e18" stop-opacity="0"/>
+            </radialGradient>
+            <!-- invisible guide path the wind particles ride -->
+            <path id="rcFlowPath" d="M 58,262 C 130,238 158,206 210,182 S 322,120 428,60" fill="none"/>
+          </defs>
+
+          <!-- perspective grid -->
+          <g class="rc-grid" stroke="#2f4a24" stroke-width="1" fill="none" opacity=".5">
+            <path d="M 0,300 L 190,120 M 96,300 L 236,120 M 192,300 L 282,120 M 288,300 L 328,120 M 384,300 L 374,120 M 480,300 L 420,120"/>
+            <path d="M 40,255 L 480,205 M 70,210 L 470,168 M 108,168 L 462,135 M 150,132 L 452,108"/>
+          </g>
+
+          <!-- valley floor band -->
+          <path class="rc-valley" d="M 44,270 C 128,244 156,212 208,188 S 322,126 440,66 L 468,92 C 348,150 268,196 232,214 C 168,246 118,282 74,296 Z"
+                fill="url(#rcValley)" stroke="#3c5a2b" stroke-width="1"/>
+
+          <!-- lakes -->
+          <g class="rc-lakes" stroke="#7fd08a" fill="#0e2417">
+            <ellipse cx="150" cy="222" rx="26" ry="9" transform="rotate(-28 150 222)"/>
+            <ellipse class="rc-target-lake" cx="228" cy="184" rx="30" ry="10" transform="rotate(-30 228 184)"/>
+            <ellipse cx="300" cy="146" rx="18" ry="7" transform="rotate(-32 300 146)"/>
+          </g>
+
+          <!-- Corvatsch massif (wireframe peaks, SE) -->
+          <g class="rc-peaks" stroke="#5c7a44" fill="none" stroke-width="1">
+            <path d="M 300,262 L 336,196 L 372,262 M 320,262 L 336,222 L 352,262"/>
+            <path d="M 372,250 L 398,206 L 424,250"/>
+          </g>
+
+          <!-- animated wind streamlines -->
+          <path class="rc-stream" d="M 58,262 C 130,238 158,206 210,182 S 322,120 428,60" fill="none" stroke="#ffb84d" stroke-width="2.2"/>
+          <path class="rc-stream s2" d="M 66,278 C 138,252 168,220 220,196 S 330,134 440,74" fill="none" stroke="#ff9e18" stroke-width="1.6"/>
+          <path class="rc-stream s3" d="M 52,244 C 122,222 148,192 200,168 S 314,108 418,50" fill="none" stroke="#9edb82" stroke-width="1.2"/>
+
+          <!-- wind particles riding the guide path (SMIL; stripped under reduced-motion) -->
+          <g class="rc-particles" fill="#ffe6a8">
+            <circle data-particle r="2.6"><animateMotion class="rc-pm" dur="3s" begin="0s"   repeatCount="indefinite"><mpath href="#rcFlowPath"/></animateMotion></circle>
+            <circle data-particle r="2.2"><animateMotion class="rc-pm" dur="3s" begin="0.7s" repeatCount="indefinite"><mpath href="#rcFlowPath"/></animateMotion></circle>
+            <circle data-particle r="2.9"><animateMotion class="rc-pm" dur="3s" begin="1.4s" repeatCount="indefinite"><mpath href="#rcFlowPath"/></animateMotion></circle>
+            <circle data-particle r="2.0"><animateMotion class="rc-pm" dur="3s" begin="2.1s" repeatCount="indefinite"><mpath href="#rcFlowPath"/></animateMotion></circle>
+          </g>
+
+          <!-- station markers -->
+          <g class="rc-nodes" font-family="'IBM Plex Mono',monospace" font-size="9" letter-spacing=".04em">
+            <g class="rc-node"><circle cx="58" cy="262" r="3.4"/><text x="60" y="278">MALOJA PASS</text></g>
+            <g class="rc-node"><circle cx="150" cy="222" r="3"/><text x="96" y="252">SILS · SEGL-MARIA</text></g>
+            <g class="rc-node rc-node-target"><circle class="rc-ping" cx="228" cy="184" r="5"/><circle cx="228" cy="184" r="3.4"/><text x="238" y="176">SILVAPLANA ▸</text></g>
+            <g class="rc-node"><circle cx="336" cy="196" r="2.6"/><text x="322" y="212">CORVATSCH</text></g>
+            <g class="rc-node"><circle cx="428" cy="60" r="3.2"/><text x="360" y="52">SAMEDAN</text></g>
+          </g>
+
+          <!-- compass + zoom -->
+          <g class="rc-compass" transform="translate(34,266)">
+            <path d="M 0,10 L 6,-8 L 12,10 L 6,4 Z" fill="#9edb82" stroke="none"/>
+            <text x="2" y="26" font-family="'IBM Plex Mono',monospace" font-size="10" fill="#9edb82">N</text>
+          </g>
+          <text class="rc-zoom" x="466" y="20" text-anchor="end" font-family="'IBM Plex Mono',monospace" font-size="9" fill="#918b6d">EarthWind · Engadin</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- SYSTEMS: real station health -->
+    <div class="rc-panel rc-system">
+      <div class="rc-head"><span>Systems</span><span class="rc-head-r" id="rcSysSummary">--</span></div>
+      <ul class="rc-sys-list" id="rcSysList"></ul>
+    </div>
+
+    <!-- NEXT WINDOW: analog of the console's "next station" -->
+    <div class="rc-panel rc-next">
+      <div class="rc-head"><span>Next rideable window</span></div>
+      <div class="rc-next-body">
+        <div class="rc-next-hour" id="rcNextHour">--:--</div>
+        <div class="rc-next-grid">
+          <div><div class="rc-k">Est. likelihood</div><div class="rc-v" id="rcNextProb">--</div></div>
+          <div><div class="rc-k">Wind / gust</div><div class="rc-v" id="rcNextWind">--</div></div>
+          <div><div class="rc-k">Tier</div><div class="rc-v" id="rcNextTier">--</div></div>
+          <div><div class="rc-k">In</div><div class="rc-v" id="rcNextEta">--</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DAY PROFILE: hourly likelihood sparkline + hour ticks -->
+    <div class="rc-panel rc-profile">
+      <div class="rc-head"><span>Day profile</span><span class="rc-head-r">12–18h · today</span></div>
+      <svg class="rc-spark" id="rcSpark" viewBox="0 0 340 96" preserveAspectRatio="none"
+           role="img" aria-label="Estimated session likelihood by hour today"></svg>
+      <div class="rc-tl" id="rcTimeline"></div>
+    </div>
+
+  </section>
 
   <!-- ================= TODAY & TOMORROW FORECAST ================= -->
   <section class="card panel-forecast" aria-labelledby="forecast-h">
@@ -1175,6 +1331,174 @@ function renderAblation(d){
   el.innerHTML = head + body;
 }
 
+// ============ RETRO INSTRUMENT CLUSTER ============
+// Populates the retro-skin-only hero (dial, area map, route, systems, next
+// window, day profile) entirely from dashboard_data.json. Every branch has
+// a "--" / missing fallback; it never invents a value. Cheap enough to run
+// on every load regardless of skin (the cluster is display:none unless
+// data-skin="retro"), and re-run on skin switch so animations restart.
+function renderRetroCluster(d){
+  const el = id => document.getElementById(id);
+  const cluster = el('retroCluster');
+  if (!cluster) return;
+
+  // ---- pick "today" (Europe/Zurich), fall back to first forecast day ----
+  const sf = d.session_forecast || {};
+  const today = (typeof zurichTodayDateString === 'function') ? zurichTodayDateString() : null;
+  const dayKey = (today && sf[today]) ? today : Object.keys(sf)[0];
+  const s = dayKey ? (sf[dayKey] || {}) : {};
+
+  const todayHours = (d.upcoming_forecast || [])
+    .filter(c => String(c.target_time).slice(0,10) === dayKey)
+    .sort((a,b) => a.target_time < b.target_time ? -1 : 1);
+
+  const peak = (s.event_probability != null) ? s.event_probability
+             : (todayHours.length ? Math.max(...todayHours.map(c=>c.probability ?? 0)) : null);
+  const peakWind = (s.expected_wind_max_kt != null) ? s.expected_wind_max_kt
+             : (todayHours.length ? Math.max(...todayHours.map(c=>c.model_wind_kt ?? 0)) : null);
+  const peakGust = (s.expected_gust_max_kt != null) ? s.expected_gust_max_kt
+             : (todayHours.length ? Math.max(...todayHours.map(c=>c.model_gust_kt ?? 0)) : null);
+  const agree = (s.model_agreement != null) ? s.model_agreement
+             : ((d.model_agreement && dayKey) ? d.model_agreement[dayKey] : null);
+
+  const th = (d.final_weights && d.final_weights.tier_thresholds)
+           || (d.deployment && d.deployment.thresholds) || {good:0.8, marginal:0.65};
+  const zoneColor = p => (p == null) ? '#7a5a1e'
+                       : p >= th.good ? '#8fe36f' : p >= th.marginal ? '#ffc05c' : '#ff9e18';
+
+  // ---- central dial (tick ring + value arc, both as foolproof polylines) ----
+  const cx = 160, cy = 172, Rout = 132, Rin = 116, Rarc = 124;
+  const armPt = (p, r) => { const a = (180 - 180*p) * Math.PI/180;
+    return [cx + r*Math.cos(a), cy - r*Math.sin(a)]; };
+  let dial = '';
+  for (let i=0;i<=20;i++){ const p=i/20;
+    const [x1,y1]=armPt(p,Rout), [x2,y2]=armPt(p,Rin);
+    const col = p >= th.good ? '#4f7d3c' : p >= th.marginal ? '#8a7233' : '#7a5a1e';
+    dial += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="${i%4===0?2.6:1.2}"/>`;
+  }
+  // faint full-track + bright value arc, sampled along the semicircle
+  const arcPts = (from,to) => { let pts=[]; const steps=64;
+    for (let i=0;i<=steps;i++){ const p=from+(to-from)*(i/steps); const [x,y]=armPt(p,Rarc); pts.push(`${x.toFixed(1)},${y.toFixed(1)}`); }
+    return pts.join(' '); };
+  dial += `<polyline points="${arcPts(0,1)}" fill="none" stroke="#241d10" stroke-width="9" stroke-linecap="round"/>`;
+  if (peak != null){
+    dial += `<polyline points="${arcPts(0, Math.max(0,Math.min(1,peak)))}" fill="none" stroke="${zoneColor(peak)}" stroke-width="9" stroke-linecap="round" style="filter:drop-shadow(0 0 6px ${zoneColor(peak)})"/>`;
+    const [nx,ny]=armPt(Math.max(0,Math.min(1,peak)), Rarc);
+    dial += `<circle cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" r="4.5" fill="#fff3d6"/>`;
+  }
+  // endpoint scale labels sit just outside the arc ends, clear of the readout
+  dial += `<text x="20" y="188" font-family="'IBM Plex Mono',monospace" font-size="11" fill="#918b6d">0</text>`;
+  dial += `<text x="300" y="188" text-anchor="end" font-family="'IBM Plex Mono',monospace" font-size="11" fill="#918b6d">100</text>`;
+  el('rcDial').innerHTML = dial;
+
+  el('rcGaugeVal').textContent = (peak != null) ? Math.round(peak*100) : '--';
+  el('rcGaugeVal').style.color = zoneColor(peak);
+  el('rcGaugeDay').textContent = (dayKey === today) ? 'TODAY' : (dayKey || '--');
+
+  // ---- side stack: peak wind bar, agreement, gust ----
+  const windPct = (peakWind != null) ? Math.max(4, Math.min(100, peakWind/25*100)) : 0;
+  el('rcWindFill').style.height = windPct + '%';
+  el('rcWindVal').textContent = (peakWind != null) ? `${Math.round(peakWind)} kt` : '-- kt';
+  el('rcAgree').textContent = (agree != null) ? `${Math.round(agree*100)}%` : '--';
+  el('rcGust').textContent = (peakGust != null) ? `${Math.round(peakGust)} kt` : '--';
+
+  // ---- ROUTE / AIRFLOW ----
+  const sia = d.latest_sia_observation || null;
+  const health = d.station_health || {};
+  const ages = health.station_input_age_minutes || {};
+  const fmtAge = m => (m==null) ? 'no data' : (m<90 ? `${Math.round(m)} min ago` : `${(m/60).toFixed(1)} h ago`);
+  const stations = [
+    {n:'Val Bregaglia', note:'source valley', cls:''},
+    {n:'Maloja Pass', note:'thermal inflow', cls:''},
+    {n:'Sils · Segl-Maria', note: sia ? `SIA ${Math.round(sia.wind_kt)} kt ${sia.wind_dir||''}`.trim() : 'reference station', cls:''},
+    {n:'Silvaplana lake', note:'TARGET · wingfoil spot', cls:'target'},
+    {n:'Samedan', note: ('sam' in ages) ? fmtAge(ages.sam) : 'valley station', cls:''},
+  ];
+  el('rcStations').innerHTML = stations.map((st,i)=>`
+    <li class="rc-st ${st.cls}">
+      <span class="rc-st-dot"></span>
+      <span class="rc-st-name">${st.n}</span>
+      <span class="rc-st-note">${st.note}</span>
+    </li>`).join('');
+
+  // ---- NEXT rideable window (today's remaining, else tomorrow) ----
+  let nextCards = [];
+  try { const g = getForecastByDay(d.upcoming_forecast);
+    nextCards = (g.todayRemaining && g.todayRemaining.length) ? g.todayRemaining : (g.tomorrowCards||[]); } catch(e){}
+  const best = (nextCards.length && typeof selectBestCard === 'function') ? selectBestCard(nextCards) : null;
+  if (best){
+    el('rcNextHour').textContent = formatHourLabel(best.target_time);
+    el('rcNextProb').textContent = fmtPct(best.probability);
+    el('rcNextProb').style.color = zoneColor(best.probability);
+    el('rcNextWind').textContent = `${fmtInt(best.model_wind_kt)} / ${fmtInt(best.model_gust_kt)} kt`;
+    el('rcNextTier').textContent = best.tier || '--';
+    el('rcRouteNext').textContent = 'NEXT → ' + formatHourLabel(best.target_time);
+    let eta = '--';
+    try { const now = zurichNowPseudoUtc(); const t = parseNaiveLocal(best.target_time);
+      const h = (t - now)/3.6e6; eta = h <= 0 ? 'now' : h < 1 ? `${Math.round(h*60)} min` : `${h.toFixed(1)} h`; } catch(e){}
+    el('rcNextEta').textContent = eta;
+  } else {
+    ['rcNextProb','rcNextWind','rcNextTier','rcNextEta'].forEach(k=>el(k).textContent='--');
+    el('rcNextHour').textContent = '--:--';
+    el('rcRouteNext').textContent = 'NEXT → --';
+  }
+
+  // ---- SYSTEMS (real station health) ----
+  const cov = (health.data_health && health.data_health.raw_values && health.data_health.raw_values.per_station_coverage) || {};
+  const sysIds = Object.keys(ages).length ? Object.keys(ages) : Object.keys(cov);
+  let okCount = 0;
+  el('rcSysList').innerHTML = (sysIds.length ? sysIds : ['sam','sia','lug','sma','cov','sils']).map(id=>{
+    const age = ages[id]; const c = cov[id];
+    let state, cls;
+    if (age == null || c === 0){ state='OFFLINE'; cls='miss'; }
+    else if (age > 360){ state='STALE'; cls='warn'; okCount++; }
+    else { state='OK'; cls='ok'; okCount++; }
+    return `<li class="rc-sys ${cls}"><span class="rc-sys-id">${id.toUpperCase()}</span>
+      <span class="rc-sys-age">${fmtAge(age)}</span><span class="rc-sys-state">${state}</span></li>`;
+  }).join('');
+  const total = (sysIds.length ? sysIds.length : 6);
+  el('rcSysSummary').textContent = `${okCount}/${total} online`;
+
+  // ---- DAY PROFILE sparkline (hourly likelihood) + hour timeline ----
+  const spark = el('rcSpark');
+  if (todayHours.length >= 2){
+    const W=340, H=96, padX=8, padY=10;
+    const xs = todayHours.map((c,i)=> padX + (W-2*padX)*(i/(todayHours.length-1)));
+    const ys = todayHours.map(c=> H-padY - (H-2*padY)*Math.max(0,Math.min(1,c.probability??0)));
+    const line = xs.map((x,i)=>`${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+    const area = `${padX.toFixed(1)},${(H-padY).toFixed(1)} ${line} ${(W-padX).toFixed(1)},${(H-padY).toFixed(1)}`;
+    let dots=''; let bi=0; todayHours.forEach((c,i)=>{ if((c.probability??0)>=(todayHours[bi].probability??0)) bi=i; });
+    todayHours.forEach((c,i)=>{ dots += `<circle cx="${xs[i].toFixed(1)}" cy="${ys[i].toFixed(1)}" r="${i===bi?4:2.4}" fill="${i===bi?'#fff3d6':zoneColor(c.probability)}"/>`; });
+    spark.innerHTML =
+      `<polyline points="${area}" fill="rgba(255,158,24,.10)" stroke="none"/>` +
+      `<line x1="${padX}" y1="${H-padY}" x2="${W-padX}" y2="${H-padY}" stroke="#2c2a1d" stroke-width="1"/>` +
+      `<polyline points="${line}" fill="none" stroke="#ffb84d" stroke-width="2" style="filter:drop-shadow(0 0 4px rgba(255,158,24,.4))"/>` + dots;
+  } else {
+    spark.innerHTML = `<text x="170" y="52" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11" fill="#918b6d">NO HOURLY DATA FOR TODAY</text>`;
+  }
+  el('rcTimeline').innerHTML = todayHours.length
+    ? todayHours.map(c=>`<div class="rc-tick"><div class="rc-tick-h">${formatHourLabel(c.target_time).slice(0,2)}</div>
+        <div class="rc-tick-bar"><i style="height:${Math.max(6,Math.round((c.probability??0)*100))}%;background:${zoneColor(c.probability)}"></i></div>
+        <div class="rc-tick-p">${Math.round((c.probability??0)*100)}</div></div>`).join('')
+    : '<div class="rc-tick-empty">awaiting today\'s forecast</div>';
+
+  // ---- AREA MAP: scale wind-flow animation to the forecast wind ----
+  const svg = el('rcMapSvg');
+  const w = (peakWind != null) ? peakWind : 6;
+  const dur = Math.max(1.1, Math.min(6, 6 - w*0.32));       // stronger wind -> faster flow
+  svg.style.setProperty('--flow', dur.toFixed(2) + 's');
+  el('rcMapWind').textContent = (peakWind != null) ? `FLOW ${Math.round(peakWind)}kt` : 'FLOW --';
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const particles = svg.querySelector('.rc-particles');
+  if (particles){
+    if (reduce){ particles.style.display = 'none'; }
+    else {
+      particles.style.display = '';
+      svg.querySelectorAll('.rc-pm').forEach(m=>{ try{ m.setAttribute('dur', (dur*0.92).toFixed(2)+'s'); }catch(e){} });
+    }
+  }
+}
+
 let vizCharts = [];
 function renderVisuals(d){
   if (typeof Chart === 'undefined') return;
@@ -1353,7 +1677,7 @@ async function init(){
   // Each section renders independently - one failing (e.g. Chart.js not
   // loading) must not blank out the others, especially today's forecast,
   // which is the page's actual headline answer.
-  for (const fn of [renderStatus, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
+  for (const fn of [renderStatus, renderRetroCluster, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
                      renderLakeWaterTemperature, renderLivePerformance, renderIngestionHealth, renderReferenceStations,
                      renderFrozenEvaluation,
                      renderOperationalAndRepro, renderAblation, renderVisuals, renderTimeline, renderMonthly, renderWeights]){
