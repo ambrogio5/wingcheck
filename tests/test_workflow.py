@@ -366,5 +366,51 @@ class SamplerCopyMeSyncTests(unittest.TestCase):
         self.assertEqual(_read(SAMPLER_WORKFLOW_PATH), _read(SAMPLER_COPY_ME_PATH))
 
 
+TELEGRAM_WORKFLOW_PATH = os.path.join(REPO_ROOT, ".github", "workflows", "telegram-ingest.yml")
+TELEGRAM_COPY_ME_PATH = os.path.join(REPO_ROOT, "COPY-ME_telegram-ingest.yml")
+
+
+class TelegramIngestWorkflowTests(unittest.TestCase):
+    """The dedicated Telegram-ingest workflow: the ONLY sampler-family job
+    that holds the Telegram secrets, so the scraper stays low-privilege."""
+
+    def setUp(self):
+        self.text = _read(TELEGRAM_WORKFLOW_PATH)
+
+    def test_runs_the_ingest_script_with_the_secrets(self):
+        self.assertIn("python telegram_ingest.py", self.text)
+        self.assertIn("TELEGRAM_BOT_TOKEN", self.text)
+        self.assertIn("TELEGRAM_CHAT_ID", self.text)
+
+    def test_commit_stages_observations_and_offset(self):
+        git_add = next(l for l in self.text.splitlines() if l.strip().startswith("git add"))
+        self.assertIn("logs/kitesailing_observations.jsonl", git_add)
+        self.assertIn("logs/telegram_offset.json", git_add)
+
+    def test_does_not_scrape_or_train(self):
+        # backup-ingest only - never *invokes* the browser scraper, forecast,
+        # learn, or backtest (comment prose may reference them; executable
+        # run:/uses: lines must not).
+        exec_lines = [l for l in self.text.splitlines()
+                      if l.strip().startswith(("run:", "- run:", "- uses:", "uses:"))]
+        joined = "\n".join(exec_lines)
+        for forbidden in ("kitesailing_weather.py", "playwright",
+                          "forecast_and_log.py", "verify_and_learn.py", "backtest.py"):
+            self.assertNotIn(forbidden, joined)
+
+    def test_sampler_still_has_no_telegram_secrets(self):
+        # the scraper must stay free of these - only telegram-ingest.yml holds them
+        sampler = _read(SAMPLER_WORKFLOW_PATH)
+        self.assertNotIn("TELEGRAM_BOT_TOKEN", sampler)
+        self.assertNotIn("TELEGRAM_CHAT_ID", sampler)
+
+
+class TelegramCopyMeSyncTests(unittest.TestCase):
+    def test_copy_me_telegram_workflow_matches_real_workflow(self):
+        self.assertTrue(os.path.exists(TELEGRAM_COPY_ME_PATH),
+                         "COPY-ME_telegram-ingest.yml is missing")
+        self.assertEqual(_read(TELEGRAM_WORKFLOW_PATH), _read(TELEGRAM_COPY_ME_PATH))
+
+
 if __name__ == "__main__":
     unittest.main()
