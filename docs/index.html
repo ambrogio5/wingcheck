@@ -6,7 +6,7 @@
 <meta name="description" content="Silvaplana wingfoil forecast - self-improving model, live performance, and honest holdout evaluation.">
 <title>Wingcheck · Silvaplana</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
@@ -234,7 +234,7 @@
     .eval-btn{box-shadow:0 2px 8px rgba(0,0,0,.4);}
   }
 
-  /* ============ SKIN TOGGLE + "TECH" SKIN ============ */
+  /* ============ SKIN TOGGLE ============ */
   .skin-toggle{
     position:absolute; top:14px; right:16px; z-index:5;
     display:flex; gap:0; border:1px solid var(--line); border-radius:999px;
@@ -311,29 +311,43 @@
   .viz-title{font-family:var(--mono); font-size:11px; color:var(--ink-3); letter-spacing:.08em;
     text-transform:uppercase; margin-bottom:6px; text-align:center;}
 </style>
+<link rel="stylesheet" href="./retro-dashboard.css">
 </head>
-<body>
+<body class="booting">
+<a class="skip-link" href="#dashboardMain">Skip to dashboard</a>
 <div class="wrap">
 
-  <!-- Skin toggle: classic vs "tech". Pure CSS variables, persisted in
-       localStorage, applied before first paint by the inline script in
-       <head>-adjacent position below to avoid a flash. -->
+  <!-- Skin toggle: three selectable styles - CLASSIC (original), TECH
+       (cyan CRT), and RETRO (amber instrument console). Pure CSS variables,
+       persisted in localStorage, applied before first paint by the inline
+       script below to avoid a flash. -->
   <div class="skin-toggle" role="group" aria-label="Dashboard style">
     <button id="skinClassic" onclick="setSkin('classic')">CLASSIC</button>
     <button id="skinTech" onclick="setSkin('tech')">TECH</button>
+    <button id="skinRetro" onclick="setSkin('retro')">RETRO</button>
   </div>
   <script>
     function setSkin(s){
-      if (s === 'tech') document.documentElement.setAttribute('data-skin','tech');
+      if (s === 'tech' || s === 'retro') document.documentElement.setAttribute('data-skin', s);
       else document.documentElement.removeAttribute('data-skin');
       try { localStorage.setItem('wingcheck-skin', s); } catch(e){}
-      document.getElementById('skinClassic').classList.toggle('active', s !== 'tech');
+      document.getElementById('skinClassic').classList.toggle('active', s === 'classic');
       document.getElementById('skinTech').classList.toggle('active', s === 'tech');
+      document.getElementById('skinRetro').classList.toggle('active', s === 'retro');
       if (window.__DASH_DATA && typeof renderVisuals === 'function'){
-        try { renderVisuals(window.__DASH_DATA); } catch(e){}
+        try {
+          renderVisuals(window.__DASH_DATA);
+          renderTimeline(window.__DASH_DATA);
+          renderMonthly(window.__DASH_DATA);
+        } catch(e){}
       }
     }
-    setSkin((function(){ try { return localStorage.getItem('wingcheck-skin') || 'classic'; } catch(e){ return 'classic'; } })());
+    setSkin((function(){
+      try {
+        const stored = localStorage.getItem('wingcheck-skin');
+        return (stored === 'tech' || stored === 'retro') ? stored : 'classic';
+      } catch(e){ return 'classic'; }
+    })());
   </script>
 
   <!-- ================= HEADER ================= -->
@@ -346,12 +360,15 @@
       <div class="kicker">◍ SILVAPLANA · WINGCHECK</div>
       <h1>Will the <em>Malojawind</em> blow&nbsp;today?</h1>
       <p class="header-sub">A small self-improving forecasting model for Lake Silvaplana - reads the physical drivers of the Maloja wind and checks its own predictions against the real lake reading.</p>
-      <div class="status-line" id="statusLine"></div>
+      <time class="console-clock" id="consoleClock" aria-label="Current time in Europe Zurich">--:--:--</time>
+      <div class="status-line" id="statusLine" role="status" aria-live="polite"></div>
     </div>
   </header>
 
+  <main class="dashboard-console" id="dashboardMain">
+
   <!-- ================= TODAY & TOMORROW FORECAST ================= -->
-  <section class="card" aria-labelledby="forecast-h">
+  <section class="card panel-forecast" aria-labelledby="forecast-h">
     <div class="section-head">
       <h2 id="forecast-h">Today &amp; tomorrow</h2>
       <div class="hint">14:00–18:00 local time (Europe/Zurich)</div>
@@ -376,7 +393,7 @@
   </section>
 
   <!-- ================= DAILY SUMMARY ================= -->
-  <section class="card" id="summarySection" aria-labelledby="summary-h">
+  <section class="card panel-summary" id="summarySection" aria-labelledby="summary-h">
     <div class="section-head"><h2 id="summary-h">Daily summary</h2></div>
     <div class="summary-columns">
       <div>
@@ -393,7 +410,7 @@
   </section>
 
   <!-- ================= SESSION OUTLOOK (optional - degrades to nothing) ================= -->
-  <section class="card" id="outlookSection" aria-labelledby="outlook-h" style="display:none;">
+  <section class="card panel-outlook" id="outlookSection" aria-labelledby="outlook-h" style="display:none;">
     <div class="section-head"><h2 id="outlook-h">Session outlook</h2>
       <div class="hint">Research diagnostics - context, not a guarantee</div></div>
     <div class="summary-grid" id="outlookGrid"></div>
@@ -411,13 +428,13 @@
   </section>
 
   <!-- ================= LAKE WATER TEMPERATURE ================= -->
-  <section class="card" aria-labelledby="watertemp-h">
-    <div class="section-head"><h2 id="watertemp-h">Lake temperature</h2></div>
+  <section class="card panel-water" aria-labelledby="watertemp-h">
+    <div class="section-head"><h2 id="watertemp-h">Lake station temperature</h2></div>
     <div class="stat-row" id="waterTempRow"></div>
   </section>
 
   <!-- ================= LIVE PERFORMANCE ================= -->
-  <section class="card" aria-labelledby="live-h">
+  <section class="card panel-live" aria-labelledby="live-h">
     <div class="section-head">
       <h2 id="live-h">Live performance</h2>
       <div class="hint">Verified real-world forecasts</div>
@@ -428,7 +445,7 @@
   </section>
 
   <!-- ================= STATION & INGESTION HEALTH (always shown - operational) ================= -->
-  <section class="card" aria-labelledby="ingestion-h">
+  <section class="card panel-health" aria-labelledby="ingestion-h">
     <div class="section-head"><h2 id="ingestion-h">Station &amp; ingestion health</h2>
       <div class="hint">Operational status of every data source behind the forecast above</div></div>
 
@@ -458,7 +475,7 @@
   </section>
 
   <!-- ================= HISTORICAL REFERENCE STATIONS ================= -->
-  <section class="card" id="refStationsSection" aria-labelledby="refstations-h" style="display:none;">
+  <section class="card panel-reference" id="refStationsSection" aria-labelledby="refstations-h" style="display:none;">
     <div class="section-head"><h2 id="refstations-h">Historical reference stations</h2>
       <div class="hint">Ground-truth sources, coverage and the current label policy</div></div>
     <div class="health-sub-head">Latest SIA reading <span class="hint">(Segl-Maria — the label reference station)</span></div>
@@ -472,18 +489,18 @@
   </section>
 
   <!-- ================= SIGNAL VISUALS ================= -->
-  <section class="card" aria-labelledby="viz-h">
+  <section class="card panel-viz" aria-labelledby="viz-h">
     <div class="section-head"><h2 id="viz-h">Signal visuals</h2>
       <div class="hint">The dataset at a glance — rideability mix, seasonal shape, and what the model weighs</div></div>
     <div class="viz-grid">
-      <div><div class="viz-title">Rideable vs not (all labeled hours)</div><div class="viz-box"><canvas id="vizDonut"></canvas></div></div>
-      <div><div class="viz-title">Session rate by calendar month</div><div class="viz-box"><canvas id="vizPolar"></canvas></div></div>
-      <div><div class="viz-title">Top model weights (|magnitude|)</div><div class="viz-box"><canvas id="vizRadar"></canvas></div></div>
+      <div><div class="viz-title">Rideable vs not (all labeled hours)</div><div class="viz-box"><canvas id="vizDonut" role="img" aria-label="Share of labeled hours that met the rideability criterion"></canvas></div></div>
+      <div><div class="viz-title">Session rate by calendar month</div><div class="viz-box"><canvas id="vizPolar" role="img" aria-label="Rideable session rate by calendar month"></canvas></div></div>
+      <div><div class="viz-title">Top model weights (|magnitude|)</div><div class="viz-box"><canvas id="vizRadar" role="img" aria-label="Largest model feature weights by magnitude"></canvas></div></div>
     </div>
   </section>
 
   <!-- ================= FROZEN HOLDOUT EVALUATION ================= -->
-  <section class="card" aria-labelledby="holdout-h">
+  <section class="card panel-eval" aria-labelledby="holdout-h">
     <div class="section-head">
       <h2 id="holdout-h">Frozen holdout evaluation</h2>
       <div class="hint">Not the same as live performance above</div>
@@ -501,7 +518,7 @@
   </section>
 
   <!-- ================= ABLATION ================= -->
-  <section class="card" aria-labelledby="ablation-h">
+  <section class="card panel-ablation" aria-labelledby="ablation-h">
     <div class="section-head">
       <h2 id="ablation-h">Feature ablation</h2>
       <div class="hint">Diagnostic, not model selection</div>
@@ -511,7 +528,7 @@
   </section>
 
   <!-- ================= TECHNICAL DETAILS ================= -->
-  <details class="tech">
+  <details class="tech panel-tech">
     <summary>Technical details</summary>
     <div class="tech-body">
       <div class="tech-sub">
@@ -529,11 +546,11 @@
       </div>
       <div class="tech-sub">
         <h3>Rideable days by month</h3>
-        <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
+        <div class="chart-box"><canvas id="monthlyChart" role="img" aria-label="Rideable afternoon hours by month"></canvas></div>
       </div>
       <div class="tech-sub">
         <h3>Wind history &amp; model confidence</h3>
-        <div class="chart-box tall"><canvas id="timelineChart"></canvas></div>
+        <div class="chart-box tall"><canvas id="timelineChart" role="img" aria-label="Historical actual wind and model confidence timeline"></canvas></div>
         <div class="legend">
           <span><i class="swatch" style="background:#B9C6D2"></i>Actual wind (knots)</span>
           <span><i class="swatch" style="background:#2273C3"></i>Model confidence</span>
@@ -551,6 +568,7 @@
       </div>
     </div>
   </details>
+  </main>
 
   <footer>
     <div id="genAt">—</div>
@@ -608,6 +626,24 @@ const EVAL_FRESHNESS_DAYS = 30;       // backtest is a manual, infrequent action
 const fmtPct = x => (x===null||x===undefined) ? "—" : Math.round(x*100)+"%";
 const fmtNum = (x, d=2) => (x===null||x===undefined) ? "—" : Number(x).toFixed(d);
 const fmtInt = x => (x===null||x===undefined) ? "—" : Math.round(x);
+
+function chartTheme(){
+  const css = getComputedStyle(document.documentElement);
+  const value = name => css.getPropertyValue(name).trim();
+  return {
+    ink:value('--ink'), muted:value('--ink-3'), line:value('--line-soft'),
+    amber:value('--blue'), phosphor:value('--good'), panel:value('--card'),
+    mono:value('--mono'), body:value('--body')
+  };
+}
+
+function tickConsoleClock(){
+  const clock = document.getElementById('consoleClock');
+  if (!clock) return;
+  clock.textContent = new Intl.DateTimeFormat('en-GB', {
+    timeZone:'Europe/Zurich', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+  }).format(new Date());
+}
 
 // parseNaiveLocal, zurichTodayDateString, zurichTomorrowDateString,
 // zurichNowPseudoUtc, groupForecastByWindow, filterRemaining, and
@@ -1200,67 +1236,75 @@ function renderVisuals(d){
   }));
 }
 
+let timelineChart = null;
 function renderTimeline(d){
   if (typeof Chart === 'undefined') return;
+  if (timelineChart) timelineChart.destroy();
+  const theme = chartTheme();
   const pts = d.timeline || [];
   const step = Math.max(1, Math.floor(pts.length/420));
   const s = pts.filter((_,i)=> i%step===0 || pts[i].source==='live');
-  new Chart(document.getElementById('timelineChart'), {
+  timelineChart = new Chart(document.getElementById('timelineChart'), {
     type:'line',
     data:{
       labels: s.map(p=>p.date.slice(0,10)),
       datasets:[
         { label:'Actual wind (kt)', data:s.map(p=>p.actual_kt),
-          borderColor:'#B9C6D2', backgroundColor:'rgba(185,198,210,0.22)',
+          borderColor:theme.phosphor, backgroundColor:'rgba(158,219,130,0.10)',
           pointRadius:s.map(p=>p.source==='live'?3.5:0),
-          pointBackgroundColor:'#0E9F6E', pointBorderColor:'#fff', pointBorderWidth:1,
+          pointBackgroundColor:theme.phosphor, pointBorderColor:theme.ink, pointBorderWidth:1,
           borderWidth:1.4, tension:.3, fill:true, yAxisID:'y' },
         { label:'Model confidence', data:s.map(p=>p.probability),
-          borderColor:'#2273C3', pointRadius:0, borderWidth:2, tension:.3, yAxisID:'y2' },
+          borderColor:theme.amber, pointRadius:0, borderWidth:2, tension:.3, yAxisID:'y2' },
         { label:'threshold', data:s.map(()=> (d.reproducibility||{}).label_threshold_kt ?? 10),
-          borderColor:'rgba(217,142,4,.55)', borderDash:[5,6], pointRadius:0, borderWidth:1.2, yAxisID:'y' },
+          borderColor:theme.muted, borderDash:[5,6], pointRadius:0, borderWidth:1.2, yAxisID:'y' },
       ]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:'index', intersect:false},
       plugins:{legend:{display:false},
-        tooltip:{backgroundColor:'#15242F', padding:10, cornerRadius:10,
-          titleFont:{family:'Inter',size:12}, bodyFont:{family:'JetBrains Mono',size:12},
+        tooltip:{backgroundColor:theme.panel, titleColor:theme.ink, bodyColor:theme.ink,
+          borderColor:theme.line, borderWidth:1, padding:10, cornerRadius:2,
+          titleFont:{family:theme.body,size:12}, bodyFont:{family:theme.mono,size:12},
           callbacks:{label:c=> c.dataset.yAxisID==='y2'
             ? ` confidence ${Math.round(c.parsed.y*100)}%`
             : ` ${c.dataset.label}: ${c.parsed.y}`}}},
       scales:{
-        x:{ticks:{color:'#93A3B1',maxTicksLimit:6,font:{size:10.5}},grid:{display:false},border:{display:false}},
-        y:{position:'left',ticks:{color:'#93A3B1',font:{size:10.5}},grid:{color:'#EEF3F8'},border:{display:false},
-           title:{display:true,text:'knots',color:'#93A3B1',font:{size:10.5}}},
-        y2:{position:'right',min:0,max:1,ticks:{color:'#8FB6DD',font:{size:10.5},callback:v=>Math.round(v*100)+'%'},
+        x:{ticks:{color:theme.muted,maxTicksLimit:6,font:{size:10.5,family:theme.mono}},grid:{display:false},border:{display:false}},
+        y:{position:'left',ticks:{color:theme.muted,font:{size:10.5,family:theme.mono}},grid:{color:theme.line},border:{display:false},
+           title:{display:true,text:'knots',color:theme.muted,font:{size:10.5,family:theme.mono}}},
+        y2:{position:'right',min:0,max:1,ticks:{color:theme.amber,font:{size:10.5,family:theme.mono},callback:v=>Math.round(v*100)+'%'},
             grid:{drawOnChartArea:false},border:{display:false},
-            title:{display:true,text:'confidence',color:'#8FB6DD',font:{size:10.5}}},
+            title:{display:true,text:'confidence',color:theme.amber,font:{size:10.5,family:theme.mono}}},
       }
     }
   });
 }
 
+let monthlyChart = null;
 function renderMonthly(d){
   if (typeof Chart === 'undefined') return;
+  if (monthlyChart) monthlyChart.destroy();
+  const theme = chartTheme();
   const mb = d.monthly_breakdown || {};
   const months = Object.keys(mb);
   const pretty = m => new Date(m+'-01').toLocaleDateString('en',{month:'short',year:'2-digit'});
-  new Chart(document.getElementById('monthlyChart'), {
+  monthlyChart = new Chart(document.getElementById('monthlyChart'), {
     type:'bar',
     data:{ labels: months.map(pretty),
       datasets:[{ data: months.map(m=>Math.round(mb[m].session_rate*100)),
-        backgroundColor:'#BFDBF3', hoverBackgroundColor:'#2273C3',
-        borderRadius:6, maxBarThickness:26 }] },
+        backgroundColor:theme.phosphor, hoverBackgroundColor:theme.amber,
+        borderRadius:1, maxBarThickness:26 }] },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{legend:{display:false},
-        tooltip:{backgroundColor:'#15242F',padding:10,cornerRadius:10,
+        tooltip:{backgroundColor:theme.panel,titleColor:theme.ink,bodyColor:theme.ink,
+          borderColor:theme.line,borderWidth:1,padding:10,cornerRadius:2,
           callbacks:{label:c=>` ${c.parsed.y}% of afternoon hours rideable`}}},
       scales:{
-        x:{ticks:{color:'#93A3B1',font:{size:10},maxRotation:45,minRotation:45},grid:{display:false},border:{display:false}},
-        y:{ticks:{color:'#93A3B1',callback:v=>v+'%'},grid:{color:'#EEF3F8'},border:{display:false},max:100},
+        x:{ticks:{color:theme.muted,font:{size:10,family:theme.mono},maxRotation:45,minRotation:45},grid:{display:false},border:{display:false}},
+        y:{ticks:{color:theme.muted,font:{family:theme.mono},callback:v=>v+'%'},grid:{color:theme.line},border:{display:false},max:100},
       }
     }
   });
@@ -1320,7 +1364,10 @@ async function init(){
     'Updated ' + (d.generated_at||'').slice(0,16).replace('T',' ') + ' UTC';
   document.getElementById('sampleCount').textContent =
     (d.total_samples||0).toLocaleString() + ' labeled hours · Silvaplana / Val Bregaglia / Maloja Pass';
+  document.body.classList.remove('booting');
 }
+tickConsoleClock();
+setInterval(tickConsoleClock,1000);
 init();
 </script>
 

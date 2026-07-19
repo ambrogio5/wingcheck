@@ -321,7 +321,15 @@ asserts they're byte-identical).
 needed because the forecast job now regenerates that file up to twice a
 day (see "Orchestration" above), so a browser- or CDN-cached copy serving
 a stale forecast is a real, regular risk, not a hypothetical one. It has
-no build step: `index.html` (inline CSS/JS, Chart.js from a CDN used only
+no build step: `index.html` (data renderers and base styles),
+`retro-dashboard.css` (the tokenized amber/phosphor automotive-console
+skin). The dashboard offers three selectable skins via a **CLASSIC / TECH /
+RETRO** toggle (persisted in `localStorage` under `wingcheck-skin`), with
+**CLASSIC** (the original dashboard, no `data-skin` attribute) as the default;
+**TECH** (`data-skin="tech"`, a cyan CRT skin whose rules live inline in
+`index.html`) and **RETRO** (`data-skin="retro"`, defined in
+`retro-dashboard.css`) are the two alternates.
+Chart.js from a CDN used only
 for the two historical charts inside the collapsed "Technical details"
 section - every other section renders from plain template strings and
 degrades gracefully if the CDN is blocked) plus one small plain-JS file,
@@ -329,7 +337,9 @@ degrades gracefully if the CDN is blocked) plus one small plain-JS file,
 main inline script), which holds the Europe/Zurich date-handling helpers
 and `getForecastByDay()` - split out specifically so it's directly
 testable with Node (`tests/test_dashboard_logic.py`) without needing a
-browser or a bundler. Sections, top to bottom: "Today & tomorrow" (two
+browser or a bundler. The retro skin must never include the handoff package's
+fake metro telemetry or use its design-reference PNG as UI; all visible values
+come from `dashboard_data.json`. Sections, top to bottom: "Today & tomorrow" (two
 independent day-blocks, each with one card per hour 14:00-18:00, from
 `upcoming_forecast`, showing the model's raw probability as a percentage
 labeled "est. likelihood" - never a tier threshold relabeled as a

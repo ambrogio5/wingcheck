@@ -1,0 +1,453 @@
+/*
+ * Wingcheck retro instrument-cluster skin.
+ *
+ * Native CSS translation of the approved 1977–1988 automotive-console
+ * direction. No prototype telemetry or reference artwork is shipped here:
+ * every value continues to come from dashboard_data.json.
+ */
+
+html[data-skin="retro"] {
+  --surface-0:#050705;
+  --surface-1:#090c09;
+  --surface-2:#0c100d;
+  --line-active:#67552d;
+  --line-muted:#2c2a1d;
+  --amber:#ff9e18;
+  --gold:#d4af61;
+  --phosphor:#9edb82;
+  --signal-red:#f04428;
+  --text-muted:#918b6d;
+
+  /* Existing semantic names are retained so every renderer and Chart.js
+     component automatically follows the new visual system. */
+  --ice:var(--surface-0);
+  --card:var(--surface-1);
+  --line:var(--line-active);
+  --line-soft:var(--line-muted);
+  --ink:#f1dfae;
+  --ink-2:#b5a775;
+  --ink-3:var(--text-muted);
+  --blue:var(--amber);
+  --blue-soft:#251905;
+  --blue-deep:#ffc05c;
+  --good:var(--phosphor);
+  --good-soft:#142313;
+  --good-ink:#b7ee9c;
+  --warn:#ffb229;
+  --warn-soft:#2a1d07;
+  --warn-ink:#ffc45f;
+  --bad-soft:#151712;
+  --bad-ink:#aaa17e;
+  --crit:var(--signal-red);
+  --crit-soft:#2b0d08;
+  --crit-ink:#ff7058;
+  --display:'Rajdhani',sans-serif;
+  --body:'IBM Plex Mono',monospace;
+  --mono:'IBM Plex Mono',monospace;
+  --radius:4px;
+  --radius-lg:5px;
+  --shadow:0 14px 34px rgba(0,0,0,.48), inset 0 0 34px rgba(0,0,0,.42);
+  color-scheme:dark;
+}
+
+html[data-skin="retro"] body {
+  min-height:100vh;
+  background:
+    radial-gradient(ellipse at 50% -10%,#202119 0,#0b0d0a 38%,#030403 78%),
+    var(--surface-0);
+  color:var(--ink);
+}
+
+html[data-skin="retro"] body::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  pointer-events:none;
+  opacity:.12;
+  background:
+    repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.48) 4px),
+    radial-gradient(circle at 50% 20%,transparent 0 55%,rgba(0,0,0,.38) 100%);
+  mix-blend-mode:multiply;
+}
+
+html[data-skin="retro"] .wrap {
+  width:min(1540px,100%);
+  max-width:none;
+  padding:12px 12px 54px;
+}
+
+.skip-link {
+  position:fixed;
+  left:12px;
+  top:8px;
+  z-index:2000;
+  transform:translateY(-140%);
+  background:var(--amber);
+  color:#120b02;
+  padding:10px 14px;
+  font-weight:700;
+}
+.skip-link:focus { transform:none; }
+
+html[data-skin="retro"] .site-header,
+html[data-skin="retro"] .card,
+html[data-skin="retro"] details.tech {
+  position:relative;
+  border:1px solid var(--line-active);
+  border-radius:var(--radius-lg);
+  background:
+    linear-gradient(145deg,rgba(18,21,16,.96),rgba(6,8,6,.98) 72%),
+    var(--surface-1);
+  box-shadow:var(--shadow),0 0 2px rgba(255,158,24,.45);
+  overflow:hidden;
+}
+
+html[data-skin="retro"] .site-header::after,
+html[data-skin="retro"] .card::after,
+html[data-skin="retro"] details.tech::after {
+  content:"";
+  position:absolute;
+  inset:3px;
+  border:1px solid rgba(103,85,45,.46);
+  border-radius:2px;
+  pointer-events:none;
+}
+
+html[data-skin="retro"] .site-header {
+  min-height:112px;
+  padding:18px 270px 18px 24px;
+  margin:0 0 10px;
+}
+html[data-skin="retro"] .header-inner {
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  grid-template-areas:
+    "brand title clock"
+    "brand subtitle clock"
+    "status status status";
+  gap:3px 26px;
+  align-items:center;
+}
+html[data-skin="retro"] .kicker {
+  grid-area:brand;
+  align-self:stretch;
+  display:flex;
+  align-items:center;
+  margin:0;
+  border-radius:0;
+  border-right:1px solid var(--line-muted);
+  padding:0 24px 0 0;
+  color:var(--amber);
+  background:none;
+  font:700 18px/1 var(--display);
+  font-style:italic;
+  letter-spacing:.12em;
+  text-shadow:0 0 10px rgba(255,158,24,.28);
+}
+html[data-skin="retro"] h1 {
+  grid-area:title;
+  font-size:clamp(24px,3vw,36px);
+  line-height:1;
+  text-transform:uppercase;
+  letter-spacing:.045em;
+}
+html[data-skin="retro"] h1 em { color:var(--amber);text-shadow:0 0 12px rgba(255,158,24,.32); }
+html[data-skin="retro"] .header-sub {
+  grid-area:subtitle;
+  max-width:760px;
+  margin:3px 0 0;
+  color:var(--ink-3);
+  font-size:11px;
+  line-height:1.55;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+html[data-skin="retro"] .console-clock {
+  grid-area:clock;
+  min-width:112px;
+  color:var(--gold);
+  font:500 13px/1 var(--mono);
+  letter-spacing:.14em;
+  text-align:right;
+}
+html[data-skin="retro"] .status-line { grid-area:status; margin:10px 0 0; }
+html[data-skin="retro"] .hero-wind { opacity:.5; }
+html[data-skin="retro"] .hero-wind path { stroke:var(--phosphor);opacity:.12;animation-duration:18s; }
+
+html[data-skin="retro"] .skin-toggle {
+  position:absolute;
+  top:25px;
+  right:25px;
+  z-index:20;
+  border:1px solid var(--line-active);
+  border-radius:2px;
+  background:#070907;
+  box-shadow:inset 0 0 18px #000;
+}
+html[data-skin="retro"] .skin-toggle button {
+  min-height:44px;
+  padding:0 16px;
+  color:var(--gold);
+  letter-spacing:.1em;
+}
+html[data-skin="retro"] .skin-toggle button.active {
+  background:#15190f;
+  color:var(--phosphor);
+  box-shadow:inset 0 -2px var(--phosphor);
+}
+
+html[data-skin="retro"] .dashboard-console {
+  display:grid;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  gap:10px;
+  align-items:start;
+}
+html[data-skin="retro"] .dashboard-console > * { margin-top:0;min-width:0; }
+html[data-skin="retro"] .panel-forecast { grid-column:span 8; }
+html[data-skin="retro"] .panel-summary { grid-column:span 4; }
+html[data-skin="retro"] .panel-outlook { grid-column:span 8; }
+html[data-skin="retro"] .panel-water { grid-column:span 4; }
+html[data-skin="retro"] .panel-live { grid-column:span 4; }
+html[data-skin="retro"] .panel-health { grid-column:span 8; }
+html[data-skin="retro"] .panel-reference,
+html[data-skin="retro"] .panel-viz { grid-column:span 12; }
+html[data-skin="retro"] .panel-eval { grid-column:span 7; }
+html[data-skin="retro"] .panel-ablation { grid-column:span 5; }
+html[data-skin="retro"] .panel-tech { grid-column:span 12; }
+
+html[data-skin="retro"] .card { padding:18px; }
+html[data-skin="retro"] .section-head {
+  position:relative;
+  z-index:1;
+  min-height:27px;
+  align-items:center;
+  margin:0 0 7px;
+  padding:0 0 8px;
+  border-bottom:1px solid var(--line-muted);
+}
+html[data-skin="retro"] .section-head h2,
+html[data-skin="retro"] details.tech > summary {
+  color:var(--gold);
+  font:600 15px/1 var(--display);
+  letter-spacing:.13em;
+  text-transform:uppercase;
+}
+html[data-skin="retro"] .section-head h2::before { content:"▰ ";color:var(--amber);font-size:9px;vertical-align:2px; }
+html[data-skin="retro"] .section-head .hint,
+html[data-skin="retro"] .hint { color:var(--ink-3);font:10px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase; }
+html[data-skin="retro"] .explain { color:var(--ink-3);font-size:11px;line-height:1.55; }
+
+html[data-skin="retro"] .forecast-grid { grid-template-columns:repeat(5,minmax(104px,1fr));gap:7px; }
+html[data-skin="retro"] .forecast-grid > .empty-state {
+  grid-column:1 / -1;
+  width:100%;
+  max-width:none;
+  padding:28px 14px;
+}
+html[data-skin="retro"] .fc-card {
+  min-height:185px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  border:1px solid var(--line-muted);
+  border-radius:2px;
+  background:linear-gradient(180deg,#0d100c,#070807);
+  transition:border-color 180ms ease,box-shadow 180ms ease,transform 180ms ease;
+}
+html[data-skin="retro"] .fc-card:hover { transform:translateY(-1px);border-color:var(--line-active); }
+html[data-skin="retro"] .fc-card.recommended {
+  border-color:var(--amber);
+  color:var(--ink);
+  background:linear-gradient(180deg,#17150d,#0a0906);
+  box-shadow:inset 0 0 22px rgba(255,158,24,.08),0 0 12px rgba(255,158,24,.12);
+}
+html[data-skin="retro"] .fc-time { color:var(--gold);font-size:12px;letter-spacing:.12em; }
+html[data-skin="retro"] .fc-pct {
+  color:var(--amber);
+  font:600 48px/.95 var(--display);
+  letter-spacing:.03em;
+  text-shadow:0 0 12px rgba(255,158,24,.30);
+}
+html[data-skin="retro"] .fc-card.recommended .fc-time,
+html[data-skin="retro"] .fc-card.recommended .fc-pct-label,
+html[data-skin="retro"] .fc-card.recommended .fc-wind { color:inherit; }
+html[data-skin="retro"] .fc-pct-label { color:var(--text-muted);font-size:8px;letter-spacing:.12em; }
+html[data-skin="retro"] .fc-badge,
+html[data-skin="retro"] .badge { border-radius:2px;border:1px solid currentColor;background:transparent;letter-spacing:.06em;text-transform:uppercase; }
+html[data-skin="retro"] .fc-wind { color:var(--ink-2);font-size:10px; }
+html[data-skin="retro"] .day-block + .day-block { border-color:var(--line-muted); }
+html[data-skin="retro"] .day-block-head h3,
+html[data-skin="retro"] .summary-day-head,
+html[data-skin="retro"] .health-sub-head { color:var(--gold);font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase; }
+html[data-skin="retro"] .day-date { color:var(--text-muted); }
+
+html[data-skin="retro"] .summary-columns { grid-template-columns:1fr;gap:18px; }
+html[data-skin="retro"] .summary-columns > div + div { border-top:1px solid var(--line-muted);padding-top:15px; }
+html[data-skin="retro"] .summary-grid { gap:8px; }
+html[data-skin="retro"] .summary-stat,
+html[data-skin="retro"] .stat {
+  min-width:0;
+  padding:12px;
+  border:1px solid var(--line-muted);
+  background:rgba(5,7,5,.55);
+}
+html[data-skin="retro"] .summary-stat .s-label,
+html[data-skin="retro"] .stat .st-label { color:var(--text-muted);font:9px var(--mono);letter-spacing:.08em;text-transform:uppercase; }
+html[data-skin="retro"] .summary-stat .s-value,
+html[data-skin="retro"] .stat .st-value {
+  color:var(--phosphor);
+  font:600 30px/1 var(--display);
+  text-shadow:0 0 9px rgba(158,219,130,.2);
+}
+html[data-skin="retro"] .stat .st-sub { color:var(--text-muted);font-size:9px;line-height:1.5; }
+html[data-skin="retro"] .recommendation,
+html[data-skin="retro"] .frozen-banner,
+html[data-skin="retro"] .provisional-note {
+  border:1px solid var(--line-active);
+  border-radius:2px;
+  background:#111109;
+  color:var(--gold);
+}
+
+html[data-skin="retro"] .quick-summary,
+html[data-skin="retro"] .stat-row { gap:7px; }
+html[data-skin="retro"] .qs-card { border-color:var(--line-muted);border-radius:2px;background:#070907; }
+html[data-skin="retro"] .qs-card .qs-label { color:var(--text-muted);font:9px var(--mono);letter-spacing:.08em; }
+html[data-skin="retro"] details.health-detail { border-color:var(--line-muted); }
+html[data-skin="retro"] details.health-detail > summary { min-height:44px;color:var(--gold); }
+html[data-skin="retro"] details.health-detail > summary::after { color:var(--amber); }
+
+html[data-skin="retro"] .viz-grid { grid-template-columns:repeat(3,1fr); }
+html[data-skin="retro"] .viz-box,
+html[data-skin="retro"] .chart-box {
+  border:1px solid var(--line-muted);
+  background:
+    linear-gradient(rgba(158,219,130,.055) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(158,219,130,.055) 1px,transparent 1px),
+    #060806;
+  background-size:28px 24px;
+  padding:8px;
+}
+html[data-skin="retro"] .viz-title { color:var(--gold); }
+
+html[data-skin="retro"] .window-tables { grid-template-columns:1fr; }
+html[data-skin="retro"] .window-block + .window-block { margin-top:10px;padding-top:12px;border-top:1px solid var(--line-muted); }
+html[data-skin="retro"] .metric-row,
+html[data-skin="retro"] .metrics-table th,
+html[data-skin="retro"] .metrics-table td,
+html[data-skin="retro"] .w-row { border-color:var(--line-muted); }
+html[data-skin="retro"] .metric-row .m-value,
+html[data-skin="retro"] .metrics-table td { color:var(--phosphor); }
+html[data-skin="retro"] .metrics-table th { color:var(--gold); }
+html[data-skin="retro"] .metrics-table tr.best td { background:#11200f; }
+html[data-skin="retro"] .table-wrap { scrollbar-color:var(--line-active) var(--surface-0); }
+html[data-skin="retro"] .eval-btn {
+  min-height:44px;
+  border:1px solid var(--amber);
+  border-radius:2px;
+  background:#171006;
+  color:var(--amber);
+  box-shadow:0 0 12px rgba(255,158,24,.12);
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+html[data-skin="retro"] .eval-btn:hover { background:var(--amber);color:#100900; }
+
+html[data-skin="retro"] details.tech { background:var(--surface-1); }
+html[data-skin="retro"] details.tech > summary { min-height:58px;background:transparent;color:var(--gold); }
+html[data-skin="retro"] details.tech > summary::after { color:var(--amber); }
+html[data-skin="retro"] .tech-body { background:transparent; }
+html[data-skin="retro"] .tech-sub h3 { color:var(--gold);text-transform:uppercase;letter-spacing:.07em; }
+html[data-skin="retro"] .w-fill { background:var(--amber);box-shadow:0 0 6px rgba(255,158,24,.25); }
+html[data-skin="retro"] .w-bar { background:#1b1a11; }
+
+html[data-skin="retro"] footer {
+  margin-top:12px;
+  padding:16px;
+  border:1px solid var(--line-muted);
+  color:var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
+html[data-skin="retro"] :focus-visible {
+  outline:2px solid var(--amber);
+  outline-offset:3px;
+}
+
+@keyframes wingcheckPowerOn {
+  from { opacity:0;filter:brightness(.45);transform:translateY(3px); }
+  55% { opacity:1;filter:brightness(1.14); }
+  to { opacity:1;filter:brightness(1);transform:none; }
+}
+html[data-skin="retro"] body.booting .wrap { animation:wingcheckPowerOn 560ms ease-out both; }
+
+@media (max-width:1100px) {
+  html[data-skin="retro"] .wrap { padding:9px 9px 42px; }
+  html[data-skin="retro"] .panel-forecast,
+  html[data-skin="retro"] .panel-health { grid-column:span 12; }
+  html[data-skin="retro"] .panel-summary,
+  html[data-skin="retro"] .panel-water,
+  html[data-skin="retro"] .panel-live { grid-column:span 4; }
+  html[data-skin="retro"] .panel-outlook { grid-column:span 8; }
+  html[data-skin="retro"] .panel-eval,
+  html[data-skin="retro"] .panel-ablation { grid-column:span 6; }
+  html[data-skin="retro"] .site-header { padding-right:225px; }
+  html[data-skin="retro"] .header-inner { grid-template-columns:1fr auto;grid-template-areas:"brand clock" "title title" "subtitle subtitle" "status status"; }
+  html[data-skin="retro"] .kicker { border:0;padding:0; }
+}
+
+@media (max-width:820px) {
+  html[data-skin="retro"] .wrap { padding:7px 7px 30px; }
+  html[data-skin="retro"] .dashboard-console { display:flex;flex-direction:column; }
+  html[data-skin="retro"] .dashboard-console > * { width:100%; }
+  html[data-skin="retro"] .panel-forecast { order:1; }
+  html[data-skin="retro"] .panel-summary { order:2; }
+  html[data-skin="retro"] .panel-outlook { order:3; }
+  html[data-skin="retro"] .panel-water { order:4; }
+  html[data-skin="retro"] .panel-live { order:5; }
+  html[data-skin="retro"] .panel-health { order:6; }
+  html[data-skin="retro"] .panel-reference { order:7; }
+  html[data-skin="retro"] .panel-viz { order:8; }
+  html[data-skin="retro"] .panel-eval { order:9; }
+  html[data-skin="retro"] .panel-ablation { order:10; }
+  html[data-skin="retro"] .panel-tech { order:11; }
+  html[data-skin="retro"] .site-header { min-height:180px;padding:66px 16px 16px; }
+  html[data-skin="retro"] .skin-toggle { top:16px;left:16px;right:auto; }
+  html[data-skin="retro"] .header-inner { grid-template-columns:1fr auto; }
+  html[data-skin="retro"] .header-sub { font-size:10px; }
+  html[data-skin="retro"] .forecast-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  html[data-skin="retro"] .fc-card:last-child:nth-child(odd) { grid-column:span 2; }
+  html[data-skin="retro"] .fc-pct { font-size:42px; }
+  html[data-skin="retro"] .summary-columns { grid-template-columns:1fr; }
+  html[data-skin="retro"] .viz-grid { grid-template-columns:1fr; }
+  html[data-skin="retro"] .stat-row,
+  html[data-skin="retro"] .quick-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  html[data-skin="retro"] .chart-box { min-height:250px; }
+}
+
+@media (max-width:430px) {
+  html[data-skin="retro"] .card { padding:14px; }
+  html[data-skin="retro"] .stat-row,
+  html[data-skin="retro"] .quick-summary { grid-template-columns:1fr; }
+  html[data-skin="retro"] .console-clock { font-size:11px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  html[data-skin="retro"] *,
+  html[data-skin="retro"] *::before,
+  html[data-skin="retro"] *::after {
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    scroll-behavior:auto!important;
+    transition-duration:.001ms!important;
+  }
+}
+
+@media (forced-colors:active) {
+  html[data-skin="retro"] .site-header,
+  html[data-skin="retro"] .card,
+  html[data-skin="retro"] details.tech { border:1px solid CanvasText; }
+  html[data-skin="retro"] .fc-card.recommended { outline:2px solid Highlight; }
+}

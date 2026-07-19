@@ -90,7 +90,8 @@ From here it runs itself:
   - well beyond the scored 12:00-18:00 window, so there's a full-day
   record available for future analysis
 - **20:00 CEST** — verifies past predictions against the real Silvaplana
-  reading (Samedan as fallback), updates the model weights, refreshes the
+  reading (SIA as the reference when the lake reading is absent; Samedan
+  remains context only), updates the model weights, refreshes the
   dashboard again (this is when `live_metrics` picks up newly-verified
   outcomes)
 
@@ -131,9 +132,19 @@ From here it runs itself:
   (operational threshold confusion matrices, reproducibility seed, the
   weights list, and the historical charts).
 
-The page is a single dependency-free `index.html` (inline CSS/JS, Chart.js
-from a CDN for the two historical charts only) plus one small plain-JS
-helper file, `docs/dashboard-logic.js` (Europe/Zurich date math and the
+The page has no build step or application framework: `index.html` retains the
+data renderers, `docs/dashboard-logic.js` contains Europe/Zurich date math and
+today/tomorrow grouping, and `docs/retro-dashboard.css` contains the
+late-1970s/1980s instrument-cluster visual system. Three skins are selectable
+from the **CLASSIC / TECH / RETRO** toggle (persisted in `localStorage`),
+with **CLASSIC** — the original light dashboard — as the default; **TECH** is
+the cyan CRT terminal skin and **RETRO** is the amber instrument console. The
+retro skin uses centralized smoked-black, amber, bronze and phosphor tokens; a
+responsive 12-column console grid; explicit focus/reduced-motion behavior; and
+only real values from `dashboard_data.json`. The supplied design-reference
+image and prototype metro telemetry are not shipped. Chart.js is loaded
+from a CDN for historical charts, while the small plain-JS
+helper file `docs/dashboard-logic.js` (Europe/Zurich date math and the
 today/tomorrow grouping logic - split out so it's directly testable with
 Node, see "Tests" below) — no build step, no framework, works fully
 offline/degraded if the CDN is blocked. The dashboard data fetch bypasses
