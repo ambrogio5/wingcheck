@@ -328,7 +328,16 @@ RETRO** toggle (persisted in `localStorage` under `wingcheck-skin`), with
 **CLASSIC** (the original dashboard, no `data-skin` attribute) as the default;
 **TECH** (`data-skin="tech"`, a cyan CRT skin whose rules live inline in
 `index.html`) and **RETRO** (`data-skin="retro"`, defined in
-`retro-dashboard.css`) are the two alternates.
+`retro-dashboard.css`) are the two alternates. The RETRO skin additionally
+opens with a full-width **instrument cluster** (`#retroCluster`, rendered by
+`renderRetroCluster()`, hidden in the other two skins via
+`.retro-cluster{display:none}`): a session-likelihood dial, an animated
+wireframe **area map** of the Maloja-wind valley whose wind-flow speed scales
+to the forecast wind, plus airflow-route / systems-health / next-window /
+day-profile readouts - every value pulled from `dashboard_data.json`
+(`session_forecast`, `station_health`, `upcoming_forecast`), never fabricated
+telemetry, and all motion stops under `prefers-reduced-motion`. See
+`docs/DASHBOARD_DESIGN.md`.
 Chart.js from a CDN used only
 for the two historical charts inside the collapsed "Technical details"
 section - every other section renders from plain template strings and

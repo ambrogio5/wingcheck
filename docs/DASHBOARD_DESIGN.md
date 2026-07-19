@@ -20,6 +20,32 @@ visual skin. This document describes the `RETRO` skin.
   `data-skin="tech"` / `data-skin="retro"`. The chosen skin persists in
   `localStorage` under `wingcheck-skin`.
 
+## Instrument cluster (retro hero)
+
+The retro skin opens with a full-width **instrument cluster** — a late-1970s
+operator-console reimagining of the same real data, rendered by
+`renderRetroCluster()` in `index.html` and shown only when
+`data-skin="retro"` (the CLASSIC and TECH skins keep it `display:none`):
+
+- **Airflow** — the wind's real down-valley path (Val Bregaglia → Maloja Pass
+  → Sils/Segl-Maria → Silvaplana lake → Samedan), the lake marked as the
+  target, annotated with the latest SIA reading and station ages.
+- **Session-likelihood dial** — a swept tick arc whose value comes from the
+  day's `session_forecast.event_probability`, zone-colored by the model's own
+  tier thresholds, with peak-wind, model-agreement and expected-gust readouts.
+- **Area map** — an animated wireframe of the Engadin/Bregaglia valley (lakes,
+  Corvatsch massif, station nodes) with wind streamlines whose flow speed is
+  scaled to the forecast wind. The animation is pure CSS/SVG and stops under
+  `prefers-reduced-motion`.
+- **Systems** — real per-station health (OK / STALE / OFFLINE) from
+  `station_health`.
+- **Next rideable window** — the next scored hour, its likelihood, wind/gust,
+  tier and time-to-go.
+- **Day profile** — an hourly-likelihood sparkline plus a 12–18h tick strip.
+
+Every value is read from `dashboard_data.json`; missing fields render as
+`--`. No prototype telemetry or reference artwork is shipped.
+
 ## Visual mapping
 
 | Real Wingcheck content | Instrument-console treatment |
