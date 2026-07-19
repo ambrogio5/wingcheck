@@ -1,9 +1,11 @@
 # Dashboard design system
 
-Wingcheck's default dashboard is a late-1970s/1980s automotive instrument
-console built with static HTML, CSS, and JavaScript. It deliberately keeps the
-operational dashboard's real data contract and rendering functions separate
-from its visual skin.
+Wingcheck's dashboard ships three selectable skins - `CLASSIC` (the original
+presentation, and the default), `TECH` (a cyan CRT terminal), and `RETRO` (a
+late-1970s/1980s automotive instrument console). All three are built with
+static HTML, CSS, and JavaScript and deliberately keep the operational
+dashboard's real data contract and rendering functions separate from their
+visual skin. This document describes the `RETRO` skin.
 
 ## Source of truth
 
@@ -14,7 +16,9 @@ from its visual skin.
 - `retro-dashboard.css` provides the presentation layer and central design
   tokens. No prototype transit data or reference artwork is shipped.
 - The `CLASSIC` control removes the `data-skin` attribute and restores the
-  previous dashboard presentation as a rollback path.
+  original dashboard presentation (the default); `TECH` and `RETRO` set
+  `data-skin="tech"` / `data-skin="retro"`. The chosen skin persists in
+  `localStorage` under `wingcheck-skin`.
 
 ## Visual mapping
 

@@ -134,10 +134,12 @@ From here it runs itself:
 
 The page has no build step or application framework: `index.html` retains the
 data renderers, `docs/dashboard-logic.js` contains Europe/Zurich date math and
-today/tomorrow grouping, and `docs/retro-dashboard.css` contains the default
-late-1970s/1980s instrument-cluster visual system. The original light dashboard
-remains available through the **CLASSIC / RETRO** rollback toggle. The retro
-skin uses centralized smoked-black, amber, bronze and phosphor tokens; a
+today/tomorrow grouping, and `docs/retro-dashboard.css` contains the
+late-1970s/1980s instrument-cluster visual system. Three skins are selectable
+from the **CLASSIC / TECH / RETRO** toggle (persisted in `localStorage`),
+with **CLASSIC** — the original light dashboard — as the default; **TECH** is
+the cyan CRT terminal skin and **RETRO** is the amber instrument console. The
+retro skin uses centralized smoked-black, amber, bronze and phosphor tokens; a
 responsive 12-column console grid; explicit focus/reduced-motion behavior; and
 only real values from `dashboard_data.json`. The supplied design-reference
 image and prototype metro telemetry are not shipped. Chart.js is loaded

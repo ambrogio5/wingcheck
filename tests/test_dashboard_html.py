@@ -89,10 +89,15 @@ class RetroDashboardSkinTests(unittest.TestCase):
         with open(css_path) as f:
             self.css = f.read()
 
-    def test_retro_skin_is_default_and_classic_remains_rollback(self):
+    def test_three_skins_selectable_with_classic_default(self):
+        # All three skin buttons are present and independently selectable.
         self.assertIn('id="skinClassic"', self.html)
+        self.assertIn('id="skinTech"', self.html)
         self.assertIn('id="skinRetro"', self.html)
-        self.assertIn("stored === 'tech' ? 'retro'", self.html)
+        # CLASSIC is the default when nothing is stored (and for any
+        # unrecognized value); only tech/retro set a data-skin attribute.
+        self.assertIn("(stored === 'tech' || stored === 'retro') ? stored : 'classic'", self.html)
+        self.assertNotIn("stored === 'tech' ? 'retro'", self.html)  # no forced migration
         self.assertIn('data-skin="retro"', self.css)
 
     def test_approved_semantic_tokens_are_centralized(self):

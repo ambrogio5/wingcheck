@@ -322,8 +322,13 @@ needed because the forecast job now regenerates that file up to twice a
 day (see "Orchestration" above), so a browser- or CDN-cached copy serving
 a stale forecast is a real, regular risk, not a hypothetical one. It has
 no build step: `index.html` (data renderers and base styles),
-`retro-dashboard.css` (the default tokenized amber/phosphor automotive-console
-skin, with the original dashboard retained as a CLASSIC rollback option),
+`retro-dashboard.css` (the tokenized amber/phosphor automotive-console
+skin). The dashboard offers three selectable skins via a **CLASSIC / TECH /
+RETRO** toggle (persisted in `localStorage` under `wingcheck-skin`), with
+**CLASSIC** (the original dashboard, no `data-skin` attribute) as the default;
+**TECH** (`data-skin="tech"`, a cyan CRT skin whose rules live inline in
+`index.html`) and **RETRO** (`data-skin="retro"`, defined in
+`retro-dashboard.css`) are the two alternates.
 Chart.js from a CDN used only
 for the two historical charts inside the collapsed "Technical details"
 section - every other section renders from plain template strings and
