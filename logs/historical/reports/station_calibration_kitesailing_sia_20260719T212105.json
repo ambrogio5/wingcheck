@@ -1,0 +1,148 @@
+{
+  "schema_version": 2,
+  "generated_at": "2026-07-19T21:21:05.172946+00:00",
+  "source_a": "kitesailing",
+  "source_b": "sia",
+  "zero_lag": {
+    "n": 8,
+    "pearson": 0.8805660341444677,
+    "spearman": 0.9221722216732094,
+    "mae_ms": 1.125,
+    "rmse_ms": 1.4322401084996403,
+    "bias_sia_minus_lake_ms": -0.8819444444444444,
+    "median_bias_ms": -0.6388888888888884,
+    "circular_direction_mae_deg": 32.9375,
+    "direction_n": 8
+  },
+  "independent_overlapping_days": 3,
+  "calibration_maturity": "insufficient",
+  "lag_results_hours": {
+    "-3": {
+      "n": 8,
+      "pearson": 0.5493075416774996,
+      "spearman": 0.526955555241834,
+      "mae_ms": 1.5868055555555556,
+      "rmse_ms": 2.2450863699737647,
+      "bias_sia_minus_lake_ms": -1.2118055555555556,
+      "median_bias_ms": -1.0972222222222223,
+      "circular_direction_mae_deg": 56.4375,
+      "direction_n": 8
+    },
+    "-2": {
+      "n": 8,
+      "pearson": 0.7798649730737791,
+      "spearman": 0.6826469692905577,
+      "mae_ms": 1.3993055555555554,
+      "rmse_ms": 1.5690449344020836,
+      "bias_sia_minus_lake_ms": -0.829861111111111,
+      "median_bias_ms": -1.3055555555555554,
+      "circular_direction_mae_deg": 57.0625,
+      "direction_n": 8
+    },
+    "-1": {
+      "n": 8,
+      "pearson": 0.9015429328967131,
+      "spearman": 0.8862434338158117,
+      "mae_ms": 1.003472222222222,
+      "rmse_ms": 1.199561069416334,
+      "bias_sia_minus_lake_ms": -0.6909722222222221,
+      "median_bias_ms": -0.6944444444444442,
+      "circular_direction_mae_deg": 70.3125,
+      "direction_n": 8
+    },
+    "0": {
+      "n": 8,
+      "pearson": 0.8805660341444677,
+      "spearman": 0.9221722216732094,
+      "mae_ms": 1.125,
+      "rmse_ms": 1.4322401084996403,
+      "bias_sia_minus_lake_ms": -0.8819444444444444,
+      "median_bias_ms": -0.6388888888888884,
+      "circular_direction_mae_deg": 32.9375,
+      "direction_n": 8
+    },
+    "1": {
+      "n": 8,
+      "pearson": 0.6412698283478725,
+      "spearman": 0.5120481927710844,
+      "mae_ms": 1.6180555555555554,
+      "rmse_ms": 1.9777894818629966,
+      "bias_sia_minus_lake_ms": -1.0833333333333333,
+      "median_bias_ms": -1.0555555555555554,
+      "circular_direction_mae_deg": 45.9375,
+      "direction_n": 8
+    },
+    "2": {
+      "n": 8,
+      "pearson": -0.3256981499135425,
+      "spearman": -0.04790505047653036,
+      "mae_ms": 2.670138888888889,
+      "rmse_ms": 3.102931335104013,
+      "bias_sia_minus_lake_ms": -0.9062499999999999,
+      "median_bias_ms": -1.8194444444444446,
+      "circular_direction_mae_deg": 52.1875,
+      "direction_n": 8
+    },
+    "3": {
+      "n": 8,
+      "pearson": -0.4798489822106114,
+      "spearman": -0.26506024096385544,
+      "mae_ms": 3.0069444444444446,
+      "rmse_ms": 3.468080863610768,
+      "bias_sia_minus_lake_ms": -1.2430555555555554,
+      "median_bias_ms": -2.5416666666666665,
+      "circular_direction_mae_deg": 55.3125,
+      "direction_n": 8
+    }
+  },
+  "best_lag_hours": -1,
+  "monthly": {
+    "1": {
+      "n": 0
+    },
+    "2": {
+      "n": 0
+    },
+    "3": {
+      "n": 0
+    },
+    "4": {
+      "n": 0
+    },
+    "5": {
+      "n": 0
+    },
+    "6": {
+      "n": 0
+    },
+    "7": {
+      "n": 8,
+      "pearson": 0.8805660341444677,
+      "spearman": 0.9221722216732094,
+      "mae_ms": 1.125,
+      "rmse_ms": 1.4322401084996403,
+      "bias_sia_minus_lake_ms": -0.8819444444444444,
+      "median_bias_ms": -0.6388888888888884,
+      "circular_direction_mae_deg": 32.9375,
+      "direction_n": 8
+    },
+    "8": {
+      "n": 0
+    },
+    "9": {
+      "n": 0
+    },
+    "10": {
+      "n": 0
+    },
+    "11": {
+      "n": 0
+    },
+    "12": {
+      "n": 0
+    }
+  },
+  "classification": "insufficient_evidence",
+  "policy_changed": false,
+  "warning": "Exploratory report. Review overlap, seasonality and sensor definitions before enabling SIA substitution."
+}

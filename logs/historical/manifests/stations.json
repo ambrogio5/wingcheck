@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-19T09:18:21.247139+00:00",
+  "generated_at": "2026-07-19T21:20:23.798089+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -72,9 +72,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 398875,
+      "n_records": 398887,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-19T08:00:00+00:00",
+      "data_end": "2026-07-19T20:00:00+00:00",
       "n_records_10min": 0,
       "data_start_10min": null,
       "data_end_10min": null

@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-19T21:21:14.280141+00:00",
+  "samples_path": "/home/runner/work/wingcheck/wingcheck/logs/historical/datasets/retraining_samples.jsonl",
+  "n_rows": 3122,
+  "label_sources": [
+    "kitesailing",
+    "sia"
+  ],
+  "label_policy_version": 3,
+  "epochs": 40,
+  "seed": 20260716,
+  "folds": [
+    {
+      "validation_period": "2025",
+      "n_train": 1288,
+      "n_validate": 1288,
+      "n_train_days": 184,
+      "n_validate_days": 184,
+      "model_a_production_reference": {
+        "n": 1288,
+        "threshold": 0.5,
+        "accuracy": 0.7686,
+        "balanced_accuracy": 0.7314,
+        "precision": 0.7738,
+        "recall": 0.8861,
+        "specificity": 0.5767,
+        "f1": 0.8261,
+        "true_positive": 708,
+        "false_positive": 207,
+        "true_negative": 282,
+        "false_negative": 91,
+        "positive_rate": 0.6203,
+        "majority_baseline_accuracy": 0.6203,
+        "brier_score": 0.1599,
+        "roc_auc": 0.8412,
+        "pr_auc": 0.8947
+      },
+      "model_b_fresh_sia_labels": {
+        "n": 1288,
+        "threshold": 0.5,
+        "accuracy": 0.7578,
+        "balanced_accuracy": 0.7207,
+        "precision": 0.7673,
+        "recall": 0.8748,
+        "specificity": 0.5665,
+        "f1": 0.8175,
+        "true_positive": 699,
+        "false_positive": 212,
+        "true_negative": 277,
+        "false_negative": 100,
+        "positive_rate": 0.6203,
+        "majority_baseline_accuracy": 0.6203,
+        "brier_score": 0.1764,
+        "roc_auc": 0.8126,
+        "pr_auc": 0.8646
+      }
+    },
+    {
+      "validation_period": "2026",
+      "n_train": 2576,
+      "n_validate": 546,
+      "n_train_days": 368,
+      "n_validate_days": 78,
+      "model_a_production_reference": {
+        "n": 546,
+        "threshold": 0.5,
+        "accuracy": 0.7216,
+        "balanced_accuracy": 0.6929,
+        "precision": 0.7405,
+        "recall": 0.8303,
+        "specificity": 0.5556,
+        "f1": 0.7829,
+        "true_positive": 274,
+        "false_positive": 96,
+        "true_negative": 120,
+        "false_negative": 56,
+        "positive_rate": 0.6044,
+        "majority_baseline_accuracy": 0.6044,
+        "brier_score": 0.1857,
+        "roc_auc": 0.7969,
+        "pr_auc": 0.8694
+      },
+      "model_b_fresh_sia_labels": {
+        "n": 546,
+        "threshold": 0.5,
+        "accuracy": 0.7234,
+        "balanced_accuracy": 0.7,
+        "precision": 0.7507,
+        "recall": 0.8121,
+        "specificity": 0.588,
+        "f1": 0.7802,
+        "true_positive": 268,
+        "false_positive": 89,
+        "true_negative": 127,
+        "false_negative": 62,
+        "positive_rate": 0.6044,
+        "majority_baseline_accuracy": 0.6044,
+        "brier_score": 0.1898,
+        "roc_auc": 0.7853,
+        "pr_auc": 0.856
+      }
+    }
+  ],
+  "caveats": [
+    "Model A (production reference) was trained on these same hours under Samedan-proxy labels - its numbers are a deployed-behaviour reference, not a fair holdout result.",
+    "One partial season (May-Jul 2026) of SIA labels cannot support the full multi-year rolling-origin protocol - these two intra-season folds are preliminary evidence only.",
+    "No production weights were modified by this script."
+  ],
+  "weights_modified": false
+}
