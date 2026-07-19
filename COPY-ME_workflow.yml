@@ -149,6 +149,12 @@ jobs:
       - run: pip install requests
       - run: python -m unittest discover -s tests
       - run: python backtest.py
+      # Rebuild the LIVE dashboard sections (upcoming_forecast, live_metrics,
+      # station health, ...) on top of backtest's fresh evaluation/deployment.
+      # backtest.py writes only the historical/evaluation view - without this
+      # the operational "Today & tomorrow" forecast is wiped to empty until
+      # the next forecast run. The forecast/learn jobs already chain this.
+      - run: python refresh_dashboard.py
       - name: Commit dataset, weights, dashboard data, and raw data cache
         run: |
           git config user.name "wingcheck-bot"
