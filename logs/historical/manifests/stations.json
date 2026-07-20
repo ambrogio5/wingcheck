@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-19T21:20:23.798089+00:00",
+  "generated_at": "2026-07-20T12:00:07.003194+00:00",
   "stations": {
     "sam": {
       "name": "Samedan",
@@ -10,9 +10,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 399240,
+      "n_records": 399264,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-18T23:00:00+00:00",
+      "data_end": "2026-07-19T23:00:00+00:00",
       "n_records_10min": 0,
       "data_start_10min": null,
       "data_end_10min": null
@@ -26,9 +26,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 108144,
+      "n_records": 108168,
       "data_start": "2014-03-18T00:00:00+00:00",
-      "data_end": "2026-07-18T23:00:00+00:00",
+      "data_end": "2026-07-19T23:00:00+00:00",
       "n_records_10min": 34840,
       "data_start_10min": "2004-02-01T06:00:00+00:00",
       "data_end_10min": "2026-07-16T23:50:00+00:00"
@@ -41,9 +41,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 196894,
+      "n_records": 196918,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-18T23:00:00+00:00",
+      "data_end": "2026-07-19T23:00:00+00:00",
       "n_records_10min": 0,
       "data_start_10min": null,
       "data_end_10min": null
@@ -56,9 +56,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 196829,
+      "n_records": 196853,
       "data_start": "2004-02-01T00:00:00+00:00",
-      "data_end": "2026-07-18T23:00:00+00:00",
+      "data_end": "2026-07-19T23:00:00+00:00",
       "n_records_10min": 0,
       "data_start_10min": null,
       "data_end_10min": null
@@ -72,9 +72,9 @@
       ],
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 398887,
+      "n_records": 398902,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-19T20:00:00+00:00",
+      "data_end": "2026-07-20T11:00:00+00:00",
       "n_records_10min": 0,
       "data_start_10min": null,
       "data_end_10min": null
