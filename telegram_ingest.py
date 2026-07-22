@@ -50,6 +50,7 @@ from datetime import datetime, timezone
 from kitesailing_weather import LOG_PATH, is_in_priority_window
 
 OFFSET_PATH = os.path.join(os.path.dirname(__file__), "logs", "telegram_offset.json")
+DASHBOARD_PATH = os.path.join(os.path.dirname(__file__), "docs", "dashboard_data.json")
 API_BASE = "https://api.telegram.org/bot{token}/{method}"
 
 KT_PER_KMH = 1 / 1.852
@@ -189,7 +190,9 @@ def _echo(obs):
 
 
 _USAGE = (
-    "\U0001f3c4 Wingcheck lake backup\n"
+    "\U0001f3c4 Wingcheck\n"
+    "Send /report for the latest lake wind and forecast summary.\n\n"
+    "Optional manual lake backup:\n"
     "Send what the kitesailing.ch widget shows:\n"
     "  /lake 5                (bare number = mean wind km/h)\n"
     "  /lake mean=5 gust=16 dir=90 temp=18.1 hum=43 pres=1016.2\n"
@@ -198,10 +201,57 @@ _USAGE = (
 )
 
 
+def build_report(observations_path=LOG_PATH, dashboard_path=DASHBOARD_PATH):
+    """Build a compact report from the latest real reading and forecast."""
+    latest = None
+    try:
+        with open(observations_path) as handle:
+            for line in handle:
+                if line.strip():
+                    latest = json.loads(line)
+    except (OSError, json.JSONDecodeError):
+        pass
+    dashboard = {}
+    try:
+        with open(dashboard_path) as handle:
+            dashboard = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    lines = ["🏄 Wingcheck report"]
+    if latest:
+        observed = latest.get("observed_at", "unknown time")
+        wind = latest.get("avg_wind_kmh")
+        gust = latest.get("gust_kmh")
+        direction = latest.get("wind_dir_compass") or "—"
+        temp = latest.get("temp_c")
+        wind_text = f"{wind * KT_PER_KMH:.1f} kt" if isinstance(wind, (int, float)) else "—"
+        gust_text = f"{gust * KT_PER_KMH:.1f} kt" if isinstance(gust, (int, float)) else "—"
+        lines.append(f"Latest lake: {wind_text}, gust {gust_text}, {direction}")
+        if isinstance(temp, (int, float)):
+            lines[-1] += f", {temp:g}°C"
+        lines.append(f"Observed: {observed[:16].replace('T', ' ')} UTC")
+    else:
+        lines.append("Latest lake: no reading available")
+
+    forecasts = dashboard.get("upcoming_forecast") or []
+    if forecasts:
+        best = max(forecasts, key=lambda row: row.get("probability", 0) or 0)
+        probability = best.get("probability")
+        probability_text = f"{probability * 100:.0f}%" if isinstance(probability, (int, float)) else "—"
+        when = best.get("target_time") or best.get("datetime") or best.get("timestamp") or "upcoming"
+        lines.append(f"Best forecast: {probability_text} at {str(when)[11:16] or when} ({best.get('tier', '—')})")
+    else:
+        lines.append("Forecast: no upcoming forecast available")
+    return "\n".join(lines)
+
+
 def handle_command(text, msg_dt):
     """Pure command handler. Returns (reply_text, observation_or_None)."""
     t = (text or "").strip()
     low = t.lower()
+    if low.startswith("/report"):
+        return (build_report(), None)
     if low.startswith("/lake"):
         try:
             fields = parse_lake_command(t)

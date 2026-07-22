@@ -128,13 +128,45 @@ class CovFetchFixtureTests(unittest.TestCase):
     """COV recent-tail and historical-discovery fetch paths, both with
     requests fully mocked - fixture data only, no network."""
 
-    def test_recent_fetch_uses_recent_url_only(self):
-        with mock.patch("meteoswiss.requests.get", return_value=_fake_response(STATION_CSV)) as mock_get:
+    def test_operational_fetch_merges_recent_and_now_with_now_winning(self):
+        now_csv = STATION_CSV.replace("25.0;40.0", "55.0;60.0")
+        def fake_get(url, timeout=None):
+            return _fake_response(now_csv if "_now.csv" in url else STATION_CSV)
+        with mock.patch("meteoswiss.requests.get", side_effect=fake_get) as mock_get:
             result = ms.fetch_station_observations("cov", include_historical=False)
         self.assertEqual(len(result["observations"]), 2)
-        self.assertEqual(len(result["source_assets"]), 1)
+        self.assertEqual(len(result["source_assets"]), 2)
         self.assertIn("cov_h_recent.csv", result["source_assets"][0])
-        mock_get.assert_called_once()
+        self.assertIn("cov_h_now.csv", result["source_assets"][1])
+        first = sorted(result["observations"].items())[0][1]
+        self.assertAlmostEqual(first["wind_speed_ms"], 55.0 * 1000 / 3600, places=4)
+        self.assertEqual(mock_get.call_count, 2)
+
+    def test_hourly_asset_order_puts_now_after_recent(self):
+        stac_response = mock.Mock()
+        stac_response.json.return_value = {"assets": {
+            "ogd-smn_cov_h_now.csv": {"href": "https://example/cov_h_now.csv"},
+            "ogd-smn_cov_h_recent.csv": {"href": "https://example/cov_h_recent.csv"},
+            "ogd-smn_cov_h_historical_2020-2029.csv": {"href": "https://example/cov_h_historical.csv"},
+        }}
+        stac_response.raise_for_status = mock.Mock()
+        with mock.patch("meteoswiss.requests.get", return_value=stac_response):
+            urls = ms._discover_hourly_urls("cov")
+        self.assertIn("historical", urls[0])
+        self.assertIn("recent", urls[1])
+        self.assertIn("now", urls[2])
+
+    def test_10min_fetch_merges_recent_and_provisional_now(self):
+        recent = STATION_CSV.replace("h0", "z0").replace("h1", "z1").replace("tre200z0", "tre200s0")
+        current = recent.replace("25.0;40.0", "50.0;70.0")
+        def fake_get(url, timeout=None):
+            return _fake_response(current if "_now.csv" in url else recent)
+        with mock.patch("meteoswiss.requests.get", side_effect=fake_get):
+            result = ms.fetch_station_observations_10min("cov")
+        first = sorted(result["observations"].items())[0][1]
+        self.assertAlmostEqual(first["wind_speed_ms"], 50.0 * 1000 / 3600, places=4)
+        self.assertEqual(result["quality_status"], "provisional_live")
+        self.assertEqual(result["resolution_minutes"], 10)
 
     def test_historical_discovery_merges_multiple_files(self):
         stac_response = mock.Mock()

@@ -1,6 +1,7 @@
 """
-kitesailing_weather.py - live weather reading from the "LiveMeteo" widget
-embedded on https://www.kitesailing.ch/en/spot/webcam.
+kitesailing_weather.py - live weather reading from the dedicated "Weather &
+Watersports" page at
+https://www.kitesailing.ch/en/spot/weather-watersports.
 
 There is no documented public API and no client-visible JSON endpoint for
 this widget (confirmed by inspecting the page's network traffic and DOM: no
@@ -24,8 +25,8 @@ Two readings taken ~20 minutes apart during discovery (12:10 -> 20.5°C,
 12:30 -> 20.9°C) suggest the underlying station/cache refreshes roughly
 every 10-20 minutes.
 
-Sampled every 30 minutes, 09:00-19:00 Europe/Zurich (the widget itself has
-no notion of a "collection window" - this module's own
+Sampled every 15 minutes by the local collector, 05:00-21:45 Europe/Zurich
+(the widget itself has no notion of a "collection window" - this module's own
 is_within_collection_window() is what the scheduled workflow checks before
 actually attempting a fetch, since GitHub Actions cron is UTC-only and the
 CET/CEST offset shifts twice a year). The 12:00-18:30 window is this
@@ -52,13 +53,10 @@ interstitial, CAPTCHA, etc.) is explicitly detected and reported as a
 distinct failure category - this module never attempts to solve or bypass
 one.
 
-retrieved_at vs source_observed_at: the widget exposes no timestamp of its
-own (see the "no XHR/fetch call" note above), so source_observed_at is
-always null here - retrieved_at (this project's own fetch time) is the
-only timestamp that exists, and closest_observation()/load_observations()
-still match on it via the (kept, backward-compatible) 'observed_at' field.
-A future station whose source DOES publish its own timestamp should set
-source_observed_at to that real value, not silently reuse retrieved_at.
+retrieved_at vs source_observed_at: the dedicated page publishes a local
+date/time beside the reading. source_observed_at and the backward-compatible
+observed_at field use that real station timestamp converted to UTC;
+retrieved_at remains this project's fetch time.
 """
 
 import json
@@ -69,14 +67,14 @@ from datetime import datetime, timedelta, timezone
 from datetime import time as dtime
 from zoneinfo import ZoneInfo
 
-URL = "https://www.kitesailing.ch/en/spot/webcam"
+URL = "https://www.kitesailing.ch/en/spot/weather-watersports"
 LOG_PATH = os.path.join(os.path.dirname(__file__), "logs", "kitesailing_observations.jsonl")
 HEALTH_LOG_PATH = os.path.join(os.path.dirname(__file__), "logs", "kitesailing_ingestion_health.jsonl")
 FAILURE_ARTIFACT_DIR = os.path.join(os.path.dirname(__file__), "logs", "kitesailing_failure_artifacts")
 
 ZURICH_TZ = ZoneInfo("Europe/Zurich")
-COLLECTION_WINDOW_START = dtime(9, 0)   # Europe/Zurich
-COLLECTION_WINDOW_END = dtime(19, 0)
+COLLECTION_WINDOW_START = dtime(5, 0)   # Europe/Zurich
+COLLECTION_WINDOW_END = dtime(21, 45)
 PRIORITY_WINDOW_START = dtime(12, 0)    # this project's actually-scored window
 PRIORITY_WINDOW_END = dtime(18, 30)
 
@@ -92,6 +90,14 @@ _HUMIDITY_RE = re.compile(r"Feuchtigkeit:\s*(\d+(?:\.\d+)?)\s*%")
 _PRESSURE_RE = re.compile(r"Luftdruck:\s*(\d+(?:\.\d+)?)\s*hPa")
 _DIRECTION_RE = re.compile(r"Windrichtung:\s*([A-Z]+)\s*\(([\d.]+)\s*°\)")
 _AVG_WIND_RE = re.compile(r"Mittelwind:\s*(\d+(?:\.\d+)?)\s*km/h\s*\((\d+)\s*Bft\)")
+_SOURCE_TIME_RE = re.compile(
+    r"(\d{1,2})\.(\d{1,2})\.(\d{4})\s*\(\s*"
+    r"(\d{1,2}):(\d{2}):(\d{2})\s*\)"
+)
+_COMPASS_TRANSLATIONS = {
+    "N": "N", "NO": "NE", "NE": "NE", "O": "E", "E": "E",
+    "SO": "SE", "SE": "SE", "S": "S", "SW": "SW", "W": "W", "NW": "NW",
+}
 
 # Fields compared for duplicate/unchanged-reading detection - deliberately
 # excludes timestamps (which always differ between attempts).
@@ -109,7 +115,7 @@ def is_within_collection_window(now_utc: datetime = None) -> bool:
 def is_in_priority_window(now_utc: datetime = None) -> bool:
     """This project's actually-scored 12:00-18:30 Europe/Zurich range -
     used only to tag a reading, not to gate collection (the full
-    09:00-19:00 window is always sampled)."""
+    05:00-21:45 window is always sampled)."""
     now_utc = now_utc or datetime.now(timezone.utc)
     local_time = now_utc.astimezone(ZURICH_TZ).time()
     return PRIORITY_WINDOW_START <= local_time <= PRIORITY_WINDOW_END
@@ -138,11 +144,13 @@ def _parse_reading(today_text: str, details_text: str, retrieved_at: datetime) -
     pressure_m = _PRESSURE_RE.search(details_text)
     direction_m = _DIRECTION_RE.search(details_text)
     avg_wind_m = _AVG_WIND_RE.search(details_text)
+    source_time_m = _SOURCE_TIME_RE.search(today_text)
 
     missing = [
         name for name, m in [
             ("temp", temp_m), ("gust", gust_m), ("humidity", humidity_m),
             ("pressure", pressure_m), ("direction", direction_m), ("avg_wind", avg_wind_m),
+            ("source_time", source_time_m),
         ] if m is None
     ]
     if missing:
@@ -152,21 +160,28 @@ def _parse_reading(today_text: str, details_text: str, retrieved_at: datetime) -
             f"details_text={details_text!r}"
         )
 
+    day, month, year, hour, minute, second = map(int, source_time_m.groups())
+    source_local = datetime(year, month, day, hour, minute, second, tzinfo=ZURICH_TZ)
+    source_utc = source_local.astimezone(timezone.utc)
     retrieved_at_iso = retrieved_at.isoformat()
+    source_observed_iso = source_utc.isoformat()
+    raw_compass = direction_m.group(1)
     return {
-        "observed_at": retrieved_at_iso,  # kept for backward compatibility with load_observations()/closest_observation()
+        "observed_at": source_observed_iso,  # backward-compatible canonical timestamp
         "retrieved_at": retrieved_at_iso,
-        "source_observed_at": None,  # the widget publishes no timestamp of its own - see module docstring
+        "source_observed_at": source_observed_iso,
+        "source_url": URL,
         "temp_c": float(temp_m.group(1)),
         "gust_kmh": float(gust_m.group(1)),
         "gust_kn": float(gust_m.group(2)),
         "avg_wind_kmh": float(avg_wind_m.group(1)),
         "avg_wind_bft": int(avg_wind_m.group(2)),
-        "wind_dir_compass": direction_m.group(1),
+        "wind_dir_compass": _COMPASS_TRANSLATIONS.get(raw_compass, raw_compass),
+        "wind_dir_compass_raw": raw_compass,
         "wind_dir_deg": float(direction_m.group(2)),
         "humidity_pct": float(humidity_m.group(1)),
         "pressure_hpa": float(pressure_m.group(1)),
-        "in_priority_window": is_in_priority_window(retrieved_at),
+        "in_priority_window": is_in_priority_window(source_utc),
     }
 
 
@@ -334,7 +349,7 @@ def attempt_reading(headless: bool = True) -> dict:
 
 def main():
     if not is_within_collection_window():
-        print("[skip] outside the 09:00-19:00 Europe/Zurich collection window - not attempting a fetch")
+        print("[skip] outside the 05:00-21:45 Europe/Zurich collection window - not attempting a fetch")
         return 0
 
     result = attempt_reading()

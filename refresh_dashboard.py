@@ -49,6 +49,9 @@ DATASET_PATH = os.path.join(BASE_DIR, "logs", "backtest_dataset.jsonl")
 PREDICTIONS_PATH = os.path.join(BASE_DIR, "logs", "predictions.jsonl")
 KITESAILING_OBSERVATIONS_PATH = os.path.join(BASE_DIR, "logs", "kitesailing_observations.jsonl")
 KITESAILING_HEALTH_PATH = os.path.join(BASE_DIR, "logs", "kitesailing_ingestion_health.jsonl")
+WATER_TEMPERATURE_PATH = os.path.join(BASE_DIR, "logs", "water_temperature_latest.json")
+CURRENT_STATION_OBSERVATIONS_PATH = os.path.join(BASE_DIR, "logs", "current_station_observations.json")
+METEOSWISS_LOCAL_FORECAST_PATH = os.path.join(BASE_DIR, "logs", "meteoswiss_local_forecast.json")
 ZURICH_TZ = ZoneInfo("Europe/Zurich")
 DASHBOARD_DATA_PATH = os.path.join(BASE_DIR, "docs", "dashboard_data.json")
 ISSUANCE_LOG_PATH = os.path.join(BASE_DIR, "logs", "forecast_issuances.jsonl")
@@ -450,10 +453,52 @@ def reference_stations() -> dict:
     return out
 
 
+def latest_station_observation(station_id: str, station_name: str) -> dict:
+    """Newest valid reading from station_nowcast's live MeteoSwiss snapshot."""
+    try:
+        with open(CURRENT_STATION_OBSERVATIONS_PATH) as handle:
+            snapshot = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    station_entry = snapshot.get("stations", {}).get(station_id, {})
+    display = station_entry.get("latest_display_observation")
+    observations = station_entry.get("observations", [])
+    if display and display.get("wind_speed_ms") is not None:
+        valid = [display]
+    else:
+        valid = [row for row in observations if row.get("wind_speed_ms") is not None]
+    if not valid:
+        return {}
+    vals = max(valid, key=lambda row: row.get("timestamp_utc", ""))
+    out = {
+        "observed_at": vals.get("timestamp_utc"),
+        "observed_at_local": vals.get("timestamp_local"),
+        "wind_kt": round(vals["wind_speed_ms"] * 1.943844, 1),
+        "station": station_name,
+    }
+    metadata = station_entry.get("display_observation_metadata") or {}
+    if display:
+        out["quality_status"] = metadata.get("quality_status", "provisional_live")
+        out["resolution_minutes"] = metadata.get("resolution_minutes", 10)
+    else:
+        out["quality_status"] = "quality_controlled_hourly"
+        out["resolution_minutes"] = 60
+    if vals.get("wind_gust_ms") is not None:
+        out["gust_kt"] = round(vals["wind_gust_ms"] * 1.943844, 1)
+    if vals.get("wind_direction_deg") is not None:
+        out["wind_dir"] = compass_direction(vals["wind_direction_deg"])
+    if vals.get("temperature_c") is not None:
+        out["temp_c"] = vals["temperature_c"]
+    return out
+
+
 def latest_sia_observation() -> dict:
     """Newest real SIA reading from the committed raw cache (no network) -
     refreshed whenever a backtest/sync run recommits generic_sia.json.
     Empty dict when the cache doesn't exist yet."""
+    live = latest_station_observation("sia", "Segl-Maria (SIA)")
+    if live:
+        return live
     path = os.path.join(BASE_DIR, "logs", "raw_cache", "generic_sia.json")
     try:
         with open(path) as f:
@@ -476,6 +521,19 @@ def latest_sia_observation() -> dict:
     if vals.get("temperature_c") is not None:
         out["temp_c"] = vals["temperature_c"]
     return out
+
+
+def latest_samedan_observation() -> dict:
+    return latest_station_observation("sam", "Samedan (SAM)")
+
+
+def meteoswiss_local_forecast() -> dict:
+    """Last successfully downloaded official forecast; never fetches here."""
+    try:
+        with open(METEOSWISS_LOCAL_FORECAST_PATH) as handle:
+            return json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 def station_agreement() -> dict:
@@ -515,24 +573,25 @@ def station_agreement() -> dict:
 
 
 def lake_water_temperature() -> dict:
-    """Section 11: the latest kitesailing.ch reading's temperature field.
-    kitesailing_weather.py's widget reports one temperature figure
-    alongside wind/humidity/pressure, but nothing in this codebase has
-    ever confirmed whether that figure is the lake's water temperature or
-    the air temperature at the spot - see kitesailing_weather.py's
-    docstring. Rather than either hiding a real, already-collected value
-    or asserting an unconfirmed label as fact, this reports the reading
-    plainly with an explicit confirmed=False flag so the dashboard can
-    show it honestly captioned."""
-    observations = read_jsonl(KITESAILING_OBSERVATIONS_PATH)
-    if not observations:
-        return {"temp_c": None, "observed_at": None, "confirmed_water_temperature": False}
-    observations.sort(key=lambda o: o["observed_at"])
-    latest = observations[-1]
+    """Latest lake-water estimate, never the Kitesailing air temperature."""
+    empty = {
+        "temp_c": None, "retrieved_at": None, "estimated": True,
+        "source_url": "https://www.wassertemperatur.org/seen/schweiz/silvaplanersee/",
+    }
+    try:
+        with open(WATER_TEMPERATURE_PATH) as handle:
+            reading = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return empty
+    temp_c = reading.get("temp_c")
+    if not isinstance(temp_c, (int, float)):
+        return empty
     return {
-        "temp_c": latest.get("temp_c"),
-        "observed_at": latest.get("observed_at"),
-        "confirmed_water_temperature": False,
+        "temp_c": float(temp_c),
+        "retrieved_at": reading.get("retrieved_at"),
+        "estimated": True,
+        "source_url": reading.get("source_url") or empty["source_url"],
+        "source_note": reading.get("source_note"),
     }
 
 
@@ -619,6 +678,8 @@ def main():
         "ground_truth_policy": _ground_truth_policy(),
         "station_agreement": station_agreement(),
         "latest_sia_observation": latest_sia_observation(),
+        "latest_samedan_observation": latest_samedan_observation(),
+        "meteoswiss_local_forecast": meteoswiss_local_forecast(),
     }
 
     os.makedirs(os.path.dirname(DASHBOARD_DATA_PATH), exist_ok=True)

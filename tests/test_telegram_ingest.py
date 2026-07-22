@@ -102,6 +102,31 @@ class HandleCommandTests(unittest.TestCase):
         self.assertIn("Unknown", ti.handle_command("/frobnicate", self.dt)[0])
         self.assertEqual(ti.handle_command("hi there", self.dt), (None, None))
 
+    def test_report_returns_text_without_observation(self):
+        reply, obs = ti.handle_command("/report", self.dt)
+        self.assertIsNone(obs)
+        self.assertIn("Wingcheck report", reply)
+
+
+class ReportTests(unittest.TestCase):
+    def test_report_contains_latest_wind_and_best_forecast(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            observations = os.path.join(tmp, "observations.jsonl")
+            dashboard = os.path.join(tmp, "dashboard.json")
+            with open(observations, "w") as handle:
+                handle.write(json.dumps({"observed_at": "2026-07-20T12:30:00+00:00",
+                                         "avg_wind_kmh": 21, "gust_kmh": 37,
+                                         "wind_dir_compass": "SW", "temp_c": 19.7}) + "\n")
+            with open(dashboard, "w") as handle:
+                json.dump({"upcoming_forecast": [
+                    {"target_time": "2026-07-20T14:00", "probability": .72, "tier": "GOOD"}
+                ]}, handle)
+            report = ti.build_report(observations, dashboard)
+            self.assertIn("11.3 kt", report)
+            self.assertIn("gust 20.0 kt", report)
+            self.assertIn("72%", report)
+            self.assertIn("14:00", report)
+
 
 class PollTests(unittest.TestCase):
     def _run(self, updates, chat_id=42, offset0=0):

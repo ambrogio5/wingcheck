@@ -1,5 +1,14 @@
 # Malojawind — Silvaplana wingfoil forecast
 
+> **Main live dashboard:** <http://127.0.0.1:8081>. This is the canonical
+> Docker-served Wingcheck interface on this Mac, backed by the live local
+> collector and scheduler. Do not start a separate static preview server for
+> normal use.
+>
+> **Local continuous service:** see [docs/LOCAL_SERVICE.md](docs/LOCAL_SERVICE.md)
+> for the Docker Compose deployment used for frequent collection on a Mac.
+> GitHub remains the code/PR/CI workflow; operational data stays outside Git.
+
 Self-improving forecast for the Maloja wind at Lake Silvaplana.
 Scores 22 engineered features (Bregaglia thermal contrast, Lugano–Zürich
 pressure gradient, 700hPa wind, CAPE, a multi-model wind ensemble, and more)
@@ -80,8 +89,9 @@ preserving the structure (especially `.github/workflows/wingcheck.yml`).
   add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
 - **Settings → Actions → General → Workflow permissions**:
   select **"Read and write permissions"** (jobs commit logs/weights back).
-- **Settings → Pages**: Source "Deploy from a branch", branch `main`,
-  folder `/docs`. Dashboard will be at `https://<user>.github.io/<repo>/`.
+- **Settings → Pages** (optional): Source "Deploy from a branch", branch
+  `main`, folder `/docs`. This creates a static remote mirror at
+  `https://<user>.github.io/<repo>/`; it is not the primary live dashboard.
 
 ### 4. Pre-train on history (run once)
 **Actions → wingfoil-check → Run workflow → tick "run_backtest" → Run.**
