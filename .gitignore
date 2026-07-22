@@ -22,3 +22,5 @@ logs/current_station_observations.json
 # attempt_reading() - uploaded as a short-lived GitHub Actions artifact by
 # .github/workflows/kitesailing-sampler.yml, never committed to the repo.
 logs/kitesailing_failure_artifacts/
+.env
+.runtime/

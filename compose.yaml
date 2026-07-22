@@ -1,0 +1,112 @@
+name: wingcheck
+
+x-wingcheck: &wingcheck
+  build: .
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    WINGCHECK_RUNTIME_DIR: /runtime
+    DATABASE_URL: postgresql://${POSTGRES_USER:-wingcheck}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-wingcheck}
+    TZ: ${TZ:-Europe/Zurich}
+  volumes:
+    - ${WINGCHECK_DATA_DIR:?set WINGCHECK_DATA_DIR in .env}:/runtime
+  depends_on:
+    postgres:
+      condition: service_healthy
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wingcheck}
+      POSTGRES_USER: ${POSTGRES_USER:-wingcheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ${WINGCHECK_DATA_DIR:?set WINGCHECK_DATA_DIR in .env}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "5"}
+
+  collector:
+    <<: *wingcheck
+    command: ["python", "local_service.py", "collector"]
+    healthcheck:
+      test: ["CMD", "python", "local_service.py", "check", "collector", "--max-age", "1200"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+
+  scheduler:
+    <<: *wingcheck
+    command: ["python", "local_service.py", "scheduler"]
+    healthcheck:
+      test: ["CMD", "python", "local_service.py", "check", "scheduler", "--max-age", "300"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
+  telegram:
+    <<: *wingcheck
+    command: ["python", "local_service.py", "telegram"]
+    healthcheck:
+      test: ["CMD", "python", "local_service.py", "check", "telegram", "--max-age", "120"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  api:
+    <<: *wingcheck
+    command: ["python", "local_api.py"]
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  dashboard:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    volumes:
+      - ./docs:/usr/share/nginx/html:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "5"}
+
+  backup:
+    <<: *wingcheck
+    command: ["python", "local_service.py", "backup"]
+    environment:
+      WINGCHECK_RUNTIME_DIR: /runtime
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-wingcheck}
+      PGUSER: ${POSTGRES_USER:-wingcheck}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TZ: ${TZ:-Europe/Zurich}

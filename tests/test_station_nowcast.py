@@ -102,6 +102,27 @@ class BuildSnapshotTests(unittest.TestCase):
         snapshot = sn.build_snapshot(registry=registry, station_ids=["not_a_real_station"])
         self.assertEqual(snapshot["stations"], {})
 
+    def test_sia_snapshot_includes_separate_10min_display_observation(self):
+        now = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
+        registry = {"sia": _fake_station("sia")}
+        hourly = _rec((now - timedelta(hours=1)).isoformat(), station_id="sia")
+        live = _rec((now - timedelta(minutes=10)).isoformat(), station_id="sia")
+        original_hourly = sn._fetch_normalized_recent
+        original_display = sn._fetch_latest_display_observation
+        sn._fetch_normalized_recent = lambda station: ([hourly], [])
+        sn._fetch_latest_display_observation = lambda station: (live, {
+            "quality_status": "provisional_live", "resolution_minutes": 10,
+            "source_assets": ["now.csv"],
+        })
+        try:
+            snapshot = sn.build_snapshot(registry=registry, station_ids=["sia"], now=now)
+        finally:
+            sn._fetch_normalized_recent = original_hourly
+            sn._fetch_latest_display_observation = original_display
+        entry = snapshot["stations"]["sia"]
+        self.assertEqual(entry["latest_display_observation"]["timestamp_utc"], live["timestamp_utc"])
+        self.assertEqual(entry["display_observation_metadata"]["resolution_minutes"], 10)
+
 
 class NoLiveSourceStationGuardTests(unittest.TestCase):
     """A station in historical_data.NO_LIVE_SOURCE_STATIONS (e.g. sils, a

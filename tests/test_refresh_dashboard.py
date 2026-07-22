@@ -432,28 +432,67 @@ class UnmatchedPredictionsCountTests(unittest.TestCase):
 
 class LakeWaterTemperatureTests(unittest.TestCase):
     def setUp(self):
-        self._orig_obs = rd.KITESAILING_OBSERVATIONS_PATH
+        self._orig_path = rd.WATER_TEMPERATURE_PATH
         self._tmpdir = tempfile.mkdtemp()
-        rd.KITESAILING_OBSERVATIONS_PATH = os.path.join(self._tmpdir, "obs.jsonl")
+        rd.WATER_TEMPERATURE_PATH = os.path.join(self._tmpdir, "water.json")
 
     def tearDown(self):
-        rd.KITESAILING_OBSERVATIONS_PATH = self._orig_obs
+        rd.WATER_TEMPERATURE_PATH = self._orig_path
 
     def test_none_when_no_observations(self):
         result = rd.lake_water_temperature()
         self.assertIsNone(result["temp_c"])
-        self.assertFalse(result["confirmed_water_temperature"])
+        self.assertTrue(result["estimated"])
 
-    def test_latest_reading_returned_honestly_unconfirmed(self):
-        with open(rd.KITESAILING_OBSERVATIONS_PATH, "w") as f:
-            f.write(json.dumps({"observed_at": "2026-07-16T10:00:00+00:00", "temp_c": 18.5}) + "\n")
-            f.write(json.dumps({"observed_at": "2026-07-16T14:00:00+00:00", "temp_c": 19.2}) + "\n")
+    def test_estimated_water_reading_is_kept_separate_from_air_data(self):
+        with open(rd.WATER_TEMPERATURE_PATH, "w") as f:
+            json.dump({
+                "temp_c": 17.0,
+                "retrieved_at": "2026-07-20T19:00:00+00:00",
+                "source_url": "https://example.test/water",
+                "estimated": True,
+            }, f)
         result = rd.lake_water_temperature()
-        self.assertEqual(result["temp_c"], 19.2)
-        self.assertEqual(result["observed_at"], "2026-07-16T14:00:00+00:00")
-        # Never asserted as confirmed fact - the widget's field provenance
-        # (air vs. water) has never been independently verified.
-        self.assertFalse(result["confirmed_water_temperature"])
+        self.assertEqual(result["temp_c"], 17.0)
+        self.assertEqual(result["retrieved_at"], "2026-07-20T19:00:00+00:00")
+        self.assertTrue(result["estimated"])
+        self.assertEqual(result["source_url"], "https://example.test/water")
+
+
+class LatestStationObservationTests(unittest.TestCase):
+    def setUp(self):
+        self._original = rd.CURRENT_STATION_OBSERVATIONS_PATH
+        self._tmpdir = tempfile.mkdtemp()
+        rd.CURRENT_STATION_OBSERVATIONS_PATH = os.path.join(self._tmpdir, "stations.json")
+
+    def tearDown(self):
+        rd.CURRENT_STATION_OBSERVATIONS_PATH = self._original
+
+    def test_latest_samedan_reading_is_converted_to_knots(self):
+        with open(rd.CURRENT_STATION_OBSERVATIONS_PATH, "w") as handle:
+            json.dump({"stations": {"sam": {"observations": [
+                {"timestamp_utc": "2026-07-22T08:00:00+00:00", "timestamp_local": "2026-07-22T10:00:00+02:00", "wind_speed_ms": 5.0, "wind_gust_ms": 8.0},
+                {"timestamp_utc": "2026-07-22T09:00:00+00:00", "timestamp_local": "2026-07-22T11:00:00+02:00", "wind_speed_ms": 6.0, "wind_gust_ms": 9.0},
+            ]}}}, handle)
+        result = rd.latest_samedan_observation()
+        self.assertEqual(result["observed_at"], "2026-07-22T09:00:00+00:00")
+        self.assertEqual(result["observed_at_local"], "2026-07-22T11:00:00+02:00")
+        self.assertEqual(result["wind_kt"], 11.7)
+        self.assertEqual(result["gust_kt"], 17.5)
+
+    def test_prefers_provisional_10min_display_observation(self):
+        hourly = {"timestamp_utc": "2026-07-22T09:00:00+00:00", "wind_speed_ms": 3.0}
+        display = {"timestamp_utc": "2026-07-22T09:50:00+00:00", "timestamp_local": "2026-07-22T11:50:00+02:00", "wind_speed_ms": 6.0}
+        with open(rd.CURRENT_STATION_OBSERVATIONS_PATH, "w") as handle:
+            json.dump({"stations": {"sam": {
+                "observations": [hourly],
+                "latest_display_observation": display,
+                "display_observation_metadata": {"quality_status": "provisional_live", "resolution_minutes": 10},
+            }}}, handle)
+        result = rd.latest_samedan_observation()
+        self.assertEqual(result["observed_at"], display["timestamp_utc"])
+        self.assertEqual(result["quality_status"], "provisional_live")
+        self.assertEqual(result["resolution_minutes"], 10)
 
 
 class VerificationSourcesTests(unittest.TestCase):

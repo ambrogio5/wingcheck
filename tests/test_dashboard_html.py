@@ -199,10 +199,7 @@ class RetroInstrumentClusterTests(unittest.TestCase):
 
 
 class LakeSampleButtonTests(unittest.TestCase):
-    """A top-of-page one-tap button that deep-links to the kitesailing
-    sampler workflow's Run page - a static page can't safely dispatch a
-    workflow itself (no embeddable credential), so it's a plain link, like
-    the evaluation button."""
+    """Local one-tap collection and latest real lake observation UI."""
 
     def setUp(self):
         self.html = _read()
@@ -213,17 +210,36 @@ class LakeSampleButtonTests(unittest.TestCase):
         main = self.html.index('id="dashboardMain"')
         self.assertLess(btn, main, "sample button must sit above the console")
 
-    def test_button_links_to_sampler_workflow_in_new_tab(self):
+    def test_button_calls_local_collection_api(self):
         start = self.html.index('id="lakeSampleBtn"')
-        anchor = self.html[self.html.rfind("<a", 0, start):self.html.index(">", start) + 1]
-        self.assertIn("actions/workflows/kitesailing-sampler.yml", anchor)
-        self.assertIn('target="_blank"', anchor)
-        self.assertIn('rel="noopener noreferrer"', anchor)
+        button = self.html[self.html.rfind("<button", 0, start):self.html.index(">", start) + 1]
+        self.assertIn('onclick="collectNow()"', button)
+        self.assertIn("fetch('./api/collect'", self.html)
+
+    def test_latest_wind_readout_is_present(self):
+        for element_id in ("latestWindMean", "latestWindGust", "latestWindDir",
+                           "latestWindTemp", "latestWindTime"):
+            self.assertIn(f'id="{element_id}"', self.html)
+        self.assertIn("/1.852, 'kt'", self.html)
+
+    def test_dashboard_wind_displays_use_knots(self):
+        self.assertNotIn("+' m/s'", self.html)
+        self.assertNotIn("'km/h'", self.html)
 
     def test_button_has_no_embedded_credential(self):
         # never ship a token/PAT in the static page
         for bad in ("ghp_", "github_pat_", "Authorization", "token="):
             self.assertNotIn(bad, self.html)
+
+    def test_forecast_refresh_button_calls_local_api(self):
+        self.assertIn('id="forecastRefreshBtn"', self.html)
+        self.assertIn('onclick="refreshForecastNow()"', self.html)
+        self.assertIn("fetch('./api/refresh-forecast'", self.html)
+        self.assertIn("fetch(`./api/forecast-status", self.html)
+
+    def test_reference_station_readings_disclose_provisional_resolution(self):
+        self.assertIn("Provisional live", self.html)
+        self.assertIn("resolution_minutes", self.html)
 
 
 if __name__ == "__main__":

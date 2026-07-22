@@ -9,7 +9,7 @@
 # fully independent from GitHub Actions' point of view.
 #
 # Cron is a broad, UTC, every-30-minutes schedule that runs all day; the
-# ACTUAL collection window (09:00-19:00 Europe/Zurich) is enforced in
+# ACTUAL collection window (05:00-21:45 Europe/Zurich) is enforced in
 # Python by kitesailing_weather.py's own is_within_collection_window() -
 # not by narrowing the cron itself - because GitHub Actions cron is
 # UTC-only and a fixed UTC cron window would silently drift by an hour
@@ -69,7 +69,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-1.61.0-${{ runner.os }}
       - run: playwright install --with-deps chromium
-      - name: Sample kitesailing.ch reading (skips itself outside 09:00-19:00 Europe/Zurich)
+      - name: Sample kitesailing.ch reading (skips itself outside 05:00-21:45 Europe/Zurich)
         id: sample
         run: python kitesailing_weather.py
         continue-on-error: true

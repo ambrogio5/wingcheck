@@ -116,6 +116,15 @@
   .provisional-note{font-size:12.5px;color:var(--warn-ink);background:var(--warn-soft);
     border-radius:10px;padding:9px 13px;margin-top:14px;display:inline-block;}
 
+  /* ---------- Compact official local forecast ---------- */
+  .meteo-strip{display:grid;grid-template-columns:repeat(6,minmax(112px,1fr));gap:10px;overflow-x:auto;
+    padding-bottom:4px;scrollbar-width:thin;}
+  .meteo-hour{min-width:112px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--ice);}
+  .meteo-hour .mh-time{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink);}
+  .meteo-hour .mh-temp{font-family:var(--display);font-size:24px;font-weight:600;margin:8px 0 5px;}
+  .meteo-hour .mh-detail{font-size:11.5px;line-height:1.55;color:var(--ink-2);white-space:nowrap;}
+  .meteo-meta{font-size:11.5px;color:var(--ink-3);margin-top:11px;}
+
   /* ---------- Status badges (shared: healthy/degraded/critical/etc.) ---------- */
   .badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;
     font-weight:600;padding:5px 11px;border-radius:100px;white-space:nowrap;}
@@ -164,6 +173,15 @@
   .action-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 16px;}
   .action-bar .eval-btn-tip{margin-top:0;}
   .eval-btn-tip{font-size:12px;color:var(--ink-3);margin-top:8px;max-width:420px;}
+  button.eval-btn{border:0;font:inherit;cursor:pointer;}
+  button.eval-btn:disabled{opacity:.65;cursor:wait;}
+  .latest-wind{display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:12px;
+    width:100%;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:16px 18px;box-shadow:var(--shadow);}
+  .latest-wind-item .label{display:block;font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;}
+  .latest-wind-item .value{display:block;margin-top:4px;font-family:var(--mono);font-size:15px;font-weight:600;}
+  .latest-wind-time{grid-column:1/-1;font-size:11.5px;color:var(--ink-3);}
+  @media (max-width:620px){.latest-wind{grid-template-columns:repeat(2,1fr);}}
 
   .window-tables{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;}
   @media (max-width:640px){.window-tables{grid-template-columns:1fr;}}
@@ -372,22 +390,29 @@
     </div>
   </header>
 
-  <!-- Top-of-page one-tap lake sampler. A static GitHub Pages page can't hold
-       a token to dispatch a workflow itself (that would leak a credential in
-       public frontend code - the same reason the evaluation button is just a
-       link), so this deep-links to the sampler workflow's Run page. On a phone
-       already signed in to GitHub it's two taps to force a fresh real lake
-       reading - handy when the throttled cron hasn't fired during a session. -->
+  <!-- Local collection controls and the latest observed lake wind. -->
   <div class="action-bar">
-    <a class="eval-btn" id="lakeSampleBtn"
-       href="https://github.com/ambrogio5/wingcheck/actions/workflows/kitesailing-sampler.yml"
-       target="_blank" rel="noopener noreferrer" aria-describedby="lakeSampleTip">
+    <button class="eval-btn" id="lakeSampleBtn" type="button" onclick="collectNow()" aria-describedby="lakeSampleTip">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M12 20v-8M12 12a4 4 0 0 1 4-4M12 12a4 4 0 0 0-4-4M12 4a8 8 0 0 1 8 8M12 4a8 8 0 0 0-8 8"/>
       </svg>
-      Sample the lake now
-    </a>
-    <span class="eval-btn-tip" id="lakeSampleTip">Opens the sampler workflow on GitHub — tap “Run workflow” to capture a fresh Silvaplana lake reading (active 09:00–19:00 CEST).</span>
+      Collect wind data now
+    </button>
+    <button class="eval-btn" id="forecastRefreshBtn" type="button" onclick="refreshForecastNow()" aria-describedby="forecastRefreshTip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M20 6v6h-6M4 18v-6h6M6.5 9a7 7 0 0 1 11.6-2.4L20 8M4 16l1.9 1.4A7 7 0 0 0 17.5 15"/>
+      </svg>
+      Refresh forecast
+    </button>
+    <span class="eval-btn-tip" id="lakeSampleTip">The collector also runs automatically every 15 minutes while this Mac is awake.</span>
+    <span class="eval-btn-tip" id="forecastRefreshTip" aria-live="polite">Use this when newer morning data may improve the afternoon forecast.</span>
+    <div class="latest-wind" id="latestWind" aria-live="polite">
+      <div class="latest-wind-item"><span class="label">Lake wind</span><span class="value" id="latestWindMean">--</span></div>
+      <div class="latest-wind-item"><span class="label">Gust</span><span class="value" id="latestWindGust">--</span></div>
+      <div class="latest-wind-item"><span class="label">Direction</span><span class="value" id="latestWindDir">--</span></div>
+      <div class="latest-wind-item"><span class="label">Temperature</span><span class="value" id="latestWindTemp">--</span></div>
+      <div class="latest-wind-time" id="latestWindTime">Loading latest lake observation…</div>
+    </div>
   </div>
 
   <main class="dashboard-console" id="dashboardMain">
@@ -568,6 +593,14 @@
     </div>
   </section>
 
+  <!-- ================= OFFICIAL METEOSWISS LOCAL FORECAST ================= -->
+  <section class="card panel-meteoswiss" aria-labelledby="meteoswiss-h">
+    <div class="section-head"><h2 id="meteoswiss-h">MeteoSwiss local forecast</h2>
+      <div class="hint">Silvaplana · official localized point forecast</div></div>
+    <div class="meteo-strip" id="meteoswissForecastHours"></div>
+    <div class="meteo-meta" id="meteoswissForecastMeta"></div>
+  </section>
+
   <!-- ================= DAILY SUMMARY ================= -->
   <section class="card panel-summary" id="summarySection" aria-labelledby="summary-h">
     <div class="section-head"><h2 id="summary-h">Daily summary</h2></div>
@@ -605,7 +638,7 @@
 
   <!-- ================= LAKE WATER TEMPERATURE ================= -->
   <section class="card panel-water" aria-labelledby="watertemp-h">
-    <div class="section-head"><h2 id="watertemp-h">Lake station temperature</h2></div>
+    <div class="section-head"><h2 id="watertemp-h">Lake water temperature</h2></div>
     <div class="stat-row" id="waterTempRow"></div>
   </section>
 
@@ -656,6 +689,8 @@
       <div class="hint">Ground-truth sources, coverage and the current label policy</div></div>
     <div class="health-sub-head">Latest SIA reading <span class="hint">(Segl-Maria — the label reference station)</span></div>
     <div class="stat-row" id="latestSiaRow"></div>
+    <div class="health-sub-head">Latest Samedan reading <span class="hint">(SAM — down-valley context station)</span></div>
+    <div class="stat-row" id="latestSamedanRow"></div>
     <div class="health-sub-head">Label policy</div>
     <div class="stat-row" id="groundTruthPolicyRow"></div>
     <div class="health-sub-head">Station coverage</div>
@@ -831,6 +866,21 @@ function hoursAgo(isoString){
   const then = new Date(isoString);
   if (isNaN(then.getTime())) return null;
   return (Date.now() - then.getTime()) / 36e5;
+}
+
+function fmtLocalDateTime(isoString){
+  if (!isoString) return '—';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone:'Europe/Zurich', weekday:'short', day:'2-digit', month:'short',
+    hour:'2-digit', minute:'2-digit', hour12:false
+  }).format(date);
+}
+
+function compassFromDegrees(degrees){
+  const points = ['N','NE','E','SE','S','SW','W','NW'];
+  return points[Math.round(Number(degrees)/45) % 8];
 }
 
 function tierClass(t){ return t==='GOOD' ? 'good' : t==='MARGINAL' ? 'marginal' : 'unlikely'; }
@@ -1122,8 +1172,8 @@ function renderIngestionHealth(d){
       summitIds.map(sid=>{
         const s = summit[sid];
         const source = (s.source_assets && s.source_assets.length) ? s.source_assets[0].split(':')[0] : '—';
-        return `<tr><td>${sid.toUpperCase()}</td><td>${s.wind_speed!=null?s.wind_speed.toFixed(1)+' m/s':'—'}</td>
-          <td>${s.gust!=null?s.gust.toFixed(1)+' m/s':'—'}</td><td>${s.direction!=null?Math.round(s.direction)+'°':'—'}</td>
+        return `<tr><td>${sid.toUpperCase()}</td><td>${s.wind_speed!=null?(s.wind_speed*1.943844).toFixed(1)+' kt':'—'}</td>
+          <td>${s.gust!=null?(s.gust*1.943844).toFixed(1)+' kt':'—'}</td><td>${s.direction!=null?Math.round(s.direction)+'°':'—'}</td>
           <td>${s.temperature!=null?s.temperature.toFixed(1)+'°C':'—'}</td>
           <td>${s.coverage!=null?Math.round(s.coverage*100)+'%':'—'}</td><td>${fmtAge(s.age_minutes)}</td>
           <td title="reporting delay: ${s.reporting_delay_minutes ?? '—'} min">${source}</td></tr>`;
@@ -1158,19 +1208,23 @@ function renderReferenceStations(d){
   if (!Object.keys(rs).length){ return; }
   section.style.display = '';
 
-  const sia = d.latest_sia_observation || {};
-  const siaRow = document.getElementById('latestSiaRow');
-  if (sia.wind_kt != null){
-    const ageH = sia.observed_at ? hoursAgo(sia.observed_at) : null;
-    siaRow.innerHTML = [
-      ['Wind', sia.wind_kt+' kt' + (sia.wind_dir ? ' '+sia.wind_dir : '')],
-      ['Gust', sia.gust_kt != null ? sia.gust_kt+' kt' : '—'],
-      ['Temp', sia.temp_c != null ? sia.temp_c.toFixed(1)+'°C' : '—'],
-      ['Observed', ageH != null ? fmtAge(ageH*60)+' ago' : '—'],
-    ].map(([label,value])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div></div>`).join('');
-  } else {
-    siaRow.innerHTML = '<div class="empty-state">No SIA reading cached yet.</div>';
+  function renderLatestStation(rowId, reading, emptyLabel){
+    const row = document.getElementById(rowId);
+    if (reading.wind_kt == null){
+      row.innerHTML = `<div class="empty-state">No ${emptyLabel} reading cached yet.</div>`;
+      return;
+    }
+    const ageH = reading.observed_at ? hoursAgo(reading.observed_at) : null;
+    const age = ageH != null ? `${fmtAge(ageH*60)} ago` : 'age unknown';
+    row.innerHTML = [
+      ['Wind', reading.wind_kt+' kt' + (reading.wind_dir ? ' '+reading.wind_dir : '')],
+      ['Gust', reading.gust_kt != null ? reading.gust_kt+' kt' : '—'],
+      ['Temp', reading.temp_c != null ? reading.temp_c.toFixed(1)+'°C' : '—'],
+      ['Observed', fmtLocalDateTime(reading.observed_at), `${age} · ${reading.quality_status === 'provisional_live' ? 'Provisional live' : 'Quality-controlled'} · ${reading.resolution_minutes || 60}-min`],
+    ].map(([label,value,sub])=>`<div class="stat"><div class="st-label">${label}</div><div class="st-value">${value}</div>${sub?`<div class="st-sub">${sub}</div>`:''}</div>`).join('');
   }
+  renderLatestStation('latestSiaRow', d.latest_sia_observation || {}, 'SIA');
+  renderLatestStation('latestSamedanRow', d.latest_samedan_observation || {}, 'Samedan');
 
   document.getElementById('groundTruthPolicyRow').innerHTML = [
     ['Policy version', policy.policy_version ?? '—'],
@@ -1204,7 +1258,7 @@ function renderReferenceStations(d){
     ];
     if (agreement.pearson != null){
       cells.push(['Correlation', agreement.pearson.toFixed(3)],
-                 ['Bias (SIA − lake)', agreement.bias_sia_minus_lake_ms.toFixed(2)+' m/s'],
+                 ['Bias (SIA − lake)', (agreement.bias_sia_minus_lake_ms*1.943844).toFixed(1)+' kt'],
                  ['Best lag', agreement.best_lag_hours+'h']);
     } else {
       cells.push(['Correlation / bias', 'suppressed — overlap below 14-day reporting gate']);
@@ -1220,13 +1274,44 @@ function renderLakeWaterTemperature(d){
     el.innerHTML = '<div class="empty-state">No lake temperature reading yet.</div>';
     return;
   }
-  const ageHours = wt.observed_at ? hoursAgo(wt.observed_at) : null;
+  const ageHours = wt.retrieved_at ? hoursAgo(wt.retrieved_at) : null;
   const age = ageHours != null ? fmtAge(ageHours*60) : '—';
+  const source = wt.source_url || 'https://www.wassertemperatur.org/seen/schweiz/silvaplanersee/';
   el.innerHTML = `
-    <div class="stat"><div class="st-label"><span class="tip" title="kitesailing.ch's widget reports one temperature figure alongside wind/humidity/pressure - not independently confirmed to be the water (vs. air) temperature.">Reading</span></div>
+    <div class="stat"><div class="st-label">Water temperature</div>
       <div class="st-value">${wt.temp_c.toFixed(1)}°C</div>
-      <div class="st-sub">unconfirmed whether water or air temperature</div></div>
-    <div class="stat"><div class="st-label">Observed</div><div class="st-value">${age} ago</div></div>`;
+      <div class="st-sub">Estimated — not a verified in-lake sensor measurement</div></div>
+    <div class="stat"><div class="st-label">Estimate retrieved</div><div class="st-value">${fmtLocalDateTime(wt.retrieved_at)}</div>
+      <div class="st-sub">${age} ago</div>
+      <div class="st-sub"><a href="${source}" target="_blank" rel="noopener noreferrer">View source</a></div></div>`;
+}
+
+function renderMeteoSwissForecast(d){
+  const forecast = d.meteoswiss_local_forecast || {};
+  const hoursEl = document.getElementById('meteoswissForecastHours');
+  const metaEl = document.getElementById('meteoswissForecastMeta');
+  const future = (forecast.hours || []).filter(row => new Date(row.time).getTime() >= Date.now()-30*60000).slice(0, 8);
+  if (!future.length){
+    hoursEl.innerHTML = '<div class="empty-state">No local MeteoSwiss forecast downloaded yet.</div>';
+    metaEl.textContent = '';
+    return;
+  }
+  hoursEl.innerHTML = future.map(row => {
+    const wind = row.wind_kmh != null ? (row.wind_kmh/1.852).toFixed(1) : '—';
+    const gust = row.gust_kmh != null ? (row.gust_kmh/1.852).toFixed(1) : '—';
+    const rain = row.precipitation_probability_pct != null ? `${Math.round(row.precipitation_probability_pct)}% rain` : 'rain —';
+    const direction = row.wind_direction_deg != null ? compassFromDegrees(row.wind_direction_deg) : '';
+    const time = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Zurich',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(row.time));
+    return `<div class="meteo-hour">
+      <div class="mh-time">${time}</div>
+      <div class="mh-temp">${row.temp_c != null ? row.temp_c.toFixed(1)+'°' : '—'}</div>
+      <div class="mh-detail">Wind ${wind} kt ${direction}</div>
+      <div class="mh-detail">Gust ${gust} kt</div>
+      <div class="mh-detail">${rain}</div>
+    </div>`;
+  }).join('');
+  const issued = fmtLocalDateTime(forecast.issued_at);
+  metaEl.innerHTML = `Issued ${issued} · <a href="${forecast.source_url}" target="_blank" rel="noopener noreferrer">MeteoSwiss source</a>`;
 }
 
 function renderLivePerformance(d){
@@ -1697,7 +1782,7 @@ async function init(){
   // Each section renders independently - one failing (e.g. Chart.js not
   // loading) must not blank out the others, especially today's forecast,
   // which is the page's actual headline answer.
-  for (const fn of [renderStatus, renderRetroCluster, renderTodayForecast, renderTomorrowForecast, renderDailySummary, renderSessionOutlook,
+  for (const fn of [renderStatus, renderRetroCluster, renderTodayForecast, renderTomorrowForecast, renderMeteoSwissForecast, renderDailySummary, renderSessionOutlook,
                      renderLakeWaterTemperature, renderLivePerformance, renderIngestionHealth, renderReferenceStations,
                      renderFrozenEvaluation,
                      renderOperationalAndRepro, renderAblation, renderVisuals, renderTimeline, renderMonthly, renderWeights]){
@@ -1710,8 +1795,81 @@ async function init(){
     (d.total_samples||0).toLocaleString() + ' labeled hours · Silvaplana / Val Bregaglia / Maloja Pass';
   document.body.classList.remove('booting');
 }
+
+function setLatestWind(row){
+  const number = (value, unit) => Number.isFinite(Number(value)) ? `${Number(value).toFixed(1).replace('.0','')} ${unit}` : '--';
+  document.getElementById('latestWindMean').textContent = number(Number(row.avg_wind_kmh)/1.852, 'kt');
+  document.getElementById('latestWindGust').textContent = number(Number(row.gust_kmh)/1.852, 'kt');
+  document.getElementById('latestWindDir').textContent = row.wind_dir_compass || (Number.isFinite(Number(row.wind_dir_deg)) ? `${row.wind_dir_deg}°` : '--');
+  document.getElementById('latestWindTemp').textContent = number(row.temp_c, '°C');
+  const stamp = row.observed_at ? fmtLocalDateTime(row.observed_at) : 'unknown time';
+  document.getElementById('latestWindTime').textContent = `Latest observation: ${stamp}`;
+}
+
+async function loadLatestWind(){
+  try{
+    const response = await fetch(`./api/latest-wind?v=${Date.now()}`, {cache:'no-store'});
+    if(!response.ok) throw new Error('No reading');
+    setLatestWind(await response.json());
+  }catch(e){
+    document.getElementById('latestWindTime').textContent = 'Latest observation is unavailable on this host.';
+  }
+}
+
+async function collectNow(){
+  const button = document.getElementById('lakeSampleBtn');
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.textContent = 'Collecting…';
+  try{
+    const response = await fetch('./api/collect', {method:'POST'});
+    if(!response.ok && response.status !== 409) throw new Error('Collection failed');
+    document.getElementById('latestWindTime').textContent = 'Collection started; reading the lake station…';
+    await new Promise(resolve => setTimeout(resolve, 12000));
+    await loadLatestWind();
+  }catch(e){
+    document.getElementById('latestWindTime').textContent = 'Collection is available from the local Mac dashboard only.';
+  }finally{
+    button.innerHTML = original;
+    button.disabled = false;
+  }
+}
+
+async function refreshForecastNow(){
+  const button = document.getElementById('forecastRefreshBtn');
+  const status = document.getElementById('forecastRefreshTip');
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.textContent = 'Refreshing forecast…';
+  status.textContent = 'Downloading fresh observations and rebuilding the forecast…';
+  try{
+    const response = await fetch('./api/refresh-forecast', {method:'POST'});
+    if(!response.ok && response.status !== 409) throw new Error('Forecast refresh failed to start');
+    const deadline = Date.now() + 120000;
+    while(Date.now() < deadline){
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const check = await fetch(`./api/forecast-status?v=${Date.now()}`, {cache:'no-store'});
+      if(!check.ok) continue;
+      const result = await check.json();
+      if(result.state === 'ok'){
+        status.textContent = 'Forecast refreshed with the newest available data.';
+        await init();
+        return;
+      }
+      if(result.state === 'failed') throw new Error(result.failed_script || 'Forecast refresh failed');
+    }
+    throw new Error('Forecast refresh timed out');
+  }catch(e){
+    status.textContent = 'Forecast refresh failed. The previous forecast is still available.';
+  }finally{
+    button.innerHTML = original;
+    button.disabled = false;
+  }
+}
 tickConsoleClock();
 setInterval(tickConsoleClock,1000);
+loadLatestWind();
+setInterval(loadLatestWind,60000);
 init();
 </script>
 
@@ -1729,6 +1887,7 @@ window.__FALLBACK__ = {
   lake_station_health:{}, summit_station_health:{}, verification_sources:{},
   station_nowcast_status:{}, lake_water_temperature:{},
   reference_stations:{}, ground_truth_policy:{}, station_agreement:{}, latest_sia_observation:{},
+  latest_samedan_observation:{}, meteoswiss_local_forecast:{},
 };
 </script>
 </body>

@@ -27,7 +27,10 @@ PLAUSIBLE_RANGES = {
     "wind_direction_deg": (0.0, 360.0),
     "precipitation_mm": (0.0, 300.0),
     "sunshine_duration_min": (0.0, 60.0),
-    "global_radiation_wm2": (0.0, 1400.0),
+    # Pyranometers can report a small negative dark offset overnight.  The
+    # Corvatsch archive contains normal readings down to -8 W/m², so reserve
+    # the flag for values below -10 while retaining the physical upper guard.
+    "global_radiation_wm2": (-10.0, 1400.0),
 }
 
 STALE_ARCHIVE_DAYS = 30

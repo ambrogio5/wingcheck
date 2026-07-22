@@ -30,6 +30,14 @@ class ValidateRecordTests(unittest.TestCase):
         flags = dq.validate_record(_rec("2026-07-01T06:00:00+00:00", pressure_sea_level_hpa=1500.0))
         self.assertIn("implausible_pressure_sea_level_hpa", flags)
 
+    def test_small_nighttime_radiation_offset_is_allowed(self):
+        flags = dq.validate_record(_rec("2026-07-01T00:00:00+00:00", global_radiation_wm2=-8.0))
+        self.assertNotIn("implausible_global_radiation_wm2", flags)
+
+    def test_large_negative_radiation_is_flagged(self):
+        flags = dq.validate_record(_rec("2026-07-01T00:00:00+00:00", global_radiation_wm2=-20.0))
+        self.assertIn("implausible_global_radiation_wm2", flags)
+
     def test_negative_wind_speed_flagged(self):
         flags = dq.validate_record(_rec("2026-07-01T06:00:00+00:00", wind_speed_ms=-5.0))
         self.assertIn("negative_wind_speed", flags)

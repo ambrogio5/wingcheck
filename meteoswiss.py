@@ -46,11 +46,20 @@ def _recent_url(station: str) -> str:
     return f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station}/ogd-smn_{station}_h_recent.csv"
 
 
+def _now_url(station: str) -> str:
+    """Provisional current-day hourly observations (the freshest asset)."""
+    return f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station}/ogd-smn_{station}_h_now.csv"
+
+
 def _recent_url_10min(station: str) -> str:
     """The 10-minute ('_t_') recent file, same host/naming family as the
     hourly '_h_' recent file above - confirmed by the real uploaded SIA
     files (ogd-smn_sia_t_recent.csv). Used by fetch_station_raw_10min."""
     return f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station}/ogd-smn_{station}_t_recent.csv"
+
+
+def _now_url_10min(station: str) -> str:
+    return f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station}/ogd-smn_{station}_t_now.csv"
 
 
 def fetch_station_raw_10min(station: str, column_codes) -> dict:
@@ -65,22 +74,25 @@ def fetch_station_raw_10min(station: str, column_codes) -> dict:
     invents a value - a column absent from the header, or an unparseable
     cell, is None for that tick. Raises on network/HTTP failure; callers
     that must stay best-effort catch it (candidate_signals.py does)."""
-    r = requests.get(_recent_url_10min(station), timeout=120)
-    r.raise_for_status()
-    text = r.content.decode("utf-8", errors="replace")
-    reader = csv.DictReader(io.StringIO(text), delimiter=";")
     wanted = [c.lower() for c in column_codes]
     out = {}
-    for row in reader:
-        row = {k.lower(): v for k, v in row.items()}
-        ts_raw = row.get("reference_timestamp") or row.get("time")
-        if not ts_raw:
-            continue
-        try:
-            dt = datetime.strptime(ts_raw.strip(), "%d.%m.%Y %H:%M").replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
-        out[dt] = {code: _safe_float(row.get(code)) for code in wanted}
+    # Quality-controlled recent history first, provisional current-day data
+    # second so the fresh value wins if MeteoSwiss publishes an overlap.
+    for url in (_recent_url_10min(station), _now_url_10min(station)):
+        r = requests.get(url, timeout=120)
+        r.raise_for_status()
+        text = r.content.decode("utf-8", errors="replace")
+        reader = csv.DictReader(io.StringIO(text), delimiter=";")
+        for row in reader:
+            row = {k.lower(): v for k, v in row.items()}
+            ts_raw = row.get("reference_timestamp") or row.get("time")
+            if not ts_raw:
+                continue
+            try:
+                dt = datetime.strptime(ts_raw.strip(), "%d.%m.%Y %H:%M").replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            out[dt] = {code: _safe_float(row.get(code)) for code in wanted}
     return out
 
 
@@ -154,19 +166,28 @@ def _discover_hourly_urls(station: str) -> list:
         # hourly granularity files look like ogd-smn_<station>_h*.csv
         if f"_{station}_h" in lname and lname.endswith(".csv"):
             urls.append(href)
-    # historical files first so 'recent' overwrites overlaps last
-    urls.sort(key=lambda u: ("recent" in u, "now" in u, u))
+    # Historical -> quality-controlled recent -> provisional now. Later
+    # files overwrite overlaps, so today's live observations always win.
+    def priority(url):
+        if "_now.csv" in url:
+            return 2
+        if "_recent.csv" in url:
+            return 1
+        return 0
+    urls.sort(key=lambda u: (priority(u), u))
     return urls
 
 
 def _fetch_station_observations(station: str, parser, include_historical: bool) -> dict:
     recent_url = _recent_url(station)
     if not include_historical:
-        try:
-            return _fetch_csv(recent_url, parser)
-        except requests.RequestException as e:
-            print(f"[warn] could not fetch {station} recent data: {e}")
-            return {}
+        obs = {}
+        for url in (recent_url, _now_url(station)):
+            try:
+                obs.update(_fetch_csv(url, parser))
+            except requests.RequestException as e:
+                print(f"[warn] could not fetch {url}: {e}")
+        return obs
 
     obs = {}
     try:
@@ -195,8 +216,8 @@ def fetch_sam_hourly_observations(include_historical: bool = True) -> dict:
     (SAM) - the model's ground-truth fallback (see kitesailing_weather.py
     for the primary one) and, via features.py, a wind nowcast feature.
 
-    include_historical=False: just the rolling recent file (fast, used by
-    the daily verification job).
+    include_historical=False: rolling recent history plus the provisional
+    current-day ``now`` file (fast, used by operational forecast jobs).
     include_historical=True: everything the catalog lists (used by the
     backtest to cover 2024+)."""
     return _fetch_station_observations("sam", _parse_wind_csv, include_historical)
@@ -437,7 +458,7 @@ def fetch_station_observations(station_id: str, include_historical: bool = True,
      "confirmed_columns": [...], "unconfirmed_columns": [...],
      "source_assets": [urls actually fetched], "parser_version": ...}."""
     recent_url = _recent_url(station_id)
-    urls = [recent_url]
+    urls = [recent_url, _now_url(station_id)]
     if include_historical:
         try:
             urls = _discover_hourly_urls(station_id)
@@ -478,4 +499,47 @@ def fetch_station_observations(station_id: str, include_historical: bool = True,
         "unconfirmed_columns": sorted(unconfirmed_columns),
         "source_assets": source_assets,
         "parser_version": PARSER_VERSION,
+    }
+
+
+def fetch_station_observations_10min(station_id: str, variables=None) -> dict:
+    """Fetch the rolling and provisional 10-minute station products.
+
+    This is intended for current-condition display and short-lived research
+    signals, not as a replacement for the completed hourly observations used
+    by the production forecast model. The provisional ``now`` asset is read
+    last and therefore wins on overlapping timestamps.
+    """
+    urls = [_recent_url_10min(station_id), _now_url_10min(station_id)]
+    merged_obs = {}
+    raw_column_map = {}
+    units = {}
+    confirmed_columns = set()
+    unconfirmed_columns = set()
+    source_assets = []
+    for url in urls:
+        try:
+            response = requests.get(url, timeout=120)
+            response.raise_for_status()
+            text = response.content.decode("utf-8", errors="replace")
+        except requests.RequestException as exc:
+            print(f"[warn] could not fetch {url}: {exc}")
+            continue
+        result = parse_generic_station_csv_10min(text, requested_variables=variables)
+        merged_obs.update(result["observations"])
+        raw_column_map.update(result["raw_column_map"])
+        units.update(result["units"])
+        confirmed_columns.update(result["confirmed_columns"])
+        unconfirmed_columns.update(result["unconfirmed_columns"])
+        source_assets.append(url)
+    return {
+        "observations": merged_obs,
+        "raw_column_map": raw_column_map,
+        "units": units,
+        "confirmed_columns": sorted(confirmed_columns),
+        "unconfirmed_columns": sorted(unconfirmed_columns),
+        "source_assets": source_assets,
+        "parser_version": PARSER_VERSION,
+        "quality_status": "provisional_live",
+        "resolution_minutes": 10,
     }

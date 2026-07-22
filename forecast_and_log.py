@@ -341,6 +341,9 @@ def format_message(results):
 
 def send_telegram(message: str):
     import requests
+    if os.environ.get("WINGCHECK_SKIP_TELEGRAM") == "1":
+        print("[info] Telegram report suppressed for manual dashboard refresh.")
+        return
     if not BOT_TOKEN or not CHAT_ID:
         print("[warn] TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set — printing instead:\n")
         print(message)

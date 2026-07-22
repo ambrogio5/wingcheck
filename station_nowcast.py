@@ -1,7 +1,7 @@
 """
 station_nowcast.py - lightweight, OPERATIONAL live station nowcast.
 
-Fetches only the recent tail (NEVER a historical discovery/backfill) for
+Fetches only the recent + provisional current-day tails (NEVER a historical discovery/backfill) for
 every enabled live station (sam, lug, sma, cov, and any future addition),
 normalizes it exactly the way historical_data.py does (reusing its
 normalize_wind_observations/normalize_pressure_observations/
@@ -36,6 +36,7 @@ OUTPUT_PATH = os.path.join(BASE_DIR, "logs", "current_station_observations.json"
 # Bounded lookback - enough for a 3h trend and a "since local midnight"
 # morning window even on an early-morning run, never "decades of history."
 LOOKBACK_HOURS = 30
+DISPLAY_10MIN_STATIONS = {"sia", "sam"}
 
 
 def _fetch_normalized_recent(station):
@@ -52,14 +53,14 @@ def _fetch_normalized_recent(station):
         import meteoswiss
         if kind == "wind":
             obs = meteoswiss.fetch_sam_hourly_observations(include_historical=False)
-            records = hd.normalize_wind_observations(station, obs, "meteoswiss:sam:recent", retrieved_at)
+            records = hd.normalize_wind_observations(station, obs, "meteoswiss:sam:recent+now", retrieved_at)
         elif kind == "pressure":
             obs = meteoswiss.fetch_pressure_observations(station.station_id, include_historical=False)
-            source = f"meteoswiss:{station.station_id}:recent"
+            source = f"meteoswiss:{station.station_id}:recent+now"
             records = hd.normalize_pressure_observations(station, obs, source, retrieved_at)
         else:
             result = meteoswiss.fetch_station_observations(station.station_id, include_historical=False)
-            source = f"meteoswiss:{station.station_id}:recent"
+            source = f"meteoswiss:{station.station_id}:recent+now"
             records = hd.normalize_generic_observations(station, result["observations"], source, retrieved_at)
     except Exception as e:
         flags.append(f"fetch_failed:{e}")
@@ -74,6 +75,28 @@ def _bound_to_lookback(records, now=None):
     cutoff = now - timedelta(hours=LOOKBACK_HOURS)
     bounded = [r for r in records if datetime.fromisoformat(r["timestamp_utc"]) >= cutoff]
     return sorted(bounded, key=lambda r: r["timestamp_utc"])
+
+
+def _fetch_latest_display_observation(station):
+    """Newest provisional 10-minute observation for dashboard display."""
+    if station.station_id not in DISPLAY_10MIN_STATIONS:
+        return None, None
+    retrieved_at = datetime.now(timezone.utc).isoformat()
+    try:
+        import meteoswiss
+        result = meteoswiss.fetch_station_observations_10min(station.station_id)
+        records = hd.normalize_generic_observations(
+            station, result["observations"],
+            f"meteoswiss:{station.station_id}:10min:recent+now", retrieved_at)
+    except Exception:
+        return None, None
+    if not records:
+        return None, None
+    return max(records, key=lambda row: row["timestamp_utc"]), {
+        "quality_status": result["quality_status"],
+        "resolution_minutes": result["resolution_minutes"],
+        "source_assets": result["source_assets"],
+    }
 
 
 def build_snapshot(station_ids=None, registry=None, now=None) -> dict:
@@ -92,6 +115,7 @@ def build_snapshot(station_ids=None, registry=None, now=None) -> dict:
             continue
         records, flags = _fetch_normalized_recent(station)
         bounded = _bound_to_lookback(records, now)
+        latest_display, display_metadata = _fetch_latest_display_observation(station)
         latest_available_at = bounded[-1]["timestamp_utc"] if bounded else None
         age_minutes = None
         if latest_available_at:
@@ -106,6 +130,8 @@ def build_snapshot(station_ids=None, registry=None, now=None) -> dict:
             "latest_available_at": latest_available_at,
             "age_minutes": age_minutes,
             "quality_flags": flags,
+            "latest_display_observation": latest_display,
+            "display_observation_metadata": display_metadata,
         }
 
     return {"generated_at": now.isoformat(), "stations": stations_out}

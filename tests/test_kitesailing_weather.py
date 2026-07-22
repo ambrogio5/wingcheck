@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import kitesailing_weather as kw
 
 
-TODAY_TEXT = "20.5°C Windspitzen 25.0 km/h (13.5 kn)"
+TODAY_TEXT = "Tuesday, 21.7.2026 (19:50:00) 20.5°C Windspitzen 25.0 km/h (13.5 kn)"
 DETAILS_TEXT = (
     "Feuchtigkeit: 55% Luftdruck: 950.5 hPa "
     "Windrichtung: SW (225.0°) Mittelwind: 15.0 km/h (4 Bft)"
@@ -35,13 +35,13 @@ class CollectionWindowTests(unittest.TestCase):
         self.assertTrue(kw.is_within_collection_window(now_utc))
 
     def test_summer_before_window_excluded(self):
-        # 07:00 UTC -> 09:00 CEST is exactly the start; 06:59 UTC -> 08:59 CEST is before it
-        now_utc = datetime(2026, 7, 16, 6, 59, tzinfo=timezone.utc)
+        # 03:00 UTC -> 05:00 CEST is exactly the start; 02:59 UTC is before it.
+        now_utc = datetime(2026, 7, 16, 2, 59, tzinfo=timezone.utc)
         self.assertFalse(kw.is_within_collection_window(now_utc))
 
     def test_summer_after_window_excluded(self):
-        # 19:00 CEST = 17:00 UTC is the end; 17:01 UTC -> 19:01 CEST is after it
-        now_utc = datetime(2026, 7, 16, 17, 1, tzinfo=timezone.utc)
+        # 21:45 CEST = 19:45 UTC is the end; one minute later is excluded.
+        now_utc = datetime(2026, 7, 16, 19, 46, tzinfo=timezone.utc)
         self.assertFalse(kw.is_within_collection_window(now_utc))
 
     def test_winter_midday_is_within_window(self):
@@ -56,7 +56,7 @@ class CollectionWindowTests(unittest.TestCase):
         summer = datetime(2026, 7, 16, 10, 0, tzinfo=timezone.utc)
         winter = datetime(2026, 1, 16, 10, 0, tzinfo=timezone.utc)
         self.assertTrue(kw.is_within_collection_window(summer))
-        self.assertTrue(kw.is_within_collection_window(winter))  # 11:00 CET, still within 09:00-19:00
+        self.assertTrue(kw.is_within_collection_window(winter))
 
 
 class PriorityWindowTests(unittest.TestCase):
@@ -102,18 +102,26 @@ class ParseReadingTests(unittest.TestCase):
         self.assertEqual(reading["humidity_pct"], 55.0)
         self.assertEqual(reading["pressure_hpa"], 950.5)
 
-    def test_retrieved_at_and_observed_at_match_and_source_observed_at_is_none(self):
+    def test_published_timestamp_is_canonical_observation_time(self):
         retrieved_at = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
         reading = kw._parse_reading(TODAY_TEXT, DETAILS_TEXT, retrieved_at)
         self.assertEqual(reading["retrieved_at"], retrieved_at.isoformat())
-        self.assertEqual(reading["observed_at"], retrieved_at.isoformat())
-        self.assertIsNone(reading["source_observed_at"])
+        self.assertEqual(reading["observed_at"], "2026-07-21T17:50:00+00:00")
+        self.assertEqual(reading["source_observed_at"], "2026-07-21T17:50:00+00:00")
+        self.assertEqual(reading["source_url"], kw.URL)
+
+    def test_german_northeast_compass_is_normalized(self):
+        details = DETAILS_TEXT.replace("SW (225.0°)", "NO (45°)")
+        reading = kw._parse_reading(TODAY_TEXT, details, datetime.now(timezone.utc))
+        self.assertEqual(reading["wind_dir_compass"], "NE")
+        self.assertEqual(reading["wind_dir_compass_raw"], "NO")
 
     def test_in_priority_window_flag_set_correctly(self):
-        inside = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)  # 14:00 CEST
-        outside = datetime(2026, 7, 16, 5, 0, tzinfo=timezone.utc)  # 07:00 CEST
-        self.assertTrue(kw._parse_reading(TODAY_TEXT, DETAILS_TEXT, inside)["in_priority_window"])
-        self.assertFalse(kw._parse_reading(TODAY_TEXT, DETAILS_TEXT, outside)["in_priority_window"])
+        inside_text = TODAY_TEXT.replace("19:50:00", "14:00:00")
+        outside_text = TODAY_TEXT.replace("19:50:00", "07:00:00")
+        retrieved = datetime(2026, 7, 21, 18, 0, tzinfo=timezone.utc)
+        self.assertTrue(kw._parse_reading(inside_text, DETAILS_TEXT, retrieved)["in_priority_window"])
+        self.assertFalse(kw._parse_reading(outside_text, DETAILS_TEXT, retrieved)["in_priority_window"])
 
     def test_missing_field_raises_value_error(self):
         broken_details = "Feuchtigkeit: 55% Luftdruck: 950.5 hPa"  # no direction, no avg wind
@@ -159,8 +167,7 @@ class DuplicateAndHealthLogTests(unittest.TestCase):
         self.assertFalse(kw._is_duplicate_reading(second))
 
     def test_timestamps_excluded_from_dedup_comparison(self):
-        # Confirms retrieved_at/observed_at/source_observed_at are NOT in
-        # _DEDUP_FIELDS - two readings differing only in timestamps must
+        # Confirms timestamps are NOT in _DEDUP_FIELDS - two readings differing only in timestamps must
         # still be treated as duplicates.
         for f in ("retrieved_at", "observed_at", "source_observed_at"):
             self.assertNotIn(f, kw._DEDUP_FIELDS)
