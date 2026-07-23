@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-22T21:43:02.687509+00:00",
+  "generated_at": "2026-07-23T12:01:26.790622+00:00",
   "total_samples": 3164,
   "samples_per_year": {
     "2024": 1288,
@@ -379,116 +379,148 @@
   },
   "upcoming_forecast": [
     {
-      "target_time": "2026-07-23T12:00",
-      "probability": 0.294,
+      "target_time": "2026-07-23T15:00",
+      "probability": 0.544,
       "tier": "UNLIKELY",
-      "model_wind_kt": 4.2,
-      "model_gust_kt": 10.7,
-      "model_wind_dir": "NE"
-    },
-    {
-      "target_time": "2026-07-23T13:00",
-      "probability": 0.341,
-      "tier": "UNLIKELY",
-      "model_wind_kt": 4.3,
-      "model_gust_kt": 10.1,
+      "model_wind_kt": 6.2,
+      "model_gust_kt": 15.2,
       "model_wind_dir": "N"
     },
     {
-      "target_time": "2026-07-23T14:00",
-      "probability": 0.48,
-      "tier": "UNLIKELY",
-      "model_wind_kt": 6.3,
-      "model_gust_kt": 14.0,
-      "model_wind_dir": "NE"
-    },
-    {
-      "target_time": "2026-07-23T15:00",
-      "probability": 0.547,
-      "tier": "UNLIKELY",
-      "model_wind_kt": 6.5,
-      "model_gust_kt": 15.2,
-      "model_wind_dir": "NE"
-    },
-    {
       "target_time": "2026-07-23T16:00",
-      "probability": 0.595,
+      "probability": 0.606,
       "tier": "UNLIKELY",
-      "model_wind_kt": 7.1,
-      "model_gust_kt": 15.9,
-      "model_wind_dir": "NE"
+      "model_wind_kt": 6.4,
+      "model_gust_kt": 15.0,
+      "model_wind_dir": "N"
     },
     {
       "target_time": "2026-07-23T17:00",
-      "probability": 0.691,
+      "probability": 0.684,
       "tier": "MARGINAL",
-      "model_wind_kt": 8.4,
-      "model_gust_kt": 17.5,
+      "model_wind_kt": 8.5,
+      "model_gust_kt": 17.9,
       "model_wind_dir": "NE"
     },
     {
       "target_time": "2026-07-23T18:00",
-      "probability": 0.574,
+      "probability": 0.619,
       "tier": "UNLIKELY",
-      "model_wind_kt": 7.3,
-      "model_gust_kt": 16.9,
-      "model_wind_dir": "NE"
-    },
-    {
-      "target_time": "2026-07-24T12:00",
-      "probability": 0.057,
-      "tier": "UNLIKELY",
-      "model_wind_kt": 2.5,
-      "model_gust_kt": 9.7,
+      "model_wind_kt": 7.8,
+      "model_gust_kt": 18.1,
       "model_wind_dir": "N"
     },
     {
-      "target_time": "2026-07-24T13:00",
-      "probability": 0.095,
+      "target_time": "2026-07-24T12:00",
+      "probability": 0.161,
       "tier": "UNLIKELY",
-      "model_wind_kt": 2.9,
-      "model_gust_kt": 9.0,
-      "model_wind_dir": "NW"
+      "model_wind_kt": 3.7,
+      "model_gust_kt": 8.7,
+      "model_wind_dir": "E"
+    },
+    {
+      "target_time": "2026-07-24T13:00",
+      "probability": 0.28,
+      "tier": "UNLIKELY",
+      "model_wind_kt": 4.4,
+      "model_gust_kt": 10.5,
+      "model_wind_dir": "E"
     },
     {
       "target_time": "2026-07-24T14:00",
-      "probability": 0.16,
+      "probability": 0.397,
       "tier": "UNLIKELY",
-      "model_wind_kt": 3.5,
-      "model_gust_kt": 8.4,
-      "model_wind_dir": "NW"
+      "model_wind_kt": 4.6,
+      "model_gust_kt": 11.4,
+      "model_wind_dir": "NE"
     },
     {
       "target_time": "2026-07-24T15:00",
-      "probability": 0.235,
+      "probability": 0.496,
       "tier": "UNLIKELY",
-      "model_wind_kt": 4.0,
-      "model_gust_kt": 9.0,
-      "model_wind_dir": "NW"
+      "model_wind_kt": 4.6,
+      "model_gust_kt": 10.3,
+      "model_wind_dir": "NE"
     },
     {
       "target_time": "2026-07-24T16:00",
-      "probability": 0.348,
+      "probability": 0.577,
       "tier": "UNLIKELY",
-      "model_wind_kt": 4.4,
-      "model_gust_kt": 9.3,
-      "model_wind_dir": "NW"
+      "model_wind_kt": 4.6,
+      "model_gust_kt": 9.5,
+      "model_wind_dir": "NE"
     },
     {
       "target_time": "2026-07-24T17:00",
-      "probability": 0.461,
+      "probability": 0.605,
       "tier": "UNLIKELY",
-      "model_wind_kt": 5.7,
-      "model_gust_kt": 11.1,
-      "model_wind_dir": "NW"
+      "model_wind_kt": 4.7,
+      "model_gust_kt": 7.8,
+      "model_wind_dir": "NE"
     },
     {
       "target_time": "2026-07-24T18:00",
-      "probability": 0.421,
+      "probability": 0.522,
       "tier": "UNLIKELY",
-      "model_wind_kt": 5.4,
-      "model_gust_kt": 11.4,
-      "model_wind_dir": "NW"
+      "model_wind_kt": 5.0,
+      "model_gust_kt": 7.4,
+      "model_wind_dir": "NE"
+    },
+    {
+      "target_time": "2026-07-25T12:00",
+      "probability": 0.814,
+      "tier": "GOOD",
+      "model_wind_kt": 5.2,
+      "model_gust_kt": 10.9,
+      "model_wind_dir": "SW"
+    },
+    {
+      "target_time": "2026-07-25T13:00",
+      "probability": 0.742,
+      "tier": "MARGINAL",
+      "model_wind_kt": 6.0,
+      "model_gust_kt": 15.8,
+      "model_wind_dir": "SW"
+    },
+    {
+      "target_time": "2026-07-25T14:00",
+      "probability": 0.89,
+      "tier": "GOOD",
+      "model_wind_kt": 7.1,
+      "model_gust_kt": 15.8,
+      "model_wind_dir": "SW"
+    },
+    {
+      "target_time": "2026-07-25T15:00",
+      "probability": 0.887,
+      "tier": "GOOD",
+      "model_wind_kt": 7.6,
+      "model_gust_kt": 18.3,
+      "model_wind_dir": "SW"
+    },
+    {
+      "target_time": "2026-07-25T16:00",
+      "probability": 0.583,
+      "tier": "UNLIKELY",
+      "model_wind_kt": 4.2,
+      "model_gust_kt": 24.9,
+      "model_wind_dir": "SW"
+    },
+    {
+      "target_time": "2026-07-25T17:00",
+      "probability": 0.831,
+      "tier": "GOOD",
+      "model_wind_kt": 7.6,
+      "model_gust_kt": 18.5,
+      "model_wind_dir": "SW"
+    },
+    {
+      "target_time": "2026-07-25T18:00",
+      "probability": 0.35,
+      "tier": "UNLIKELY",
+      "model_wind_kt": 5.0,
+      "model_gust_kt": 16.3,
+      "model_wind_dir": "SW"
     }
   ],
   "final_weights": {
@@ -25932,115 +25964,6 @@
     }
   ],
   "daily_diagnostics": {
-    "2026-07-22": {
-      "source_heating": {
-        "score": 0.0,
-        "status": "missing",
-        "raw_values": {},
-        "sources": [],
-        "explanation_key": "source_heating_missing_station_data",
-        "missing": true
-      },
-      "pass_activation": {
-        "score": 0.0,
-        "status": "missing",
-        "raw_values": {},
-        "sources": [],
-        "explanation_key": "pass_activation_missing_station_data",
-        "missing": true
-      },
-      "summit_support": {
-        "status": "neutral",
-        "raw_values": {
-          "latest_wind_speed_ms": 2.694444444444444,
-          "morning_mean_wind_ms": 2.44,
-          "morning_max_gust_ms": 4.89,
-          "wind_direction_deg": 63.0,
-          "wind_direction_sin": 0.8910065241883678,
-          "wind_direction_cos": 0.4539904997395468,
-          "sw_alignment_score": 0.0,
-          "northerly_opposition_score": 0.4539904997395468,
-          "easterly_opposition_score": 0.8910065241883679,
-          "wind_speed_trend_1h_ms": 0.5,
-          "wind_speed_trend_3h_ms": null,
-          "temperature_c": -1.1,
-          "samedan_temperature_diff_c": null,
-          "samedan_wind_vector_shear_ms": null,
-          "coverage": 0.182,
-          "missing_indicator": 0.0
-        },
-        "thresholds": {
-          "weak_max_ms": 3.0,
-          "supportive_min_ms": 3.0,
-          "supportive_max_ms": 12.0,
-          "excessive_min_ms": 18.0,
-          "sw_alignment_center_deg": 225.0,
-          "northerly_center_deg": 0.0,
-          "easterly_center_deg": 90.0,
-          "opposition_alignment_threshold": 0.5
-        },
-        "explanation_key": "summit_wind_neutral",
-        "source_station": "cov",
-        "observed_at": null,
-        "age_minutes": 752.8
-      },
-      "radiation_support": {
-        "score": 0.0,
-        "status": "missing",
-        "raw_values": {},
-        "sources": [],
-        "explanation_key": "radiation_support_missing_station_data",
-        "missing": true
-      },
-      "pressure_support": {
-        "score": 0.1,
-        "status": "unfavourable",
-        "raw_values": {
-          "observed_gradient_hpa": -5.8,
-          "forecast_pressure_signal": 0.45059523809523566
-        },
-        "sources": [
-          "synoptic_pressure"
-        ],
-        "explanation_key": "pressure_support_unfavourable",
-        "missing": false
-      },
-      "competing_flow": {
-        "score": 0.0,
-        "status": "missing",
-        "raw_values": {},
-        "sources": [],
-        "explanation_key": "competing_flow_missing_data",
-        "missing": true
-      },
-      "data_health": {
-        "score": 0.0,
-        "status": "critical",
-        "raw_values": {
-          "n_stations": 6,
-          "n_missing": 1,
-          "mean_coverage": 0.152,
-          "per_station_coverage": {
-            "sam": 0.182,
-            "sia": 0.182,
-            "lug": 0.182,
-            "sma": 0.182,
-            "cov": 0.182,
-            "sils": 0.0
-          }
-        },
-        "sources": [
-          "sam",
-          "sia",
-          "lug",
-          "sma",
-          "cov",
-          "sils"
-        ],
-        "explanation_key": "data_health_critical",
-        "missing": false
-      }
-    },
     "2026-07-23": {
       "source_heating": {
         "score": 0.0,
@@ -26061,21 +25984,21 @@
       "summit_support": {
         "status": "neutral",
         "raw_values": {
-          "latest_wind_speed_ms": 2.694444444444444,
-          "morning_mean_wind_ms": 2.44,
-          "morning_max_gust_ms": 4.89,
-          "wind_direction_deg": 63.0,
-          "wind_direction_sin": 0.8910065241883678,
-          "wind_direction_cos": 0.4539904997395468,
+          "latest_wind_speed_ms": 1.3888888888888888,
+          "morning_mean_wind_ms": 5.14,
+          "morning_max_gust_ms": 11.5,
+          "wind_direction_deg": 319.0,
+          "wind_direction_sin": -0.6560590289905074,
+          "wind_direction_cos": 0.7547095802227719,
           "sw_alignment_score": 0.0,
-          "northerly_opposition_score": 0.4539904997395468,
-          "easterly_opposition_score": 0.8910065241883679,
-          "wind_speed_trend_1h_ms": 0.5,
-          "wind_speed_trend_3h_ms": null,
-          "temperature_c": -1.1,
+          "northerly_opposition_score": 0.754709580222772,
+          "easterly_opposition_score": 0.0,
+          "wind_speed_trend_1h_ms": -2.42,
+          "wind_speed_trend_3h_ms": -4.31,
+          "temperature_c": 0.3,
           "samedan_temperature_diff_c": null,
           "samedan_wind_vector_shear_ms": null,
-          "coverage": 0.182,
+          "coverage": 0.909,
           "missing_indicator": 0.0
         },
         "thresholds": {
@@ -26091,7 +26014,7 @@
         "explanation_key": "summit_wind_neutral",
         "source_station": "cov",
         "observed_at": null,
-        "age_minutes": 752.8
+        "age_minutes": 61.4
       },
       "radiation_support": {
         "score": 0.0,
@@ -26105,8 +26028,8 @@
         "score": 0.1,
         "status": "unfavourable",
         "raw_values": {
-          "observed_gradient_hpa": -5.8,
-          "forecast_pressure_signal": 0.45059523809523566
+          "observed_gradient_hpa": -3.8,
+          "forecast_pressure_signal": 0.1922619047619072
         },
         "sources": [
           "synoptic_pressure"
@@ -26123,18 +26046,18 @@
         "missing": true
       },
       "data_health": {
-        "score": 0.0,
-        "status": "critical",
+        "score": 0.5,
+        "status": "degraded",
         "raw_values": {
           "n_stations": 6,
           "n_missing": 1,
-          "mean_coverage": 0.152,
+          "mean_coverage": 0.757,
           "per_station_coverage": {
-            "sam": 0.182,
-            "sia": 0.182,
-            "lug": 0.182,
-            "sma": 0.182,
-            "cov": 0.182,
+            "sam": 0.909,
+            "sia": 0.909,
+            "lug": 0.909,
+            "sma": 0.909,
+            "cov": 0.909,
             "sils": 0.0
           }
         },
@@ -26146,7 +26069,7 @@
           "cov",
           "sils"
         ],
-        "explanation_key": "data_health_critical",
+        "explanation_key": "data_health_degraded",
         "missing": false
       }
     },
@@ -26170,21 +26093,21 @@
       "summit_support": {
         "status": "neutral",
         "raw_values": {
-          "latest_wind_speed_ms": 2.694444444444444,
-          "morning_mean_wind_ms": 2.44,
-          "morning_max_gust_ms": 4.89,
-          "wind_direction_deg": 63.0,
-          "wind_direction_sin": 0.8910065241883678,
-          "wind_direction_cos": 0.4539904997395468,
+          "latest_wind_speed_ms": 1.3888888888888888,
+          "morning_mean_wind_ms": 5.14,
+          "morning_max_gust_ms": 11.5,
+          "wind_direction_deg": 319.0,
+          "wind_direction_sin": -0.6560590289905074,
+          "wind_direction_cos": 0.7547095802227719,
           "sw_alignment_score": 0.0,
-          "northerly_opposition_score": 0.4539904997395468,
-          "easterly_opposition_score": 0.8910065241883679,
-          "wind_speed_trend_1h_ms": 0.5,
-          "wind_speed_trend_3h_ms": null,
-          "temperature_c": -1.1,
+          "northerly_opposition_score": 0.754709580222772,
+          "easterly_opposition_score": 0.0,
+          "wind_speed_trend_1h_ms": -2.42,
+          "wind_speed_trend_3h_ms": -4.31,
+          "temperature_c": 0.3,
           "samedan_temperature_diff_c": null,
           "samedan_wind_vector_shear_ms": null,
-          "coverage": 0.182,
+          "coverage": 0.909,
           "missing_indicator": 0.0
         },
         "thresholds": {
@@ -26200,7 +26123,7 @@
         "explanation_key": "summit_wind_neutral",
         "source_station": "cov",
         "observed_at": null,
-        "age_minutes": 752.8
+        "age_minutes": 61.4
       },
       "radiation_support": {
         "score": 0.0,
@@ -26214,8 +26137,8 @@
         "score": 0.1,
         "status": "unfavourable",
         "raw_values": {
-          "observed_gradient_hpa": -5.8,
-          "forecast_pressure_signal": 0.45059523809523566
+          "observed_gradient_hpa": -3.8,
+          "forecast_pressure_signal": 0.1922619047619072
         },
         "sources": [
           "synoptic_pressure"
@@ -26232,18 +26155,18 @@
         "missing": true
       },
       "data_health": {
-        "score": 0.0,
-        "status": "critical",
+        "score": 0.5,
+        "status": "degraded",
         "raw_values": {
           "n_stations": 6,
           "n_missing": 1,
-          "mean_coverage": 0.152,
+          "mean_coverage": 0.757,
           "per_station_coverage": {
-            "sam": 0.182,
-            "sia": 0.182,
-            "lug": 0.182,
-            "sma": 0.182,
-            "cov": 0.182,
+            "sam": 0.909,
+            "sia": 0.909,
+            "lug": 0.909,
+            "sma": 0.909,
+            "cov": 0.909,
             "sils": 0.0
           }
         },
@@ -26255,45 +26178,137 @@
           "cov",
           "sils"
         ],
-        "explanation_key": "data_health_critical",
+        "explanation_key": "data_health_degraded",
+        "missing": false
+      }
+    },
+    "2026-07-25": {
+      "source_heating": {
+        "score": 0.0,
+        "status": "missing",
+        "raw_values": {},
+        "sources": [],
+        "explanation_key": "source_heating_missing_station_data",
+        "missing": true
+      },
+      "pass_activation": {
+        "score": 0.0,
+        "status": "missing",
+        "raw_values": {},
+        "sources": [],
+        "explanation_key": "pass_activation_missing_station_data",
+        "missing": true
+      },
+      "summit_support": {
+        "status": "neutral",
+        "raw_values": {
+          "latest_wind_speed_ms": 1.3888888888888888,
+          "morning_mean_wind_ms": 5.14,
+          "morning_max_gust_ms": 11.5,
+          "wind_direction_deg": 319.0,
+          "wind_direction_sin": -0.6560590289905074,
+          "wind_direction_cos": 0.7547095802227719,
+          "sw_alignment_score": 0.0,
+          "northerly_opposition_score": 0.754709580222772,
+          "easterly_opposition_score": 0.0,
+          "wind_speed_trend_1h_ms": -2.42,
+          "wind_speed_trend_3h_ms": -4.31,
+          "temperature_c": 0.3,
+          "samedan_temperature_diff_c": null,
+          "samedan_wind_vector_shear_ms": null,
+          "coverage": 0.909,
+          "missing_indicator": 0.0
+        },
+        "thresholds": {
+          "weak_max_ms": 3.0,
+          "supportive_min_ms": 3.0,
+          "supportive_max_ms": 12.0,
+          "excessive_min_ms": 18.0,
+          "sw_alignment_center_deg": 225.0,
+          "northerly_center_deg": 0.0,
+          "easterly_center_deg": 90.0,
+          "opposition_alignment_threshold": 0.5
+        },
+        "explanation_key": "summit_wind_neutral",
+        "source_station": "cov",
+        "observed_at": null,
+        "age_minutes": 61.4
+      },
+      "radiation_support": {
+        "score": 0.0,
+        "status": "missing",
+        "raw_values": {},
+        "sources": [],
+        "explanation_key": "radiation_support_missing_station_data",
+        "missing": true
+      },
+      "pressure_support": {
+        "score": 0.1,
+        "status": "unfavourable",
+        "raw_values": {
+          "observed_gradient_hpa": -3.8,
+          "forecast_pressure_signal": 0.1922619047619072
+        },
+        "sources": [
+          "synoptic_pressure"
+        ],
+        "explanation_key": "pressure_support_unfavourable",
+        "missing": false
+      },
+      "competing_flow": {
+        "score": 0.0,
+        "status": "missing",
+        "raw_values": {},
+        "sources": [],
+        "explanation_key": "competing_flow_missing_data",
+        "missing": true
+      },
+      "data_health": {
+        "score": 0.5,
+        "status": "degraded",
+        "raw_values": {
+          "n_stations": 6,
+          "n_missing": 1,
+          "mean_coverage": 0.757,
+          "per_station_coverage": {
+            "sam": 0.909,
+            "sia": 0.909,
+            "lug": 0.909,
+            "sma": 0.909,
+            "cov": 0.909,
+            "sils": 0.0
+          }
+        },
+        "sources": [
+          "sam",
+          "sia",
+          "lug",
+          "sma",
+          "cov",
+          "sils"
+        ],
+        "explanation_key": "data_health_degraded",
         "missing": false
       }
     }
   },
   "session_forecast": {
-    "2026-07-22": {
-      "likely_onset_start": null,
-      "likely_onset_end": null,
-      "best_window_start": null,
-      "best_window_end": null,
-      "peak_hour": "2026-07-22T15:00",
-      "expected_wind_min_kt": 2.1,
-      "expected_wind_max_kt": 4.7,
-      "expected_gust_min_kt": 8.5,
-      "expected_gust_max_kt": 10.7,
-      "expected_rideable_hours": 0,
-      "likely_decline_time": null,
-      "event_probability": 0.489,
-      "timing_confidence": "medium",
-      "strength_confidence": "low",
-      "model_agreement": 0.8719047619047618
-    },
     "2026-07-23": {
       "likely_onset_start": "2026-07-23T17:00",
       "likely_onset_end": "2026-07-23T18:00",
       "best_window_start": "2026-07-23T17:00",
       "best_window_end": "2026-07-23T17:00",
       "peak_hour": "2026-07-23T17:00",
-      "expected_wind_min_kt": 8.4,
-      "expected_wind_max_kt": 8.4,
-      "expected_gust_min_kt": 17.5,
-      "expected_gust_max_kt": 17.5,
+      "expected_wind_min_kt": 8.5,
+      "expected_wind_max_kt": 8.5,
+      "expected_gust_min_kt": 17.9,
+      "expected_gust_max_kt": 17.9,
       "expected_rideable_hours": 1,
       "likely_decline_time": "2026-07-23T17:00",
-      "event_probability": 0.691,
+      "event_probability": 0.684,
       "timing_confidence": "medium",
-      "strength_confidence": "low",
-      "model_agreement": 0.8719047619047618
+      "strength_confidence": "medium",
+      "model_agreement": 0.8647619047619047
     },
     "2026-07-24": {
       "likely_onset_start": null,
@@ -26301,32 +26316,49 @@
       "best_window_start": null,
       "best_window_end": null,
       "peak_hour": "2026-07-24T17:00",
-      "expected_wind_min_kt": 2.5,
-      "expected_wind_max_kt": 5.7,
-      "expected_gust_min_kt": 8.4,
+      "expected_wind_min_kt": 3.7,
+      "expected_wind_max_kt": 5.0,
+      "expected_gust_min_kt": 7.4,
       "expected_gust_max_kt": 11.4,
       "expected_rideable_hours": 0,
       "likely_decline_time": null,
-      "event_probability": 0.461,
+      "event_probability": 0.605,
       "timing_confidence": "medium",
-      "strength_confidence": "low",
-      "model_agreement": 0.8719047619047618
+      "strength_confidence": "medium",
+      "model_agreement": 0.8647619047619047
+    },
+    "2026-07-25": {
+      "likely_onset_start": "2026-07-25T12:00",
+      "likely_onset_end": "2026-07-25T13:00",
+      "best_window_start": "2026-07-25T12:00",
+      "best_window_end": "2026-07-25T15:00",
+      "peak_hour": "2026-07-25T14:00",
+      "expected_wind_min_kt": 5.2,
+      "expected_wind_max_kt": 7.6,
+      "expected_gust_min_kt": 10.9,
+      "expected_gust_max_kt": 18.5,
+      "expected_rideable_hours": 5,
+      "likely_decline_time": "2026-07-25T17:00",
+      "event_probability": 0.89,
+      "timing_confidence": "medium",
+      "strength_confidence": "medium",
+      "model_agreement": 0.8647619047619047
     }
   },
   "station_health": {
     "data_health": {
-      "score": 0.0,
-      "status": "critical",
+      "score": 0.5,
+      "status": "degraded",
       "raw_values": {
         "n_stations": 6,
         "n_missing": 1,
-        "mean_coverage": 0.152,
+        "mean_coverage": 0.757,
         "per_station_coverage": {
-          "sam": 0.182,
-          "sia": 0.182,
-          "lug": 0.182,
-          "sma": 0.182,
-          "cov": 0.182,
+          "sam": 0.909,
+          "sia": 0.909,
+          "lug": 0.909,
+          "sma": 0.909,
+          "cov": 0.909,
           "sils": 0.0
         }
       },
@@ -26338,15 +26370,15 @@
         "cov",
         "sils"
       ],
-      "explanation_key": "data_health_critical",
+      "explanation_key": "data_health_degraded",
       "missing": false
     },
     "station_input_age_minutes": {
-      "sam": 752.8,
-      "sia": 752.8,
-      "lug": 752.8,
-      "sma": 752.8,
-      "cov": 752.8,
+      "sam": 61.4,
+      "sia": 61.4,
+      "lug": 61.4,
+      "sma": 61.4,
+      "cov": 61.4,
       "sils": null
     },
     "station_quality_flags": [
@@ -26357,31 +26389,31 @@
     ]
   },
   "model_agreement": {
-    "2026-07-22": 0.8719047619047618,
-    "2026-07-23": 0.8719047619047618,
-    "2026-07-24": 0.8719047619047618
+    "2026-07-23": 0.8647619047619047,
+    "2026-07-24": 0.8647619047619047,
+    "2026-07-25": 0.8647619047619047
   },
   "data_provenance": {
-    "issued_at": "2026-07-22T11:32:48.416980+00:00",
-    "commit_sha": "1962ba01ed874d8563b2540b3d1a9ad47ea8c923",
+    "issued_at": "2026-07-23T12:01:26.088203+00:00",
+    "commit_sha": "f340815dd2d26d434811b050e4bea57d3356d0a0",
     "model_version": 3,
     "feature_schema_version": 3,
     "calibration_version": "uncalibrated-v1",
     "raw_payload_checksums": {
-      "open_meteo": "d477f393c742457d0f6081bfbdd1e892c92064d8b2cf3ce3a11a2f6559817316"
+      "open_meteo": "02ca5fea0c84f384876faa70e7985076979340e04dc5e9e55731ec05b455d4ca"
     }
   },
   "lake_station_health": {
-    "last_attempt_at": "2026-07-22T15:53:30.754145+00:00",
-    "last_success_at": "2026-07-22T15:53:30.754145+00:00",
-    "last_observation_at": "2026-07-22T15:53:30.754145+00:00",
-    "age_minutes": 349.5,
-    "observations_today": 2,
-    "successful_attempts_today": 2,
+    "last_attempt_at": "2026-07-23T09:15:03.198050+00:00",
+    "last_success_at": "2026-07-23T09:15:03.198050+00:00",
+    "last_observation_at": "2026-07-23T08:50:00+00:00",
+    "age_minutes": 191.4,
+    "observations_today": 1,
+    "successful_attempts_today": 1,
     "failed_attempts_today": 0,
-    "coverage_12_18": 0.154,
+    "coverage_12_18": 0.0,
     "expected_collection_count": 13,
-    "actual_collection_count": 2,
+    "actual_collection_count": 0,
     "consecutive_failures": 0,
     "failure_categories": {
       "navigation_error:BrowserType.launch: Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell\n\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n\u2551 Looks like Playwright was just installed or updated.       \u2551\n\u2551 Please run the following command to download new browsers: \u2551\n\u2551                                                            \u2551\n\u2551     playwright install                                     \u2551\n\u2551                                                            \u2551\n\u2551 <3 Playwright Team                                         \u2551\n\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d": 1,
@@ -26393,22 +26425,22 @@
   "summit_station_health": {
     "cov": {
       "last_observation_at": null,
-      "age_minutes": 752.8,
-      "coverage": 0.182,
+      "age_minutes": 61.4,
+      "coverage": 0.909,
       "quality_flags": [],
-      "wind_speed": 2.694444444444444,
-      "gust": 4.89,
-      "direction": 63.0,
-      "temperature": -1.1,
+      "wind_speed": 1.3888888888888888,
+      "gust": 11.5,
+      "direction": 319.0,
+      "temperature": 0.3,
       "source_assets": [
-        "meteoswiss:cov:recent"
+        "meteoswiss:cov:recent+now"
       ],
       "reporting_delay_minutes": 15
     }
   },
   "station_nowcast_status": {
     "snapshot_used": true,
-    "issued_at": "2026-07-22T11:32:48.416980+00:00"
+    "issued_at": "2026-07-23T12:01:26.088203+00:00"
   },
   "verification_sources": {
     "silvaplana_lake_count": 7,
@@ -26417,7 +26449,7 @@
     "samedan_fallback_count": 7,
     "lake_coverage_pct": 0.167,
     "sia_coverage_pct": 0.667,
-    "unmatched_count": 0
+    "unmatched_count": 28
   },
   "lake_water_temperature": {
     "temp_c": null,
@@ -26441,9 +26473,9 @@
       "role": "principal near-lake historical reference",
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 108216,
+      "n_records": 108250,
       "data_start": "2014-03-18T00:00:00+00:00",
-      "data_end": "2026-07-21T23:00:00+00:00",
+      "data_end": "2026-07-23T09:00:00+00:00",
       "n_records_10min": 34840
     },
     "sils": {
@@ -26461,9 +26493,9 @@
       "role": "contextual down-valley station (no longer the default label)",
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 399312,
+      "n_records": 399346,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-21T23:00:00+00:00",
+      "data_end": "2026-07-23T09:00:00+00:00",
       "n_records_10min": 0
     },
     "cov": {
@@ -26471,9 +26503,9 @@
       "role": "summit / competing-flow predictor",
       "enabled": true,
       "verification": "confirmed",
-      "n_records": 398948,
+      "n_records": 398972,
       "data_start": "1981-01-01T00:00:00+00:00",
-      "data_end": "2026-07-22T09:00:00+00:00",
+      "data_end": "2026-07-23T09:00:00+00:00",
       "n_records_10min": 0
     }
   },
@@ -26497,13 +26529,26 @@
     "n_pairs": 8
   },
   "latest_sia_observation": {
-    "observed_at": "2026-07-18T07:00:00+00:00",
-    "wind_kt": 7.0,
+    "observed_at": "2026-07-23T11:40:00+00:00",
+    "observed_at_local": "2026-07-23T13:40:00+02:00",
+    "wind_kt": 8.0,
     "station": "Segl-Maria (SIA)",
-    "gust_kt": 11.9,
+    "quality_status": "provisional_live",
+    "resolution_minutes": 10,
+    "gust_kt": 20.6,
     "wind_dir": "NE",
-    "temp_c": 13.1
+    "temp_c": 16.6
   },
-  "latest_samedan_observation": {},
+  "latest_samedan_observation": {
+    "observed_at": "2026-07-23T11:40:00+00:00",
+    "observed_at_local": "2026-07-23T13:40:00+02:00",
+    "wind_kt": 9.0,
+    "station": "Samedan (SAM)",
+    "quality_status": "provisional_live",
+    "resolution_minutes": 10,
+    "gust_kt": 17.5,
+    "wind_dir": "NW",
+    "temp_c": 16.9
+  },
   "meteoswiss_local_forecast": {}
 }
